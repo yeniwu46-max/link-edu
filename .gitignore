@@ -6,6 +6,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.classroom.example
 .DS_Store
 Thumbs.db
 *.log
