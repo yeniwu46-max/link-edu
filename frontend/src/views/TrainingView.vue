@@ -61,6 +61,8 @@
       <div v-else class="train-setup">
         <GlassSurface class="train-setup__card" :radius="32">
           <p class="train-setup__kicker">开始上台</p>
+          <router-link to="/classroom" class="primary train-cta" style="display:inline-flex;margin-bottom:16px">进入真实 AI 课堂 · 分数的初步认识 →</router-link>
+          <p class="dock-hint">以下为原演示/规则训练入口，不包含真实语音互动；真实课堂请使用上方入口。</p>
           <h2>选阶段练习，或直接上完整课</h2>
           <SkillPills :items="modePills" v-model="mode" />
           <SkillPills

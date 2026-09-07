@@ -1,5 +1,6 @@
 <template>
   <div class="sparse-page review-page">
+    <p style="padding:14px;background:#edf3fc;border-radius:12px;color:#405b7f">此页为历史演示 / 规则评分，不与真实课堂分数比较。<router-link to="/classroom">查看真实课堂与证据报告 →</router-link></p>
     <header class="page-head growth-head">
       <div>
         <p class="shiny-kicker">AI REVIEW</p>

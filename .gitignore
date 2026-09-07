@@ -21,3 +21,4 @@ backend/instance/
 backend/private/
 .pytest_cache/
 artifacts/private/
+frontend/public/models/

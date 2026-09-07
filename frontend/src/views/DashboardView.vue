@@ -34,7 +34,7 @@
       </section>
 
       <section class="glass feedback" v-if="aiFeedback" role="button" @click="openPanel('feedback')">
-        <h3>AI 反馈摘要</h3>
+        <h3>反馈摘要 · 演示 / 规则评分</h3>
         <div class="score">{{ aiFeedback.overall_score }}</div>
         <ul>
           <li v-for="item in (aiFeedback.dimensions || []).slice(0, 3)" :key="item.key">
@@ -57,7 +57,7 @@
       </section>
 
       <section class="glass growth" role="button" @click="openPanel('growth')">
-        <h3>成长轨迹</h3>
+        <h3>成长轨迹 · 历史演示</h3>
         <div class="chart">
           <i v-for="(score, index) in growthTrajectory" :key="index" :style="{ height: `${score}%` }">
             <b>{{ score }}</b>

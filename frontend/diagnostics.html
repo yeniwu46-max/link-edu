@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LINK 本地动作诊断（合成测试）</title>
+  </head>
+  <body
+    style="
+      font-family: system-ui;
+      background: #f3f6fc;
+      color: #234;
+      padding: 30px;
+    "
+  >
+    <h1>本地动作诊断</h1>
+    <p>只用合成空白画面，不打开摄像头、不调用云服务、不写入课堂报告。</p>
+    <button id="test-pose" style="padding: 12px">
+      测试 Worker / 本地模型 / 空白画面
+    </button>
+    <pre id="result" role="status">尚未运行</pre>
+    <script type="module" src="/src/diagnostics.js"></script>
+  </body>
+</html>

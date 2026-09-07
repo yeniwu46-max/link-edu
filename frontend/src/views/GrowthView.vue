@@ -1,5 +1,6 @@
 <template>
   <div class="sparse-page">
+    <p style="padding:14px;background:#edf3fc;border-radius:12px;color:#405b7f">以下轨迹保留旧演示 / 规则评分。真实 AI 课堂按证据覆盖评价，不与此分数直接比较。<router-link to="/classroom">查看真实课堂记录 →</router-link></p>
     <header class="page-head growth-head">
       <div>
         <p class="shiny-kicker">TRAJECTORY</p>
