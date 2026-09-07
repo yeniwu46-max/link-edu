@@ -88,14 +88,19 @@ class LiveClassroom:
         transcripts = [e for e in self.history if e['type'] == 'transcript']
         self.content_seconds = sum(e['data'].get('speech_seconds', 0) for e in transcripts)
         self.input_version = len(transcripts)
+        self.asked_input_version = self.input_version if questions and (not transcripts or questions[-1]['at_ms'] >= transcripts[-1]['at_ms']) else -1
         # On reconnect, don't answer an already handled final transcript again.
         self.last_eval_key = (self.input_version, self.can_ask()) if transcripts else None
 
     def can_ask(self):
-        return self.content_seconds >= 20 and proactive_allowed(self.elapsed(), self.last_question, self.question_count, bool(self.last_final))
+        return self.input_version > self.asked_input_version and self.content_seconds >= 20 and proactive_allowed(self.elapsed(), self.last_question, self.question_count, bool(self.last_final))
 
     def evaluation_key(self):
         return self.input_version, self.can_ask()
+
+    def needs_evaluation(self):
+        current = self.evaluation_key()
+        return self.last_eval_key is None or current[0] != self.last_eval_key[0] or (current[1] and not self.last_eval_key[1])
 
     def elapsed(self):
         return max(0, (datetime.utcnow() - self.start).total_seconds())
@@ -380,6 +385,7 @@ class LiveClassroom:
                     return
                 self.last_question = self.elapsed()
                 self.question_count += 1
+                self.asked_input_version = self.input_version
                 self.record('question', {'student_id': sid, 'text': str(output.get('text', ''))[:180]})
                 self.emit('raise', student_id=sid)
             self.pending = output
@@ -438,7 +444,7 @@ class LiveClassroom:
                     if self.pending and not self.teacher_speaking and now - self.last_voice >= 2 and not self.speaking:
                         self.start_reply(self.pending)
                     elif self.asr and self.last_final and not self.busy and not self.speaking and not self.pending:
-                        if not self.teacher_speaking and now - self.last_voice >= 0.35 and self.elapsed() - self.last_eval >= 0.5 and self.evaluation_key() != self.last_eval_key:
+                        if not self.teacher_speaking and now - self.last_voice >= 0.35 and self.elapsed() - self.last_eval >= 0.5 and self.needs_evaluation():
                             self.last_eval = self.elapsed()
                             self.generate()
                     if self.speaking and now - self.reply_started > 35:

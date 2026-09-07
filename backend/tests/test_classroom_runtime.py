@@ -83,6 +83,14 @@ def test_image_consent_and_limits(app):
     obj.vision('invalid')
     assert not obj.vision_busy
 
+def test_proactive_cooldown_falling_edge_does_not_repeat_old_teacher_turn(app):
+    obj=live(app); obj.last_final='平均分两份'; obj.content_seconds=21
+    obj.last_eval_key=obj.evaluation_key()
+    obj.dispatch('decision',(obj.revision,None,True,{'action':'raise','student_id':'ming','text':'老师，平均分两份是什么意思？'}))
+    assert not obj.can_ask() and not obj.needs_evaluation()
+    obj.last_question=-100
+    assert not obj.can_ask()  # no second question without new teaching content
+
 def test_evidence_and_report_cross_account_rejected(app):
     obj=live(app)
     db.session.add(User(id=2,account='second',name='test',password_hash='unused'));db.session.commit()
