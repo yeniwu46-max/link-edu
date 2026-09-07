@@ -5,6 +5,7 @@ from config import Config
 from extensions import db, jwt
 from routes import auth_bp, content_bp, dashboard_bp
 from seed import ensure_demo_catalog, seed_if_empty
+import classroom_models
 
 
 def create_app(config_class=Config):

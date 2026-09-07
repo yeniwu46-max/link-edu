@@ -17,3 +17,6 @@ coverage/
 backend/link.db
 backend/*.db
 backend/instance/
+backend/private/
+.pytest_cache/
+artifacts/private/
