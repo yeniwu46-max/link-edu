@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 from config import Config
@@ -21,6 +21,15 @@ def create_app(config_class=Config):
     app.register_blueprint(content_bp)
     from classroom_routes import register_classroom
     register_classroom(app)
+
+    @app.before_request
+    def classroom_single_process():
+        if not app.config.get('TESTING'):
+            from services.classroom_locks import claim_server
+            try:
+                claim_server()
+            except ValueError as error:
+                return jsonify(message=str(error)), 503
 
     return app
 
@@ -67,5 +76,7 @@ def init_db():
 
 
 if __name__ == '__main__':
+    from services.classroom_locks import claim_server
+    claim_server()
     init_db()
     app.run(host='127.0.0.1', port=5000, debug=False)

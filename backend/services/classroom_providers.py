@@ -30,6 +30,9 @@ def model(service):
 
 def chat(system, payload, session_id=None, image=None, max_tokens=600):
     token = key('DEEPSEEK_API_KEY')
+    endpoint = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com').rstrip('/')
+    if not endpoint.startswith('https://'):
+        raise ProviderError('DeepSeek端点必须使用HTTPS，本次未发送密钥')
     content = json.dumps(payload, ensure_ascii=False)
     input_price = price('AI_LLM_INPUT_CNY_PER_MILLION')
     output_price = price('AI_LLM_OUTPUT_CNY_PER_MILLION')
@@ -41,7 +44,7 @@ def chat(system, payload, session_id=None, image=None, max_tokens=600):
         content = [{'type': 'text', 'text': content},
                    {'type': 'image_url', 'image_url': {'url': image}}]
     try:
-        response = httpx.post(os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com').rstrip('/') + '/chat/completions',
+        response = httpx.post(endpoint + '/chat/completions',
             headers={'Authorization': f'Bearer {token}'}, timeout=45,
             json={'model': model('vision' if image else 'dialogue'),
                   'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': content}],
@@ -59,8 +62,10 @@ def chat(system, payload, session_id=None, image=None, max_tokens=600):
         return output
     except ProviderError:
         raise
-    except (httpx.HTTPError, ValueError, KeyError, IndexError):
-        raise ProviderError('DeepSeek 超时或返回格式无效，请重试') from None
+    except httpx.HTTPError:
+        raise ProviderError('DeepSeek 网络请求失败或超时，请重试') from None
+    except (ValueError, KeyError, IndexError):
+        raise ProviderError('DeepSeek 返回JSON结构无效，请重试') from None
 
 
 class SpeechSocket:
@@ -74,6 +79,7 @@ class SpeechSocket:
                 header={'Authorization': f'Bearer {token}'}, timeout=12, enable_multithread=True)
             self.wait_for('session.created')
         except Exception:
+            self.close()
             raise ProviderError(f'百炼 {service} 连接失败，请检查同地域密钥、端点、权限和网络') from None
 
     def send(self, kind, **data):
@@ -110,11 +116,15 @@ class ASR(SpeechSocket):
         self.usage_id = reserve('asr', self.rate * 11, session_id)
         self.seconds = 0
         super().__init__('asr')
-        self.send('session.update', session={'input_audio_format': 'pcm', 'sample_rate': 16000,
-            'input_audio_transcription': {'language': 'zh'},
-            'turn_detection': {'type': 'server_vad', 'threshold': 0.2, 'silence_duration_ms': 600}})
-        self.wait_for('session.updated')
-        self.ws.settimeout(1)
+        try:
+            self.send('session.update', session={'input_audio_format': 'pcm', 'sample_rate': 16000,
+                'input_audio_transcription': {'language': 'zh'},
+                'turn_detection': {'type': 'server_vad', 'threshold': 0.2, 'silence_duration_ms': 600}})
+            self.wait_for('session.updated')
+            self.ws.settimeout(1)
+        except Exception:
+            self.close()
+            raise
 
     def audio(self, encoded):
         raw = base64.b64decode(encoded, validate=True)

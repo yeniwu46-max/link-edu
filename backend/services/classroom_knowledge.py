@@ -15,7 +15,7 @@ def documents():
 
 
 def search(query, limit=5):
-    docs = [d for d in documents() if d.get('text')]
+    docs = [d for d in documents() if d.get('text') and not any(word in d.get('title', '') for word in ('_中学', '_幼儿园', '网页资源链接'))]
     if not docs:
         return []
     tokens = [list(jieba.cut(d['title'] + ' ' + d['text'])) for d in docs]

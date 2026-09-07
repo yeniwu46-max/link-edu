@@ -2,6 +2,7 @@ import hashlib
 import os
 import secrets
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from flask import Blueprint, abort, current_app, jsonify, request, send_file
@@ -19,6 +20,25 @@ from services.classroom_reports import jobs, request_report
 bp = Blueprint('classroom', __name__, url_prefix='/api/classroom')
 probe_results = {}
 probe_lock = threading.Lock()
+probe_times = {}
+
+
+@bp.before_request
+def validate_body():
+    if request.method == 'POST':
+        if request.content_length and request.content_length > 8192:
+            return jsonify(message='请求内容过大'), 413
+        data = request.get_json(silent=True)
+        if data is not None and not isinstance(data, dict):
+            return jsonify(message='请求必须是JSON对象'), 400
+
+
+@bp.after_request
+def private_headers(response):
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    return response
 
 
 def owned(sid):
@@ -63,14 +83,24 @@ def probe():
         service = (request.get_json(silent=True) or {}).get('service')
         if service not in ('dialogue', 'vision', 'asr', 'tts'):
             return jsonify(message='未知服务'), 400
+        probe_key = (get_jwt_identity(), service)
+        if time.monotonic() - probe_times.get(probe_key, -30) < 30:
+            return jsonify(message='同一服务验证至少间隔30秒，避免重复付费'), 429
+        probe_times[probe_key] = time.monotonic()
         try:
             if service in ('dialogue', 'vision'):
-                import base64
                 image = None
                 if service == 'vision':
-                    # Tiny synthetic PNG, never a user's camera image.
-                    image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
-                chat('返回JSON对象，包含ok=true。', {'test': 'API smoke test'}, image=image, max_tokens=64)
+                    from services.classroom_fixtures import probe_image
+                    image = probe_image()
+                    answer = chat('Read the image. Return JSON with left_color and right_color, each one common English color name.',
+                                  {'test': 'synthetic two-color image'}, image=image, max_tokens=128)
+                    if answer.get('left_color', '').lower() != 'blue' or answer.get('right_color', '').lower() != 'pink':
+                        raise ValueError('视觉接口返回成功，但色块内容验证未通过')
+                else:
+                    answer = chat('返回JSON对象，包含ok=true。', {'test': 'API smoke test'}, max_tokens=128)
+                    if answer.get('ok') is not True:
+                        raise ValueError('对话接口返回成功，但JSON内容验证未通过')
             elif service == 'tts':
                 chunks = []
                 speak('老师好。', None, 'Cherry', lambda: False, lambda a: chunks.append(a))
@@ -172,7 +202,7 @@ def finish(sid):
     room = owned(sid)
     with active_lock:
         runtime = ACTIVE.get(sid)
-        if runtime:
+        if runtime and not runtime.closed.is_set():
             runtime.finish_requested = True
             return jsonify(state='draining'), 202
     if room.state == 'active':

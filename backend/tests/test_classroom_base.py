@@ -9,11 +9,13 @@ from services.classroom_budget import reserve, settle, status
 
 
 @pytest.fixture
-def app(monkeypatch):
+def app(monkeypatch, tmp_path):
     monkeypatch.setenv('AI_PRICING_CONFIRMED', 'true')
     class Config:
         TESTING = True
-        SQLALCHEMY_DATABASE_URI = 'sqlite://'
+        # File-backed connections match the real threaded report worker. In-memory
+        # SQLite shares one connection and lets another thread roll back a test's transaction.
+        SQLALCHEMY_DATABASE_URI = f'sqlite:///{tmp_path / "test.db"}'
         SQLALCHEMY_TRACK_MODIFICATIONS = False
         JWT_SECRET_KEY = 'test-secret-at-least-thirty-two-characters'
     app = create_app(Config)

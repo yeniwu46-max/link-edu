@@ -1,9 +1,11 @@
 """Single-process reservation ledger. Unknown/failed requests retain their reserve."""
 import os
+import math
 import threading
-from sqlalchemy import func
+from sqlalchemy import func, select
 from extensions import db
 from classroom_models import ApiUsage
+from services.classroom_locks import budget_file_lock
 
 lock = threading.RLock()
 
@@ -17,28 +19,32 @@ def status():
 
 
 def reserve(service, amount, session_id=None):
-    if not status()['pricing_confirmed']:
+    if os.getenv('AI_PRICING_CONFIRMED', '').lower() != 'true':
         raise ValueError('请先核对云服务单价并配置 AI_PRICING_CONFIRMED=true')
-    with lock:
-        if amount <= 0 or status()['spent_and_reserved_cny'] + amount >= 90:
-            raise ValueError('调用预算已到停止阈值，本次未发起云请求')
-        row = ApiUsage(service=service, session_id=session_id, reserved_cny=amount)
-        db.session.add(row)
-        db.session.commit()
-        return row.id
+    with lock, budget_file_lock():
+        # A fresh transaction avoids a stale snapshot from the caller's earlier reads.
+        with db.engine.begin() as connection:
+            total = float(connection.execute(select(func.coalesce(func.sum(
+                func.coalesce(ApiUsage.charged_cny, ApiUsage.reserved_cny)), 0))).scalar())
+            if not math.isfinite(amount) or amount <= 0 or total + amount >= 90:
+                raise ValueError('调用预算已到停止阈值，本次未发起云请求')
+            result = connection.execute(ApiUsage.__table__.insert().values(
+                service=service, session_id=session_id, reserved_cny=amount))
+            return result.inserted_primary_key[0]
 
 
 def settle(usage_id, charge, units):
-    with lock:
-        row = db.session.get(ApiUsage, usage_id)
-        row.charged_cny = max(0, float(charge))
-        row.units = units
-        row.state = 'settled'
-        db.session.commit()
+    with lock, budget_file_lock():
+        with db.engine.begin() as connection:
+            connection.execute(ApiUsage.__table__.update().where(ApiUsage.id == usage_id).values(
+                charged_cny=max(0, float(charge)), units=units, state='settled'))
 
 
 def price(name):
-    value = float(os.getenv(name, '0'))
+    try:
+        value = float(os.getenv(name, '0'))
+    except ValueError:
+        raise ValueError(f'请配置有效单价 {name}') from None
     if not 0 < value < 10000:
         raise ValueError(f'请配置有效单价 {name}')
     return value

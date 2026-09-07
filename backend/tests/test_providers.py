@@ -19,3 +19,9 @@ def test_provider_http_error_redacted(app, monkeypatch):
     with pytest.raises(p.ProviderError, match='401') as error:
         p.chat('system', {})
     assert 'test-private-key' not in str(error.value)
+
+def test_insecure_endpoint_rejected_before_network_or_billing(app,monkeypatch):
+    monkeypatch.setenv('DEEPSEEK_API_KEY','test-private-key')
+    monkeypatch.setenv('DEEPSEEK_BASE_URL','http://example.invalid')
+    with pytest.raises(p.ProviderError,match='HTTPS'):
+        p.chat('test',{})
