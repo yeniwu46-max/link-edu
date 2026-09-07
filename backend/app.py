@@ -19,6 +19,8 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(content_bp)
+    from classroom_routes import register_classroom
+    register_classroom(app)
 
     return app
 

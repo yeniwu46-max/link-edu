@@ -1,0 +1,38 @@
+from datetime import datetime, timedelta
+from flask_jwt_extended import create_access_token
+from extensions import db
+from models import User
+from classroom_models import ClassroomTicket
+from classroom_routes import consume_ticket
+from services.classroom_runtime import proactive_allowed
+from test_classroom_base import app
+
+
+def headers(uid):
+    return {'Authorization': 'Bearer ' + create_access_token(identity=str(uid))}
+
+
+def test_ownership_and_single_use_ticket(app):
+    for i in (1, 2):
+        db.session.add(User(id=i, account=str(i), name='test', password_hash='not-used'))
+    db.session.commit()
+    client = app.test_client()
+    room = client.post('/api/classroom/sessions', headers=headers(1), json={'audio_consent': True}).json
+    sid = room['session_id']
+    assert client.get(f'/api/classroom/sessions/{sid}', headers=headers(2)).status_code == 404
+    assert client.post(f'/api/classroom/sessions/{sid}/ticket', headers=headers(2)).status_code == 404
+    token = client.post(f'/api/classroom/sessions/{sid}/ticket', headers=headers(1)).json['ticket']
+    assert consume_ticket(token).session_id == sid
+    assert consume_ticket(token) is None
+    token = client.post(f'/api/classroom/sessions/{sid}/ticket', headers=headers(1)).json['ticket']
+    ClassroomTicket.query.update({'expires_at': datetime.utcnow() - timedelta(seconds=1)})
+    db.session.commit()
+    assert consume_ticket(token) is None
+
+
+def test_proactive_limits():
+    assert not proactive_allowed(19, -45, 0, True)
+    assert not proactive_allowed(40, 0, 0, True)
+    assert proactive_allowed(60, 0, 0, True)
+    assert not proactive_allowed(600, 0, 6, True)
+    assert not proactive_allowed(600, 0, 0, False)
