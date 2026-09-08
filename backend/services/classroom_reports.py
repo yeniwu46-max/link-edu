@@ -19,6 +19,7 @@ REPORT_SYSTEM = (
     '每条判断引用实际发生的课堂事件；没有证据必须null；不要把动作推断成心理状态。'
     'at_ms是场次开始后的毫秒时间戳；看不清/无人/低置信度不是教态质量证据。'
     'student是生成的回复文字，不保证完整播放；结合playback和interrupt区分实际完成与打断。'
+    '未确认playback_completed或有失败/打断的学生文字，只能描述未完成交流，不能证明已完成互动。'
     '注意平均分与同一整体，考虑老师的自我纠错；教师异议须重新审查证据，不能直接加分。'
 )
 
@@ -31,6 +32,11 @@ def validate_report(raw, events, sources):
     if not isinstance(candidates, list) or not any(isinstance(i, dict) and i.get('key') in DIMENSIONS for i in candidates):
         raise ValueError('评课返回结构不完整，请重试；未生成替代评分')
     by_id = {e['id']: e for e in events}
+    completed = {e.get('data', {}).get('reply_id') for e in events
+                 if e['type'] == 'playback' and e.get('data', {}).get('status') == 'playback_completed'}
+    incomplete = {e.get('data', {}).get('reply_id') for e in events
+                  if e['type'] == 'interrupt' or (e['type'] == 'playback' and e.get('data', {}).get('status') == 'playback_failed')}
+    completed -= incomplete | {None, ''}
     source_ids = {s['id'] for s in sources}
     dims = []
     for key, label in DIMENSIONS.items():
@@ -43,7 +49,8 @@ def validate_report(raw, events, sources):
         if key == 'posture':
             evidence = [i for i in evidence if usable_visual(by_id[i])]
         else:
-            evidence = [i for i in evidence if by_id[i]['type'] in ('transcript', 'student', 'vision')]
+            evidence = [i for i in evidence if by_id[i]['type'] in ('transcript', 'vision') or
+                        (by_id[i]['type'] == 'student' and by_id[i].get('data', {}).get('reply_id') in completed)]
         score = item.get('score')
         score = round(score) if evidence and type(score) in (int, float) and 0 <= score <= 100 else None
         dims.append({'key': key, 'label': label, 'score': score,
