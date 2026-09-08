@@ -53,7 +53,11 @@ def describe(service):
     if service in ('dialogue', 'vision'):
         return {'provider': 'deepseek', 'model': bailian.model(service),
                 'configured': bool(os.getenv('DEEPSEEK_API_KEY', '').strip()), 'pricing_confirmed': True}
-    selected = provider()
+    try:
+        selected = provider()
+    except bailian.ProviderError as exc:
+        return {'provider':'invalid', 'model':'未选择', 'configured':False,
+                'pricing_confirmed':False, 'message':str(exc)}
     if selected == 'bailian':
         return {'provider': selected, 'model': bailian.model(service),
                 'configured': bool(os.getenv('DASHSCOPE_API_KEY', '').strip()), 'pricing_confirmed': True}

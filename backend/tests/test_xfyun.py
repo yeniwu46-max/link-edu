@@ -209,3 +209,30 @@ def test_tts_cancel_during_connect_releases_known_unused_reserve(credentials, mo
     monkeypatch.setattr(wire, 'connect', connect)
     speech.speak('不应发送', None, 'Cherry', lambda:cancelled[0], lambda *a:None)
     assert calls[0][1] == 0 and calls[0][2]['calls'] == 0
+
+
+def test_sender_cadence_does_not_accumulate_timer_or_send_overhead():
+    from services.xfyun_asr import next_deadline
+    deadline, now = 100.0, 100.0
+    for _ in range(1000):
+        now = max(now, deadline) + 0.007  # 7ms timer/send overhead per frame
+        deadline = next_deadline(deadline, now, 0.04)
+    assert abs(deadline - 140) < 0.001  # not147 seconds
+    assert next_deadline(100, 105, .04) == pytest.approx(104.84)
+
+
+def test_invalid_provider_reports_configuration_error_without_fallback(monkeypatch):
+    from services.classroom_speech import ASR, describe
+    monkeypatch.setenv('SPEECH_PROVIDER', 'not-a-provider')
+    assert describe('asr')['configured'] is False
+    with pytest.raises(ValueError, match='SPEECH_PROVIDER'):
+        ASR(None)
+
+
+def test_xfyun_missing_credential_does_not_fall_back_to_bailian(monkeypatch):
+    from services.classroom_speech import ASR
+    monkeypatch.setenv('SPEECH_PROVIDER', 'xfyun')
+    monkeypatch.setenv('DASHSCOPE_API_KEY', 'synthetic-unused-key')
+    monkeypatch.delenv('XFYUN_APP_ID', raising=False)
+    with pytest.raises(ValueError, match='XFYUN_APP_ID'):
+        ASR(None)

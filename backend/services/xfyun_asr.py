@@ -13,6 +13,12 @@ from services.xfyun_segments import Segmenter
 from services import xfyun_wire as wire
 
 
+def next_deadline(previous, now, duration):
+    # Fixed cadence avoids accumulating Windows timer overshoot / TLS send cost.
+    # After a slow connect, catch up at most 200ms rather than bursting seconds of PCM.
+    return max(previous, now - 0.2) + duration
+
+
 class ASR:
     def __init__(self, session_id):
         for name in ('XFYUN_APP_ID', 'XFYUN_API_KEY', 'XFYUN_API_SECRET'):
@@ -28,6 +34,7 @@ class ASR:
         self.failed = self.finished = False
         self.finish_sent_at = None
         self.input_bytes = 0
+        self.stats = {'sent_frames':0, 'sent_bytes':0, 'queue_peak':0, 'max_send_seconds':0}
         self.segmenter = Segmenter(self.enqueue, self.emit)
         self._thread(self._send)
 
@@ -63,6 +70,7 @@ class ASR:
             raise ProviderError('讯飞识别连接已关闭')
         try:
             self.commands.put_nowait(command)
+            self.stats['queue_peak'] = max(self.stats['queue_peak'], self.commands.qsize())
         except queue.Full:
             self.fail(ProviderError('识别发送积压超过10秒，已停止以避免字幕错位'))
             raise ProviderError('识别发送积压，请重新连接') from None
@@ -153,8 +161,12 @@ class ASR:
                 segment['seconds'] += len(raw)/32000
                 if kind == 'end':
                     segment['ended'] = time.monotonic()
+                send_started = time.monotonic()
                 segment['socket'].send(json.dumps(wire.asr_frame(raw, status, segment['seq'])))
-                next_send = time.monotonic() + len(raw)/32000
+                self.stats['sent_frames'] += 1
+                self.stats['sent_bytes'] += len(raw)
+                self.stats['max_send_seconds'] = max(self.stats['max_send_seconds'], time.monotonic()-send_started)
+                next_send = next_deadline(next_send, time.monotonic(), len(raw)/32000)
             elif kind == 'finish':
                 with self.lock:
                     self.finish_sent_at = time.monotonic()
