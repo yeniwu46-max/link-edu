@@ -27,14 +27,8 @@
           </li>
         </ul>
         <blockquote>{{ report.next_action || current.suggestion }}</blockquote>
-        <button type="button" class="ghost-link" @click="showCorrect = !showCorrect">校对不准，重新生成</button>
-        <div v-if="showCorrect" class="correct-box">
-          <label v-for="item in corrections" :key="item.id">
-            <input v-model="pickedNotes" type="checkbox" :value="item.id" />
-            {{ item.label }}
-          </label>
-          <button class="primary" type="button" @click="doRegenerate">按校正点重写</button>
-        </div>
+        <p>旧演示报告仅供查看，不再通过勾选固定加分。</p>
+        <router-link class="ghost-link" to="/classroom">前往真实课堂，基于证据提交评课异议 →</router-link>
       </section>
     </div>
 
@@ -95,7 +89,7 @@ import { BarChart, LineChart, RadarChart } from 'echarts/charts'
 import { GridComponent, RadarComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import SplitTitle from '../components/fx/SplitTitle.vue'
-import { fetchFeedbacks, regenerateFeedback } from '../services/dashboard'
+import { fetchFeedbacks } from '../services/dashboard'
 import { loadSettings } from '../utils/settings'
 
 use([CanvasRenderer, RadarChart, BarChart, LineChart, RadarComponent, GridComponent, TooltipComponent])
@@ -107,16 +101,6 @@ function syncDemoBadge() {
 }
 const items = ref([])
 const current = ref(null)
-const showCorrect = ref(false)
-const pickedNotes = ref([])
-const corrections = [
-  { id: 'pace_ok', label: '节奏其实正常，没有赶课' },
-  { id: 'waited', label: '提问后已经等够了' },
-  { id: 'had_interaction', label: '互动其实发生了' },
-  { id: 'board_clear', label: '板书分区是清楚的' },
-  { id: 'intro_enough', label: '导入并不短' },
-  { id: 'posture_ok', label: '教态没有背对学生' },
-]
 
 const report = computed(() => current.value?.report || {})
 const dimensions = computed(() => {
@@ -218,21 +202,6 @@ const lineOption = computed(() => {
     ],
   }
 })
-
-async function doRegenerate() {
-  if (!current.value?.id) return
-  try {
-    const next = await regenerateFeedback(current.value.id, pickedNotes.value)
-    current.value = next
-    items.value = items.value.map((item) => (item.id === next.id ? next : item))
-    showCorrect.value = false
-  } catch {
-    current.value = {
-      ...current.value,
-      suggestion: '已按校正点重写演示评分。',
-    }
-  }
-}
 
 onMounted(async () => {
   syncDemoBadge()

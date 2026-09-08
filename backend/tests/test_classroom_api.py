@@ -36,3 +36,19 @@ def test_proactive_limits():
     assert proactive_allowed(60, 0, 0, True)
     assert not proactive_allowed(600, 0, 6, True)
     assert not proactive_allowed(600, 0, 0, False)
+
+
+def test_legacy_correction_is_read_only_and_owned(app):
+    from models import AiFeedback
+    for i in (1, 2):
+        db.session.add(User(id=i, account=str(i), name='test', password_hash='unused'))
+    row = AiFeedback(user_id=1, overall_score=75, suggestion='原演示记录')
+    db.session.add(row)
+    db.session.commit()
+    client = app.test_client()
+    url = f'/api/feedbacks/{row.id}/regenerate'
+    assert client.post(url, headers=headers(2), json={}).status_code == 404
+    for _ in range(2):
+        assert client.post(url, headers=headers(1), json={'notes':['pace_ok']}).status_code == 409
+    db.session.refresh(row)
+    assert row.overall_score == 75 and row.suggestion == '原演示记录'

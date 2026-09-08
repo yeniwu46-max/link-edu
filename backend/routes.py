@@ -7,7 +7,7 @@ from models import User
 from services.dashboard import build_dashboard_overview, list_courses, list_resources
 from services.growth import build_growth, get_feedback, list_feedbacks
 from services.studio import CORRECTION_OPTIONS, add_journal, build_profile, list_journals, update_profile
-from services.training import complete_session, regenerate_feedback, start_session, update_session
+from services.training import complete_session, start_session, update_session
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
@@ -193,11 +193,9 @@ def regenerate_review(feedback_id):
     user = current_user()
     if not user:
         return jsonify(message='用户不存在'), 404
-    data = request.get_json(silent=True) or {}
-    row, error = regenerate_feedback(user, feedback_id, note_ids=data.get('notes') or [])
-    if error:
-        return jsonify(message=error), 404
-    return jsonify(feedback=row.to_dict(), options=CORRECTION_OPTIONS)
+    if not get_feedback(user, feedback_id):
+        return jsonify(message='评课不存在'), 404
+    return jsonify(message='旧演示报告已设为只读，不再固定加分。请在真实课堂中基于原始证据提交异议重评。'), 409
 
 
 @content_bp.get('/studio/corrections')
