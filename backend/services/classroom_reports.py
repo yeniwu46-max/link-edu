@@ -45,6 +45,8 @@ def validate_report(raw, events, sources):
         if not isinstance(event_ids, list) or not isinstance(refs, list):
             raise ValueError('评课证据引用格式无效，请重试')
         evidence = [i for i in event_ids if type(i) is int and i in by_id]
+        incomplete_speech = any(by_id[i]['type'] == 'student' and
+            by_id[i].get('data', {}).get('reply_id') not in completed for i in evidence)
         # Rubric citations alone are not evidence of what this teacher did.
         if key == 'posture':
             evidence = [i for i in evidence if usable_visual(by_id[i])]
@@ -52,9 +54,10 @@ def validate_report(raw, events, sources):
             evidence = [i for i in evidence if by_id[i]['type'] in ('transcript', 'vision') or
                         (by_id[i]['type'] == 'student' and by_id[i].get('data', {}).get('reply_id') in completed)]
         score = item.get('score')
-        score = round(score) if evidence and type(score) in (int, float) and 0 <= score <= 100 else None
+        score = round(score) if evidence and not incomplete_speech and type(score) in (int, float) and 0 <= score <= 100 else None
         dims.append({'key': key, 'label': label, 'score': score,
-                     'reason': str(item.get('reason', '证据不足'))[:1600] if evidence else '证据不足，暂不评分',
+                     'reason': ('引用包含未确认完整播放的学生文字，无法验证原结论，暂不评分；可携证据重评。'
+                                if incomplete_speech else str(item.get('reason', '证据不足'))[:1600] if evidence else '证据不足，暂不评分'),
                      'event_ids': evidence,
                      'source_ids': [i for i in refs if isinstance(i, str) and i in source_ids]})
     scored = [d['score'] for d in dims if d['score'] is not None]

@@ -20,3 +20,11 @@ def test_unconfirmed_student_speech_cannot_support_score(tail):
 
 def test_matching_completed_playback_can_support_score():
     assert evaluate([{'id':2,'type':'playback','data':{'reply_id':'r','status':'playback_completed'}}])['overall_score']==90
+
+
+def test_mixed_unconfirmed_student_evidence_does_not_preserve_unsupported_reason():
+    events=[{'id':1,'type':'student','data':{'reply_id':'unplayed'}},
+            {'id':2,'type':'transcript','data':{'text':'必须平均分'}}]
+    report=validate_report({'dimensions':[{'key':'interaction','score':90,
+        'reason':'学生完整回答并已理解','event_ids':[1,2]}]},events,[])
+    assert report['overall_score'] is None
