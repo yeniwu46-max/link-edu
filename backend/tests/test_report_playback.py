@@ -28,3 +28,6 @@ def test_mixed_unconfirmed_student_evidence_does_not_preserve_unsupported_reason
     report=validate_report({'dimensions':[{'key':'interaction','score':90,
         'reason':'学生完整回答并已理解','event_ids':[1,2]}]},events,[])
     assert report['overall_score'] is None
+    interaction=next(d for d in report['dimensions'] if d['key']=='interaction')
+    assert '未确认完整播放' in interaction['reason']
+    assert '学生完整回答并已理解' not in interaction['reason']
