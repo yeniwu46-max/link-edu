@@ -52,7 +52,7 @@ const active = computed(() =>
 const ready = computed(
   () =>
     ["dialogue", "asr", "tts"].every(
-      (k) => capabilities.value?.services[k].configured,
+      (k) => capabilities.value?.services[k].configured && capabilities.value?.services[k].pricing_confirmed,
     ) &&
     capabilities.value?.budget.pricing_confirmed &&
     !capabilities.value?.budget.stopped,
@@ -229,13 +229,14 @@ onBeforeRouteLeave(
           ><b :class="capabilities?.services[key].status">{{
             serviceStatus[capabilities?.services[key].status] || "读取中"
           }}</b
-          ><small>{{ capabilities?.services[key].model }}</small>
+          ><small>{{ capabilities?.services[key].provider }} · {{ capabilities?.services[key].model }}</small>
+          <small v-if="capabilities?.services[key].voices">音色：{{ Object.values(capabilities.services[key].voices).join(' / ') }}（权限以实际验证为准）</small>
           <p v-if="capabilities?.services[key].message">
             {{ capabilities.services[key].message }}
           </p>
           <button
             class="class-btn secondary"
-            :disabled="!!probing || !capabilities?.services[key].configured"
+            :disabled="!!probing || !capabilities?.services[key].configured || !capabilities?.services[key].pricing_confirmed"
             @click="probe(key)"
           >
             {{ probing === key ? "验证中…" : "验证接口" }}

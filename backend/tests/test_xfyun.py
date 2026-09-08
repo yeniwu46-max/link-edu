@@ -145,3 +145,35 @@ def test_out_of_order_segments_flush_in_order():
     asr.completed[1] = {'type':'final', 'item_id':'one'}
     asr._flush()
     assert events == [{'type':'final', 'item_id':'one'}, {'type':'final', 'item_id':'two'}, {'type':'finished'}]
+
+
+def test_capabilities_select_xfyun_without_bailian_and_hide_secrets(app, credentials, monkeypatch):
+    from models import User
+    from extensions import db
+    from test_classroom_api import headers
+    monkeypatch.setenv('SPEECH_PROVIDER', 'xfyun')
+    monkeypatch.delenv('DASHSCOPE_API_KEY', raising=False)
+    monkeypatch.setenv('XFYUN_TTS_VOICE', 'xiaoyan')
+    monkeypatch.setenv('XFYUN_PRICING_CONFIRMED', 'false')
+    db.session.add(User(id=1, account='test', name='test', password_hash='unused'))
+    db.session.commit()
+    result = app.test_client().get('/api/classroom/capabilities', headers=headers(1))
+    asr = result.json['services']['asr']
+    assert asr['configured'] and asr['provider'] == 'xfyun' and not asr['pricing_confirmed']
+    assert 'synthetic-test-value' not in result.text
+
+
+def test_bailian_normalization_does_not_change_final_identity():
+    from services.classroom_speech import normalize
+    event = normalize({'type':'conversation.item.input_audio_transcription.completed', 'item_id':'same','transcript':'平均分'})
+    assert event == {'type':'final','item_id':'same','transcript':'平均分'}
+
+
+def test_normalized_final_duration_and_audio_sample_rate(app):
+    from test_classroom_runtime import live
+    obj = live(app)
+    obj.handle_asr({'type':'final', 'item_id':'one', 'transcript':'平均分', 'speech_seconds':55})
+    assert obj.content_seconds == 55
+    obj.reply_id = 'current'
+    obj.dispatch('audio', {'reply_id':'current', 'audio':'AAAA', 'sample_rate':16000})
+    assert obj.ws.messages[-1]['sample_rate'] == 16000

@@ -13,7 +13,7 @@ from extensions import db
 from models import Course, TrainingSession, User
 from classroom_models import Classroom, ClassroomEvent, ClassroomTicket
 from services import classroom_budget as budget
-from services.classroom_providers import model
+from services.classroom_speech import describe, probe_asr, speak
 from services.classroom_runtime import ACTIVE, active_lock, LiveClassroom
 from services.classroom_reports import jobs, request_report
 
@@ -64,10 +64,10 @@ def serialize(room, include_events=False):
 def capabilities():
     services = {}
     for service in ('dialogue', 'vision', 'asr', 'tts'):
-        configured = bool(os.getenv('DEEPSEEK_API_KEY' if service in ('dialogue', 'vision') else 'DASHSCOPE_API_KEY', '').strip())
-        services[service] = {'model': model(service), 'configured': configured,
-            'status': probe_results.get(service, {}).get('status', 'unverified') if configured else 'unconfigured',
-            'message': probe_results.get(service, {}).get('message', '')}
+        info = describe(service)
+        services[service] = {**info,
+            'status': probe_results.get(service, {}).get('status', 'unverified') if info['configured'] else 'unconfigured',
+            'message': info.get('message') or probe_results.get(service, {}).get('message', '')}
     return jsonify(services=services, budget=budget.status(),
         pose_assets=(Path(current_app.root_path).parent / 'frontend/public/models/pose_landmarker_lite.task').exists())
 
@@ -76,7 +76,7 @@ def capabilities():
 @jwt_required()
 def probe():
     """Explicit, budgeted paid smoke tests; no silent cloud calls on page load."""
-    from services.classroom_providers import ASR, chat, speak
+    from services.classroom_providers import chat
     if not probe_lock.acquire(blocking=False):
         return jsonify(message='能力验证正在进行'), 409
     try:
@@ -103,18 +103,11 @@ def probe():
                         raise ValueError('对话接口返回成功，但JSON内容验证未通过')
             elif service == 'tts':
                 chunks = []
-                speak('老师好。', None, 'Cherry', lambda: False, lambda a: chunks.append(a))
+                speak('老师好。', None, 'Cherry', lambda: False, lambda a, rate: chunks.append(a))
                 if not chunks:
                     raise ValueError('没有收到合成音频')
             else:
-                asr = ASR(None)
-                try:
-                    asr.send('session.finish')
-                    asr.ws.settimeout(8)
-                    asr.wait_for('session.finished')
-                    asr.settle()
-                finally:
-                    asr.close()
+                probe_asr()
             probe_results[service] = {'status': 'available', 'message': '接口验证通过' if service != 'asr' else '会话握手通过；真实识别需麦克风验收'}
         except Exception as exc:
             probe_results[service] = {'status': 'failed', 'message': str(exc)[:160] if isinstance(exc, ValueError) else '接口验证失败，请检查配置与网络'}

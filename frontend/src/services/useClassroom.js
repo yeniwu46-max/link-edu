@@ -116,7 +116,10 @@ export function useClassroom() {
       }
       if (m.type === "raise") raised.value = m.student_id;
       if (m.type === "audio") audio?.chunk(m.reply_id, m.audio, m.sample_rate);
-      if (m.type === "audio_end") audio?.end(m.reply_id, m.ok);
+      if (m.type === "audio_end") {
+        audio?.end(m.reply_id, m.ok);
+        if (m.ok === false) error.value = "文字已生成，语音播放失败；未记为完整发言。";
+      }
       if (m.type === "cancel") {
         audio?.cancel(m.reply_id);
         activeStudent.value = null;

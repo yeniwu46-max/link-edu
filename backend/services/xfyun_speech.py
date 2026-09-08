@@ -27,7 +27,8 @@ def charge(usage_id, amount, service, **units):
 
 def voice_for(voice):
     student = {'Ethan': 'MING', 'Cherry': 'YU', 'Serena': 'LIN'}.get(voice)
-    return os.getenv('XFYUN_TTS_VOICE_' + student, '').strip() or key('XFYUN_TTS_VOICE') if student else key('XFYUN_TTS_VOICE')
+    override = os.getenv('XFYUN_TTS_VOICE_' + student, '').strip() if student else ''
+    return override or key('XFYUN_TTS_VOICE')
 
 
 def speak(text, session_id, voice, cancelled, on_audio):

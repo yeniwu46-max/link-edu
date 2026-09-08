@@ -12,7 +12,8 @@ import websocket
 from extensions import db
 from models import TrainingSession
 from classroom_models import Classroom, ClassroomEvent
-from services.classroom_providers import ASR, chat, speak
+from services.classroom_providers import chat
+from services.classroom_speech import ASR, speak, normalize
 from services.classroom_knowledge import search
 from services.classroom_reports import request_report
 from services.classroom_budget import status as budget_status
@@ -151,7 +152,7 @@ class LiveClassroom:
                     except websocket.WebSocketTimeoutException:
                         continue
                     self.put('asr_event', event)
-                    if event['type'] == 'session.finished':
+                    if normalize(event)['type'] == 'finished':
                         asr.settle()
                         break
             except Exception as error:
@@ -217,29 +218,30 @@ class LiveClassroom:
             ok = False
             try:
                 speak(text, self.sid, student['voice'], lambda: cancel.is_set() or self.closed.is_set(),
-                      lambda audio: self.put('audio', {'reply_id': reply_id, 'audio': audio}))
+                      lambda audio, rate: self.put('audio', {'reply_id': reply_id, 'audio': audio, 'sample_rate': rate}))
                 ok = not cancel.is_set()
             finally:
                 self.put('audio_end', {'reply_id': reply_id, 'ok': ok})
         self.worker(work)
 
     def handle_asr(self, item):
+        item = normalize(item)
         kind = item['type']
-        if kind == 'input_audio_buffer.speech_started':
+        if kind == 'speech_started':
             self.teacher_speaking = True
             self.speech_started_at = time.monotonic()
             self.last_voice = time.monotonic()
             self.interrupt()
             self.emit('speech_started')
-        elif kind == 'input_audio_buffer.speech_stopped':
+        elif kind == 'speech_stopped':
             self.teacher_speaking = False
             self.last_voice = time.monotonic()
             self.utterance_seconds = max(0, self.last_voice - (self.speech_started_at or self.last_voice))
             self.speech_started_at = None
             self.emit('speech_stopped')
-        elif kind.endswith('input_audio_transcription.text'):
+        elif kind == 'partial':
             self.emit('partial', text=str(item.get('text', '')) + str(item.get('stash', '')))
-        elif kind.endswith('input_audio_transcription.completed'):
+        elif kind == 'final':
             identity = str(item.get('item_id') or item.get('event_id') or uuid.uuid4().hex)
             if identity in self.seen:
                 return
@@ -250,15 +252,16 @@ class LiveClassroom:
                 self.input_version += 1
                 pending = self.pending
                 self.pending = None
-                self.content_seconds += self.utterance_seconds
-                self.record('transcript', {'text': self.last_final, 'source': 'asr_final', 'speech_seconds': round(self.utterance_seconds, 2)})
+                seconds = max(0, min(60, float(item.get('speech_seconds', self.utterance_seconds))))
+                self.content_seconds += seconds
+                self.record('transcript', {'text': self.last_final, 'source': 'asr_final', 'speech_seconds': round(seconds, 2)})
                 self.utterance_seconds = 0
                 # A brief spoken invitation accepts the raised question; substantive teaching triggers reevaluation.
                 if pending and len(self.last_final) <= 20 and any(s['name'] in self.last_final and s['id'] == pending['student_id'] for s in STUDENTS):
                     self.pending = pending
                     self.last_eval_key = self.evaluation_key()
                 self.emit('partial', text='')
-        elif kind == 'session.finished':
+        elif kind == 'finished':
             self.asr_finished = True
 
     def finalize(self):
@@ -391,7 +394,7 @@ class LiveClassroom:
             self.pending = output
         elif kind == 'audio':
             if data['reply_id'] == self.reply_id and not self.cancel.is_set():
-                self.emit('audio', **data, sample_rate=24000)
+                self.emit('audio', **data)
         elif kind == 'audio_end':
             if data['reply_id'] == self.reply_id:
                 self.emit('audio_end', **data)
@@ -430,7 +433,7 @@ class LiveClassroom:
                             self.draining_at = now
                             self.interrupt()
                             if self.asr:
-                                self.asr.send('session.finish')
+                                self.asr.finish()
                             else:
                                 self.asr_finished = True
                         if not self.asr_finished and now - self.draining_at > 8:

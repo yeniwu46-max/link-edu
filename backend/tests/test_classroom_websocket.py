@@ -19,8 +19,8 @@ def test_real_websocket_auth_audio_events_finish_and_single_use(app,monkeypatch)
             except queue.Empty: raise websocket.WebSocketTimeoutException()
         def audio(self,encoded):
             self.events.put({'type':'conversation.item.input_audio_transcription.completed','item_id':'fixture-1','transcript':'合成协议测试：必须平均分。'})
-        def send(self,kind):
-            if kind=='session.finish': self.events.put({'type':'session.finished'})
+        def finish(self):
+            self.events.put({'type':'finished'})
         def settle(self): pass
         def close(self): self.closed=True
     monkeypatch.setattr(runtime,'ASR',FakeASR)
