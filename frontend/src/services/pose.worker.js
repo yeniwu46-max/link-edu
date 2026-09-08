@@ -42,6 +42,7 @@ self.onmessage = async ({ data }) => {
     );
     if (confidence < 0.6) {
       self.postMessage({ type: "pose", data: { present: null, confidence } });
+      previous = null; // Do not infer movement across an unobserved/occluded interval.
       return;
     }
     const sx = (p[11].x + p[12].x) / 2,
