@@ -59,7 +59,7 @@ export class ClassroomAudio {
     }, 60);
   }
   chunk(id, encoded, rate = 24000) {
-    if (!this.ctx || this.cancelled.has(id)) return;
+    if (this.disposed || !this.ctx || this.cancelled.has(id)) return;
     if (id !== this.reply) {
       this.reply = id;
       this.endAt = this.ctx.currentTime + 0.06;
@@ -95,14 +95,19 @@ export class ClassroomAudio {
     };
   }
   end(id, ok = true) {
+    if (this.disposed || this.cancelled.has(id) || (this.reply && this.reply !== id)) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(
       () => {
-        if (!this.cancelled.has(id))
+        if (!this.disposed && !this.cancelled.has(id)) {
+          // Terminal replies must not be replayed or acknowledge completion twice.
+          this.cancelled.add(id);
           this.send(
             ok && this.reply === id ? "playback_done" : "playback_failed",
             { reply_id: id },
           );
+          if (this.reply === id) this.reply = null;
+        }
       },
       this.ctx
         ? Math.max(0, this.endAt - this.ctx.currentTime) * 1000 + 100
@@ -111,6 +116,7 @@ export class ClassroomAudio {
   }
   cancel(id) {
     if (id) this.cancelled.add(id);
+    if (id && this.reply && id !== this.reply) return;
     clearTimeout(this.timer);
     this.nodes.forEach((n) => {
       try {

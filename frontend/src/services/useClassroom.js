@@ -231,7 +231,7 @@ export function useClassroom() {
   }
   async function prepareAudio() {
     // Called from a user gesture, so AudioContext can resume before the WebSocket handshake.
-    audio?.close();
+    await audio?.close();
     audio = new ClassroomAudio(send, (value) => {
       mouth.value = value;
     });
