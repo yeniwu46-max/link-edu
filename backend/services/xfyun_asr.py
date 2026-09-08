@@ -12,6 +12,12 @@ from services.xfyun_speech import book, charge, rate
 from services.xfyun_segments import Segmenter
 from services import xfyun_wire as wire
 
+TAIL_WAIT_SECONDS = 15
+
+
+def response_expired(started, ended, now):
+    return now - started > 75 or (ended is not None and now - ended > TAIL_WAIT_SECONDS)
+
 
 def next_deadline(previous, now, duration):
     # Fixed cadence avoids accumulating Windows timer overshoot / TLS send cost.
@@ -104,7 +110,7 @@ class ASR:
     def drain_expired(self, started_at, now):
         # PCM may still be queued when the user clicks finish. Start the response
         # allowance only after all tail/end frames were sent; still bound total wait.
-        return now - started_at > 30 or (self.finish_sent_at is not None and now - self.finish_sent_at > 8)
+        return now - started_at > 30 or (self.finish_sent_at is not None and now - self.finish_sent_at > TAIL_WAIT_SECONDS)
 
     def probe(self):
         # Explicit silent transport probe, not a claim of recognizing speech.
@@ -179,8 +185,8 @@ class ASR:
         started = time.monotonic()
         try:
             while not self.closed.is_set():
-                if time.monotonic() - started > 75 or (segment['ended'] and time.monotonic() - segment['ended'] > 8):
-                    raise ProviderError('讯飞识别结果等待超时，未确认文本不会入档')
+                if response_expired(started, segment['ended'], time.monotonic()):
+                    raise ProviderError('讯飞识别结果等待超时（收尾15秒/单段75秒），未确认文本不会入档')
                 try:
                     item = wire.receive(segment['socket'], '识别')
                 except websocket.WebSocketTimeoutException:

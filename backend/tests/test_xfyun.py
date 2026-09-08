@@ -188,9 +188,17 @@ def test_drain_deadline_waits_for_tail_transmission():
     assert not asr.drain_expired(100, 109)
     asr.finish_sent_at = 103
     assert not asr.drain_expired(100, 110)
-    assert asr.drain_expired(100, 112)
+    assert not asr.drain_expired(100, 112)
+    assert asr.drain_expired(100, 119)
     asr.finish_sent_at = None
     assert asr.drain_expired(100, 131)
+
+
+def test_asr_response_allows_bounded_slow_tail_but_not_unlimited_wait():
+    from services.xfyun_asr import response_expired
+    assert not response_expired(100,150,159)
+    assert response_expired(100,150,166)
+    assert response_expired(100,None,176)
 
 
 def test_tts_cancel_during_connect_releases_known_unused_reserve(credentials, monkeypatch):
