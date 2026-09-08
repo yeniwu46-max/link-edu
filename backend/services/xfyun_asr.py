@@ -26,6 +26,7 @@ class ASR:
         self.sockets, self.completed = {}, {}
         self.next_final, self.total_segments = 1, None
         self.failed = self.finished = False
+        self.finish_sent_at = None
         self.input_bytes = 0
         self.segmenter = Segmenter(self.enqueue, self.emit)
         self._thread(self._send)
@@ -92,6 +93,11 @@ class ASR:
     def finish(self):
         self.segmenter.finish()
 
+    def drain_expired(self, started_at, now):
+        # PCM may still be queued when the user clicks finish. Start the response
+        # allowance only after all tail/end frames were sent; still bound total wait.
+        return now - started_at > 30 or (self.finish_sent_at is not None and now - self.finish_sent_at > 8)
+
     def probe(self):
         # Explicit silent transport probe, not a claim of recognizing speech.
         self.enqueue(('start', 1))
@@ -151,6 +157,7 @@ class ASR:
                 next_send = time.monotonic() + len(raw)/32000
             elif kind == 'finish':
                 with self.lock:
+                    self.finish_sent_at = time.monotonic()
                     self.total_segments = number
                     self._flush()
                 return
@@ -169,6 +176,9 @@ class ASR:
                 result = (item.get('payload') or {}).get('result') or {}
                 if result.get('text'):
                     data = json.loads(base64.b64decode(result['text'], validate=True))
+                    if data.get('ret', 0):
+                        code = data['ret'] if type(data['ret']) is int else 'unknown'
+                        raise ProviderError(f'讯飞识别业务返回错误（{code}），未确认文本不会入档')
                     text = transcript.update(data)
                     with self.lock:
                         if number == self.next_final:

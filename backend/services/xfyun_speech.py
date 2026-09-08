@@ -46,6 +46,7 @@ def speak(text, session_id, voice, cancelled, on_audio):
         sock = wire.connect(wire.TTS_URL)
         sock.settimeout(0.5)
         if cancelled():
+            settle(usage_id, 0, {'provider':'xfyun', 'calls':0, 'billing':'cancelled_before_send'})
             return
         sock.send(json.dumps({'common': {'app_id': key('XFYUN_APP_ID')},
             'business': {'aue': 'raw', 'auf': 'audio/L16;rate=16000', 'vcn': actual_voice, 'tte': 'UTF8'},

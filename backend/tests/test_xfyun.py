@@ -105,10 +105,12 @@ def test_stream_transport_finalizes_once(app, credentials, monkeypatch):
     monkeypatch.setattr(asr_module, 'book', lambda *a: (1, 0.01))
     monkeypatch.setattr(asr_module, 'charge', lambda *a, **kw: charged.append(kw))
     class Socket:
-        def __init__(self): self.events = queue.Queue()
+        def __init__(self): self.events = queue.Queue(); self.seq = 0
         def settimeout(self, timeout): pass
         def send(self, raw):
             item = json.loads(raw)
+            self.seq += 1
+            assert item['payload']['audio']['seq'] == self.seq  # Official first-frame example starts at 1.
             if item['header']['status'] == 2:
                 result = {'sn':1, 'ws':[{'cw':[{'w':'必须平均分'}]}]}
                 self.events.put(json.dumps({'header':{'status':2,'code':0},'payload':{'result':{
@@ -177,3 +179,33 @@ def test_normalized_final_duration_and_audio_sample_rate(app):
     obj.reply_id = 'current'
     obj.dispatch('audio', {'reply_id':'current', 'audio':'AAAA', 'sample_rate':16000})
     assert obj.ws.messages[-1]['sample_rate'] == 16000
+
+
+def test_drain_deadline_waits_for_tail_transmission():
+    from services.xfyun_asr import ASR
+    asr = ASR.__new__(ASR)
+    asr.finish_sent_at = None
+    assert not asr.drain_expired(100, 109)
+    asr.finish_sent_at = 103
+    assert not asr.drain_expired(100, 110)
+    assert asr.drain_expired(100, 112)
+    asr.finish_sent_at = None
+    assert asr.drain_expired(100, 131)
+
+
+def test_tts_cancel_during_connect_releases_known_unused_reserve(credentials, monkeypatch):
+    from services import xfyun_speech as speech
+    monkeypatch.setenv('XFYUN_TTS_VOICE', 'test-voice')
+    calls, cancelled = [], [False]
+    monkeypatch.setattr(speech, 'book', lambda *a: (1, 0.1))
+    monkeypatch.setattr(speech, 'settle', lambda *a: calls.append(a))
+    class Socket:
+        def settimeout(self, value): pass
+        def send(self, data): pytest.fail('must not send')
+        def close(self): pass
+    def connect(url):
+        cancelled[0] = True
+        return Socket()
+    monkeypatch.setattr(wire, 'connect', connect)
+    speech.speak('不应发送', None, 'Cherry', lambda:cancelled[0], lambda *a:None)
+    assert calls[0][1] == 0 and calls[0][2]['calls'] == 0

@@ -436,7 +436,7 @@ class LiveClassroom:
                                 self.asr.finish()
                             else:
                                 self.asr_finished = True
-                        if not self.asr_finished and now - self.draining_at > 8:
+                        if not self.asr_finished and self.asr and self.asr.drain_expired(self.draining_at, now):
                             self.record('error', {'message': '末段转写未确认，报告仅使用已保存证据'})
                             self.asr_finished = True
                         if self.asr_finished and (not self.vision_busy or now - self.draining_at > 48):

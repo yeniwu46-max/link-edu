@@ -31,6 +31,9 @@ class BailianASR(bailian.ASR):
     def probe(self):
         self.finish()
 
+    def drain_expired(self, started_at, now):
+        return now - started_at > 8
+
 
 def ASR(session_id):
     if provider() == 'xfyun':
