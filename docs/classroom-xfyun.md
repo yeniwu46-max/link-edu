@@ -2,6 +2,8 @@
 
 本机已选 `SPEECH_PROVIDER=xfyun`。DeepSeek 对话/视觉保持不变，百炼适配仍保留，但不自动回退。此文是 9 月 8 日状态入口，优先于 9 月 7 日历史记录。
 
+后续独立回归、浏览器复核及完整合成课堂进展见 [独立验收记录](classroom-independent-validation.md)；下方保留上午探针快照，不代表最新测试总数。
+
 ## 配置与启动
 
 仅在 `backend/.env` 配置：
