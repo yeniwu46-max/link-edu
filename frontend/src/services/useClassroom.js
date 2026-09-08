@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from "vue";
 import { api } from "./api";
 import { ClassroomAudio } from "./classroomAudio";
+import { classroomLoadError } from "./classroomStatus.js";
 
 export function useClassroom() {
   const room = ref(null),
@@ -50,8 +51,8 @@ export function useClassroom() {
   async function refreshCapabilities() {
     try {
       capabilities.value = (await api.get("/classroom/capabilities")).data;
-    } catch {
-      error.value = "无法读取服务状态，请确认后端已启动";
+    } catch (e) {
+      error.value = classroomLoadError(e, "无法读取服务状态，请确认后端已启动");
     }
   }
   async function load(sid) {

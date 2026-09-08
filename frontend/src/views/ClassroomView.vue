@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter, onBeforeRouteLeave } from "vue-router";
 import { api } from "../services/api";
+import { speechProviderLabel, classroomLoadError } from "../services/classroomStatus.js";
 import { useClassroom } from "../services/useClassroom";
 import StudentAvatar from "../components/StudentAvatar.vue";
 import ClassroomReport from "../components/ClassroomReport.vue";
@@ -46,6 +47,8 @@ const defaultStudents = [
   { id: "yu", name: "小雨" },
   { id: "lin", name: "小林" },
 ];
+const asrProvider = computed(() => capabilities.value?.services?.asr?.provider);
+watch(asrProvider, () => { consent.value = false; });
 const active = computed(() =>
   ["connecting", "listening", "speaking", "finishing"].includes(state.value),
 );
@@ -103,8 +106,8 @@ const serviceStatus = {
 async function refreshHistory() {
   try {
     history.value = (await api.get("/classroom/sessions")).data.items;
-  } catch {
-    error.value = "历史课堂暂时无法读取";
+  } catch (e) {
+    error.value = classroomLoadError(e, "历史课堂暂时无法读取");
   }
 }
 async function probe(service) {
@@ -396,7 +399,7 @@ onBeforeRouteLeave(
               type="checkbox"
               v-model="consent"
               :disabled="active"
-            />我同意麦克风音频上传百炼识别、文字提交 DeepSeek
+            />我同意麦克风音频上传{{ speechProviderLabel(asrProvider) }}识别、文字提交 DeepSeek
             对话及评课；原始录音不保存。</label
           ><label
             ><input
