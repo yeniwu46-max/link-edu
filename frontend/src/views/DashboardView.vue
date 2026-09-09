@@ -1,7 +1,43 @@
 <template>
   <div class="page-dashboard">
     <div class="dash-grid">
-      <section class="welcome">
+      <section v-if="continueTraining" class="glass dash-hero continue">
+        <div class="dash-hero__stage">
+          <div class="wave" aria-hidden="true">▮▮▮▮▮</div>
+          <div class="dash-hero__meta">
+            <div>
+              <b>{{ continueTraining.progress_percent }}%</b>
+              <span>{{ continueTraining.course_title }}</span>
+            </div>
+            <em class="dash-badge">{{ continueTraining.status_label }}</em>
+          </div>
+          <button type="button" class="dash-round dash-hero__lock" aria-label="继续训练" @click="resumeTraining">›</button>
+        </div>
+        <div class="course">
+          <small>{{ continueTraining.category }}</small>
+          <h2>{{ continueTraining.course_title }}</h2>
+          <div class="progress"><i :style="{ width: `${continueTraining.progress_percent}%` }"></i></div>
+          <span>上次训练：{{ formatLastTrained(continueTraining.last_trained_at) }}</span>
+        </div>
+        <footer class="dash-hero__nav">
+          <button type="button" class="dash-round" aria-label="浏览课程" @click="router.push('/courses')">‹</button>
+          <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
+          <button type="button" class="dash-round" aria-label="继续训练" @click="resumeTraining">›</button>
+        </footer>
+      </section>
+
+      <section v-else class="glass dash-hero dash-hero--empty">
+        <p>{{ greeting.kicker || greeting.periodEn }}</p>
+        <h2>{{ greeting.title || `${greeting.periodZh}，${greeting.name}` }}</h2>
+        <span>{{ greeting.subtitle }}</span>
+        <footer class="dash-hero__nav">
+          <button type="button" class="dash-round" aria-label="浏览课程" @click="router.push('/courses')">‹</button>
+          <LearnMoreButton @click="router.push('/training')">开始新训练</LearnMoreButton>
+          <button type="button" class="dash-round" aria-label="开始新训练" @click="router.push('/training')">›</button>
+        </footer>
+      </section>
+
+      <section class="glass welcome" :class="{ 'welcome--tall': !aiFeedback }">
         <p>{{ greeting.kicker || greeting.periodEn }}</p>
         <h1>{{ greeting.title || `${greeting.periodZh}，${greeting.name}` }}</h1>
         <span>{{ greeting.subtitle }}</span>
@@ -11,59 +47,68 @@
         </div>
       </section>
 
-      <section class="glass weekly" role="button" @click="openPanel('weekly')">
-        <h3>本周训练</h3>
-        <strong>{{ weekly.sessions }}<small> 次</small></strong>
-        <span>累计 {{ weekly.total_minutes }} 分钟 · 点开看热力图</span>
-        <div class="spark">
-          <i v-for="(height, index) in weekly.sparkline" :key="index" :style="{ height: `${height}px` }"></i>
-        </div>
-      </section>
-
-      <section class="glass continue" v-if="continueTraining">
-        <h3>继续训练</h3>
-        <div class="wave">▮▮▮▮▮</div>
-        <div class="course">
-          <small>{{ continueTraining.category }}</small>
-          <h2>{{ continueTraining.course_title }}</h2>
-          <b>{{ continueTraining.status_label }}</b>
-          <div class="progress"><i :style="{ width: `${continueTraining.progress_percent}%` }"></i></div>
-          <span>上次训练：{{ formatLastTrained(continueTraining.last_trained_at) }}</span>
-        </div>
-        <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
-      </section>
-
       <section class="glass feedback" v-if="aiFeedback" role="button" @click="openPanel('feedback')">
-        <h3>反馈摘要 · 演示 / 规则评分</h3>
-        <div class="score">{{ aiFeedback.overall_score }}</div>
-        <ul>
-          <li v-for="item in (aiFeedback.dimensions || []).slice(0, 3)" :key="item.key">
-            {{ item.label }} <b>{{ item.score }}</b>
-          </li>
-        </ul>
+        <em class="dash-kicker">反馈摘要</em>
+        <h3>演示 / 规则评分</h3>
         <p>{{ aiFeedback.suggestion }}</p>
+        <div class="feedback-body">
+          <div class="score">{{ aiFeedback.overall_score }}</div>
+          <ul>
+            <li v-for="item in (aiFeedback.dimensions || []).slice(0, 3)" :key="item.key">
+              {{ item.label }} <b>{{ item.score }}</b>
+            </li>
+          </ul>
+        </div>
+        <button type="button" class="dash-round feedback-open" aria-label="打开反馈摘要" @click.stop="openPanel('feedback')">›</button>
       </section>
 
-      <section class="glass entries">
-        <h3>课程与训练入口</h3>
-        <div>
-          <article v-for="entry in quickEntries" :key="entry.title">
-            <i>{{ entry.icon }}</i>
-            <h3>{{ entry.title }}</h3>
-            <p>{{ entry.description }}</p>
-            <button type="button" @click="router.push(entry.route || '/courses')">›</button>
-          </article>
-        </div>
-      </section>
+      <div class="dash-rail">
+        <section class="glass entries">
+          <header class="dash-card-head">
+            <div>
+              <h3>课程与训练入口</h3>
+              <p>课程、训练、评课和资源</p>
+            </div>
+            <button type="button" class="dash-round" aria-label="进入课程中心" @click="router.push('/courses')">›</button>
+          </header>
+          <div class="entry-avatars">
+            <button
+              v-for="entry in quickEntries"
+              :key="entry.title"
+              type="button"
+              :title="entry.description"
+              @click="router.push(entry.route || '/courses')"
+            >
+              <i>{{ entry.icon }}</i>
+              <span>{{ entry.title }}</span>
+            </button>
+          </div>
+        </section>
 
-      <section class="glass growth" role="button" @click="openPanel('growth')">
-        <h3>成长轨迹 · 历史演示</h3>
-        <div class="chart">
-          <i v-for="(score, index) in growthTrajectory" :key="index" :style="{ height: `${score}%` }">
-            <b>{{ score }}</b>
-          </i>
-        </div>
-      </section>
+        <section class="glass weekly" role="button" @click="openPanel('weekly')">
+          <header class="dash-card-head">
+            <h3>本周训练</h3>
+            <button type="button" class="dash-round" aria-label="查看本周训练" @click.stop="openPanel('weekly')">›</button>
+          </header>
+          <strong>{{ weekly.sessions }}<small> 次</small></strong>
+          <span>累计 {{ weekly.total_minutes }} 分钟 · 点开看热力图</span>
+          <div class="spark">
+            <i v-for="(height, index) in weekly.sparkline" :key="index" :style="{ height: `${height}px` }"></i>
+          </div>
+        </section>
+
+        <section class="glass growth" role="button" @click="openPanel('growth')">
+          <header class="dash-card-head">
+            <h3>成长轨迹 · 历史演示</h3>
+            <button type="button" class="dash-round" aria-label="打开成长轨迹" @click.stop="openPanel('growth')">›</button>
+          </header>
+          <div class="chart">
+            <i v-for="(score, index) in growthTrajectory" :key="index" :style="{ height: `${score}%` }">
+              <b>{{ score }}</b>
+            </i>
+          </div>
+        </section>
+      </div>
     </div>
 
     <div v-if="panel" class="help-mask" @click="panel = null"></div>

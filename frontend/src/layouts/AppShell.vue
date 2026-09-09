@@ -19,7 +19,7 @@
 
     <section class="workspace" :class="{ 'workspace--immersive': immersive }">
       <header v-if="!immersive" class="topbar">
-        <span>{{ crumb }}</span>
+        <span class="topbar-crumb">{{ crumb }}</span>
         <label class="cir-search">
           <svg class="cir-search__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/>
@@ -35,16 +35,25 @@
           />
           <kbd class="cir-search__kbd">Enter</kbd>
         </label>
-        <div class="profile">
-          <button class="profile-btn" type="button" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
-            <b>{{ profileInitial }}</b>
-            <span>{{ displayName }} · {{ roleLabel }}</span>
-            <em :class="{ open: menuOpen }">▾</em>
+        <div class="topbar-actions">
+          <button type="button" class="topbar-icon" aria-label="打开帮助" @click="openHelp">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.25" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M9.6 9.4c.3-1.4 1.5-2.2 2.6-2.2 1.3 0 2.3.8 2.3 2.1 0 1.1-.6 1.7-1.5 2.2-.8.5-1.1.9-1.1 1.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <circle cx="12" cy="16.6" r=".9" fill="currentColor"/>
+            </svg>
           </button>
-          <div v-if="menuOpen" class="profile-menu" role="menu" @click.stop>
-            <button type="button" role="menuitem" @click="goProfile('archive')">个人中心</button>
-            <button type="button" role="menuitem" @click="goProfile('settings')">设置</button>
-            <button type="button" role="menuitem" @click="goProfile('contact')">联系我们</button>
+          <div class="profile">
+            <button class="profile-btn" type="button" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
+              <b>{{ profileInitial }}</b>
+              <span>{{ displayName }} · {{ roleLabel }}</span>
+              <em :class="{ open: menuOpen }">▾</em>
+            </button>
+            <div v-if="menuOpen" class="profile-menu" role="menu" @click.stop>
+              <button type="button" role="menuitem" @click="goProfile('archive')">个人中心</button>
+              <button type="button" role="menuitem" @click="goProfile('settings')">设置</button>
+              <button type="button" role="menuitem" @click="goProfile('contact')">联系我们</button>
+            </div>
           </div>
         </div>
       </header>
@@ -78,6 +87,7 @@ import BrandMark from '../components/BrandMark.vue'
 import HelpChat from '../components/HelpChat.vue'
 import Aurora from '../components/fx/Aurora.vue'
 import { useAuthStore } from '../stores/auth'
+import { openHelpChat } from '../utils/settings'
 
 const route = useRoute()
 const router = useRouter()
@@ -114,6 +124,10 @@ function isActive(path) {
 function goSearch() {
   const q = search.value.trim()
   router.push(q ? { path: '/courses', query: { q } } : '/courses')
+}
+
+function openHelp() {
+  openHelpChat('bot')
 }
 
 function goProfile(tab) {
