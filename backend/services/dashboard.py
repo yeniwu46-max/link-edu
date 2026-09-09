@@ -10,6 +10,7 @@ from services.studio import (
     greeting_period,
     list_journals,
 )
+from services.training import feedback_is_scorable
 
 
 ROLE_LABELS = {
@@ -52,18 +53,17 @@ def build_dashboard_overview(user: User):
         .first()
     )
 
-    latest_feedback = (
+    feedback_rows = (
         AiFeedback.query.filter_by(user_id=user.id)
         .order_by(AiFeedback.created_at.desc())
-        .first()
+        .all()
     )
+    scorable_feedbacks = [row for row in feedback_rows if feedback_is_scorable(row)]
+    latest_feedback = scorable_feedbacks[0] if scorable_feedbacks else None
 
     growth_scores = [
         row.overall_score
-        for row in AiFeedback.query.filter_by(user_id=user.id)
-        .order_by(AiFeedback.created_at.desc())
-        .limit(7)
-        .all()
+        for row in scorable_feedbacks[:7]
     ][::-1]
 
     course_count = Course.query.filter_by(is_active=True).count()

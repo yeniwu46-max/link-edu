@@ -144,6 +144,11 @@ class AiFeedback(db.Model):
         }
         from services.training import report_from_feedback_row
         report = report_from_feedback_row(self)
+        if report.get('insufficient_evidence'):
+            payload['overall_score'] = None
+            payload['clarity_score'] = None
+            payload['pace_score'] = None
+            payload['interaction_score'] = None
         payload['report'] = report
         payload['mode_label'] = report.get('mode_label')
         payload['dimensions'] = report.get('dimensions') or []

@@ -20,3 +20,7 @@
 - 数据库：MySQL 8（见 `backend/.env.example`）
 
 快捷启动：双击 `启动后端.bat` 和 `启动前端.bat`
+
+AI 评课：在 `backend/.env` 填写 `DEEPSEEK_API_KEY`。在 AI 评课页主动点击生成后，系统把课堂文字材料发送到后端的 DeepSeek 接口，生成六维评分、总结、问题和改进建议；密钥不会进入前端。此入口使用独立 DeepSeek 配置，不走模拟课堂的三用途美元额度账本。
+
+首次配置可直接复制 `backend/.env.example` 中的 DeepSeek 配置项到现有 `.env`，然后重启后端。
