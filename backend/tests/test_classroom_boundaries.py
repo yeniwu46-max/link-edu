@@ -17,7 +17,7 @@ def test_named_student_selection_and_no_wrong_student(app,monkeypatch,name,sid):
     obj=live(app); obj.last_final=f'{name}，每份是几分之一？'
     obj.worker=lambda fn:fn()
     captured=[]
-    monkeypatch.setattr(runtime,'chat',lambda system,data,*a:captured.append(data) or {'action':'wait'})
+    monkeypatch.setattr(runtime,'chat_stream',lambda system,data,*a:captured.append(data) or {'action':'wait'})
     obj.generate()
     assert captured[0]['named_student']==sid
     obj.dispatch('decision',(obj.revision,sid,False,{'action':'answer','student_id':sid,'text':'一半。'}))
