@@ -9,6 +9,12 @@ export class ClassroomAudio {
     this.endAt = 0;
     this.timer = null;
     this.lastSpeech = performance.now();
+    this.volume = 1;
+  }
+  setVolume(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return;
+    this.volume = Math.max(0, Math.min(1, value));
+    this.outputGain?.gain.setTargetAtTime(this.volume, this.ctx.currentTime, .02);
   }
   async start() {
     this.ctx = new AudioContext();
@@ -45,6 +51,9 @@ export class ClassroomAudio {
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 256;
     this.analyser.connect(this.ctx.destination);
+    this.outputGain = this.ctx.createGain();
+    this.outputGain.gain.value = this.volume;
+    this.outputGain.connect(this.analyser);
     this.levelTimer = setInterval(() => {
       const values = new Uint8Array(256);
       this.analyser.getByteTimeDomainData(values);
@@ -74,7 +83,7 @@ export class ClassroomAudio {
       samples[i] = view.getInt16(i * 2, true) / 32768;
     const node = this.ctx.createBufferSource();
     node.buffer = buffer;
-    node.connect(this.analyser);
+    node.connect(this.outputGain);
     const start = Math.max(this.ctx.currentTime + 0.01, this.endAt);
     if (this.first) {
       clearTimeout(this.playingTimer);

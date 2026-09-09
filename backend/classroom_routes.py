@@ -16,6 +16,7 @@ from services import classroom_budget as budget
 from services.classroom_speech import describe, probe_asr, speak
 from services.classroom_runtime import ACTIVE, active_lock, LiveClassroom
 from services.classroom_reports import jobs, request_report
+from services.classroom_readiness import MIN_CLASS_SECONDS, report_readiness
 
 bp = Blueprint('classroom', __name__, url_prefix='/api/classroom')
 probe_results = {}
@@ -56,6 +57,7 @@ def serialize(room, include_events=False):
             'created_at': room.started_at.isoformat(), 'students': room.students}
     if include_events:
         data['events'] = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=room.session_id).order_by(ClassroomEvent.id).all()]
+        data['report_readiness'] = report_readiness(data['events'], data['elapsed'], room.cloud_vision)
     return data
 
 
@@ -69,6 +71,8 @@ def capabilities():
             'status': probe_results.get(service, {}).get('status', 'unverified') if info['configured'] else 'unconfigured',
             'message': info.get('message') or probe_results.get(service, {}).get('message', '')}
     return jsonify(services=services, budget=budget.status(),
+        motion_assets={name: (Path(current_app.root_path).parent / 'frontend/public/models' / filename).exists()
+                       for name, filename in {'body': 'pose_landmarker_lite.task', 'hands': 'gesture_recognizer.task', 'face': 'face_landmarker.task'}.items()},
         pose_assets=(Path(current_app.root_path).parent / 'frontend/public/models/pose_landmarker_lite.task').exists())
 
 
@@ -127,6 +131,8 @@ def create():
     data = request.get_json(silent=True) or {}
     if data.get('audio_consent') is not True:
         return jsonify(message='请确认语音上传识别用途'), 400
+    if data.get('camera_consent') is not True:
+        return jsonify(message='请同意开启摄像头用于本地动作检测与 AI 教态评课'), 400
     mode_value = data.get('mode', 'full')
     if mode_value not in ('full', 'fragment'):
         return jsonify(message='训练模式无效'), 400
@@ -195,6 +201,10 @@ def consume_ticket(secret):
 @jwt_required()
 def finish(sid):
     room = owned(sid)
+    elapsed = (datetime.utcnow() - room.started_at).total_seconds()
+    if room.state == 'active' and elapsed < MIN_CLASS_SECONDS:
+        return jsonify(message='授课至少满 10 秒后才能结束并评课', minimum_seconds=MIN_CLASS_SECONDS,
+                       remaining_seconds=max(0, MIN_CLASS_SECONDS - elapsed)), 409
     with active_lock:
         runtime = ACTIVE.get(sid)
         if runtime and not runtime.closed.is_set():

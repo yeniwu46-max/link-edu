@@ -19,6 +19,7 @@ button.onclick = () => {
     worker.terminate();
   };
   worker.onmessage = async ({ data }) => {
+    if (['hands_status', 'face_status'].includes(data.type)) return;
     if (data.type === "ready") {
       result.textContent = "本地模型加载成功，测试合成空白帧…";
       const canvas = new OffscreenCanvas(640, 480);

@@ -15,7 +15,7 @@ class Socket:
 def live(app):
     db.session.add(User(id=1,account='runtime-test',name='test',password_hash='unused'))
     db.session.commit()
-    sid = app.test_client().post('/api/classroom/sessions',headers=headers(1),json={'audio_consent':True}).json['session_id']
+    sid = app.test_client().post('/api/classroom/sessions',headers=headers(1),json={'audio_consent':True,'camera_consent':True}).json['session_id']
     room = db.session.get(Classroom,sid)
     room.started_at = datetime.utcnow() - timedelta(seconds=60)
     db.session.commit()

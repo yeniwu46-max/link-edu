@@ -65,7 +65,10 @@ const accounts = computed(() =>
       </article>
     </div>
     <p class="subtle-note">
-      动作检测：{{ capabilities?.pose_assets ? "已就绪" : "暂不可用" }}
+      身体模型：{{ capabilities?.pose_assets ? "文件已安装" : "未安装" }} ·
+      手势模型：{{ capabilities?.motion_assets?.hands ? "文件已安装" : "未安装" }} ·
+      面部模型：{{ capabilities?.motion_assets?.face ? "文件已安装" : "未安装" }}。
+      加载和检测结果以镜头状态为准。
     </p>
     <details class="disclosure technical-info">
       <summary>检查说明</summary>

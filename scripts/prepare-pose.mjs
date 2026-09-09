@@ -1,4 +1,4 @@
-import { mkdir, cp, writeFile, stat } from "node:fs/promises";
+import { mkdir, cp, writeFile, stat, rename } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,6 +26,23 @@ if (
   if (bytes.length < 1000000) throw new Error("Unexpected pose model size");
   await writeFile(model, bytes);
   console.log(`Installed local pose model (${bytes.length} bytes).`);
+}
+// Fixed model bundle versions from the official MediaPipe model distribution.
+for (const [filename, url] of [
+  ['gesture_recognizer.task', 'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'],
+  ['face_landmarker.task', 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'],
+]) {
+  const destination = path.join(target, filename);
+  if (await stat(destination).then(s => s.size > 1000000).catch(() => false)) {
+    console.log(`Existing local ${filename} retained.`); continue;
+  }
+  const response = await fetch(url, {signal: AbortSignal.timeout(60000)});
+  if (!response.ok) throw new Error(`${filename}: HTTP ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 1000000) throw new Error(`Unexpected ${filename} size`);
+  await writeFile(destination + '.download', bytes);
+  await rename(destination + '.download', destination);
+  console.log(`Installed local ${filename} (${bytes.length} bytes).`);
 }
 console.log(
   "WASM copied locally. Browser runtime does not fetch models from a CDN.",

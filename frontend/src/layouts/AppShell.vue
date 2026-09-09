@@ -54,9 +54,9 @@
           <transition name="page-sweep" mode="out-in">
             <motion.div
               class="page-slot"
-              :key="route.fullPath"
-              :initial="{ opacity: 0.2, filter: 'blur(6px)' }"
-              :animate="{ opacity: 1, filter: 'blur(0px)' }"
+              :key="route.path === '/classroom' ? route.path : route.fullPath"
+              :initial="route.path === '/classroom' ? { opacity: 1 } : { opacity: 0.2, filter: 'blur(6px)' }"
+              :animate="{ opacity: 1, filter: route.path === '/classroom' ? 'none' : 'blur(0px)' }"
               :transition="{ duration: 0.35 }"
             >
               <component :is="Component" />

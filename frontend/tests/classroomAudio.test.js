@@ -73,3 +73,11 @@ test('avatar playback waits for scheduled audio and cancel suppresses late anima
   f.audio.chunk('two',f.pcm(100),16000);f.audio.cancel('two');f.flush();
   assert.equal(phases.some(([id])=>id==='two'),false);
 });
+
+test('lesson volume changes the playback gain only, including mute',t=>{
+  const f=fixture(t), values=[];
+  f.audio.outputGain={gain:{setTargetAtTime:(value)=>values.push(value)}};
+  f.audio.setVolume(.35); f.audio.setVolume(0); f.audio.setVolume(2); f.audio.setVolume(NaN);
+  assert.deepEqual(values,[.35,0,1]);
+  assert.equal(f.audio.volume,1);
+});

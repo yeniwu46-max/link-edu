@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import {
   connectionSummary,
   budgetNotice,
@@ -66,4 +68,12 @@ test("technical records stay classifiable and unknown pose is never described as
     eventText({ type: "playback", data: { status: "playback_completed" } }),
     "播放完成",
   );
+});
+
+test('adding the classroom session query preserves the live component identity',()=>{
+  const shell=readFileSync(new URL('../src/layouts/AppShell.vue',import.meta.url),'utf8');
+  const expression=shell.match(/class="page-slot"\s+:key="([^"]+)"/)[1];
+  const key=(path,fullPath)=>vm.runInNewContext(expression,{route:{path,fullPath}});
+  assert.equal(key('/classroom','/classroom'),key('/classroom','/classroom?session=901'));
+  assert.notEqual(key('/profile','/profile?tab=settings'),key('/profile','/profile?tab=contact'));
 });

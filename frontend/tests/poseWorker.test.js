@@ -48,7 +48,8 @@ test('body and both hands stay local; seated upper-body landmarks survive unknow
   const frame=async()=>{await self.onmessage({data:{time:1,image:{close(){closed++;}}}});return messages.at(-1);};
   const result=await frame();
   assert.equal(result.data.present,null); assert.equal(result.landmarks.length,33); assert.equal(result.hands.length,2);
-  assert.equal(result.data.landmarks,undefined); assert.equal(result.data.hands,undefined);
+  assert.equal(result.data.landmarks,undefined); assert.equal(Array.isArray(result.data.hands),false);
+  assert.equal(result.data.hands.landmarks,undefined); assert.equal(result.data.face.landmarks,undefined);
   body=null; hands=[];
   const empty=await frame(); assert.equal(empty.landmarks.length,0);assert.equal(empty.hands.length,0);assert.equal(closed,2);
 });

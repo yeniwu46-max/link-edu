@@ -18,6 +18,8 @@ def wait_for_report(sid):
 
 def test_finish_is_idempotent_and_correction_has_no_fixed_bonus(app,monkeypatch):
     obj=live(app)
+    from test_classroom_readiness import seed_sufficient
+    seed_sufficient(obj.sid)
     row=ClassroomEvent(session_id=obj.sid,event_key='authored-fixture',kind='transcript',at_ms=20000,payload={'text':'测试场景：整体必须平均分'})
     db.session.add(row);db.session.commit(); eid=row.id
     started=threading.Event(); release=threading.Event(); calls=[]
@@ -44,7 +46,7 @@ def test_empty_classroom_fails_without_cloud_or_demo(app,monkeypatch):
     monkeypatch.setattr(reports,'chat',lambda *a,**k: (_ for _ in ()).throw(AssertionError('Must not call cloud')))
     app.test_client().post(f'/api/classroom/sessions/{obj.sid}/finish',headers=headers(1))
     room=wait_for_report(obj.sid)
-    assert room.report_state=='failed' and room.report is None and room.report_version==0
+    assert room.report_state=='insufficient' and room.report is None and room.report_version==0
 
 def test_invalid_json_and_no_cache(app):
     obj=live(app); c=app.test_client()

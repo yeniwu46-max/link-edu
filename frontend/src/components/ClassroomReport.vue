@@ -56,6 +56,7 @@ onUnmounted(() => {
             running: "生成中",
             completed: "已生成",
             failed: "生成失败",
+            insufficient: "数据不足 · 未生成",
           }[room.report_state]
         }}
       </span>
@@ -66,6 +67,12 @@ onUnmounted(() => {
     <p v-if="room.report_state === 'failed'" class="class-alert" role="alert">
       {{ room.report_error || "报告生成失败，请重试。" }}
     </p>
+    <div v-if="room.report_state === 'insufficient'" class="report-blocked" role="status">
+      <h3>本次课堂数据不足，未生成 AI 评课报告</h3>
+      <p>没有调用评审 AI，也没有生成替代分数。以下缺项需要在下一次授课中补足：</p>
+      <ul><li v-for="reason in room.report_readiness?.reasons || [room.report_error]" :key="reason">{{ reason }}</li></ul>
+      <p class="subtle-note">{{ room.report_readiness?.notice }}</p>
+    </div>
     <template v-if="room.report">
       <p v-if="room.report_state !== 'completed'" class="class-alert">
         以下为上一版报告，本次尚未生成成功。
@@ -98,6 +105,22 @@ onUnmounted(() => {
           </div>
         </article>
       </div>
+      <details v-if="room.report.motion_evidence?.sample_count" class="reference-list">
+        <summary>教态动作证据 · 身体 / 手势 / 面部（{{ room.report.motion_evidence.observed_samples }} 个有效样本）</summary>
+        <p v-if="room.report.motion_evidence.status !== 'observed'">有效动作证据不足，不能据此给出教态评分。</p>
+        <p v-for="(m, name) in room.report.motion_evidence.modalities" :key="name">
+          {{ {body:'身体', hands:'手势', face:'面部'}[name] }}：{{ m.observed_samples }}/{{ m.total_samples }} 个样本可观察
+        </p>
+        <article v-for="o in room.report.motion_evidence.observations" :key="o.code">
+          <b>{{ o.description }}</b>
+          <p>{{ o.matched_samples }}/{{ o.observed_samples }} 个有效样本出现该线索；连续采样跨度 {{ (o.longest_observed_span_ms / 1000).toFixed(1) }} 秒（非持续动作测量）。</p>
+          <p>{{ o.suggestion }}</p>
+          <div class="evidence-links"><button v-for="id in o.event_ids" :key="id" type="button" @click="jump(id)">
+            ↗ {{ time(room.events.find(e => e.id === id)?.at_ms || 0) }}
+          </button></div>
+        </article>
+        <p v-for="note in room.report.motion_evidence.limitations" :key="note">{{ note }}</p>
+      </details>
       <details class="reference-list">
         <summary>教学依据与来源（{{ room.report.sources.length }}）</summary>
         <article v-for="s in room.report.sources" :key="s.id">
@@ -114,7 +137,7 @@ onUnmounted(() => {
         </article>
       </details>
     </template>
-    <div v-if="room.report_state !== 'running'" class="correction-form">
+    <div v-if="!['running','insufficient'].includes(room.report_state)" class="correction-form">
       <label for="objection">补充说明（可选）</label
       ><textarea
         id="objection"
@@ -153,3 +176,11 @@ onUnmounted(() => {
     </dialog>
   </section>
 </template>
+
+<style scoped>
+.report-blocked { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--class-surface-raised); }
+.report-blocked h3 { color:var(--class-orange-text); margin-bottom:8px; }
+.report-blocked p, .report-blocked li { font-size:13px; line-height:1.8; }
+.report-blocked ul { margin:12px 0; padding-left:20px; }
+.report-blocked li + li { margin-top:8px; }
+</style>

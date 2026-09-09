@@ -1,4 +1,8 @@
-"""Paid HTTP/WS synthetic classroom. No real microphone or acoustic playback acceptance."""
+"""Paid voice-only HTTP/WS probe. Missing visual evidence MUST block the final report.
+
+No real camera, microphone or acoustic playback acceptance. This is not a full
+camera-first classroom acceptance run; use the browser QA and participant review.
+"""
 import argparse
 import base64
 import json
@@ -141,7 +145,7 @@ def wait_report(client, sid, timeout=100):
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         room=request(client,'GET',f'/api/classroom/sessions/{sid}')
-        if room['report_state'] in ('completed','failed'): return room
+        if room['report_state'] in ('completed','failed','insufficient'): return room
         time.sleep(.5)
     raise ValueError('Report did not reach a terminal state')
 
@@ -196,7 +200,8 @@ def main():
             token=request(client,'POST','/api/auth/login',json=credentials)['access_token']
             client.headers['Authorization']='Bearer '+token
             result['capabilities']=request(client,'GET','/api/classroom/capabilities')
-            sid=request(client,'POST','/api/classroom/sessions',json={'mode':'full','audio_consent':True})['session_id']
+            # Synthetic endpoint consent only; deliberately provide NO fabricated motion evidence.
+            sid=request(client,'POST','/api/classroom/sessions',json={'mode':'full','audio_consent':True,'camera_consent':True})['session_id']
             result['session_id']=sid
             print('Synthetic classroom started; no real microphone or playback.',flush=True)
             transport=stream_classroom(client,sid,clips,args.seconds)
@@ -205,6 +210,11 @@ def main():
             result['finish_to_report_seconds']=round(time.monotonic()-finished_at,3)
             result['first_report']=room
             checks=verify_room(room)
+            checks.pop('report_completed')
+            checks.pop('report_references')
+            missing={c['key'] for c in room.get('report_readiness',{}).get('checks',[]) if not c['passed']}
+            checks['no_report_without_motion_scene']=(room['report_state']=='insufficient' and room['report'] is None
+                                                      and {'motion','scene'} <= missing)
             checks['received_real_pcm']=result['audio_reply_count']>0
             result['classroom_seconds']=room['elapsed']
             checks['stream_duration']=room['elapsed']>=args.seconds
@@ -216,7 +226,8 @@ def main():
             checks['duplicate_finish_same_version']=repeated['report_version']==first_version
             request(client,'POST',f'/api/classroom/sessions/{sid}/report',json={'objection':'请依据授课中必须平均分的纠错原文重新审查；不要固定加分。'})
             retried=wait_report(client,sid)
-            checks['objection_report_completed']=retried['report_state']=='completed' and retried['report_version']==first_version+1
+            checks['objection_cannot_bypass_readiness']=(retried['report_state']=='insufficient' and
+                retried['report'] is None and retried['report_version']==first_version)
             checks['objection_saved']=any(e['type']=='correction' for e in retried['events'])
             result['retry_report']=retried; result['checks']=checks; result['passed']=all(checks.values())
     except Exception as exc:

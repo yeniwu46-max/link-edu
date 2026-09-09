@@ -17,7 +17,7 @@ def test_ownership_and_single_use_ticket(app):
         db.session.add(User(id=i, account=str(i), name='test', password_hash='not-used'))
     db.session.commit()
     client = app.test_client()
-    room = client.post('/api/classroom/sessions', headers=headers(1), json={'audio_consent': True}).json
+    room = client.post('/api/classroom/sessions', headers=headers(1), json={'audio_consent': True, 'camera_consent': True}).json
     sid = room['session_id']
     assert client.get(f'/api/classroom/sessions/{sid}', headers=headers(2)).status_code == 404
     assert client.post(f'/api/classroom/sessions/{sid}/ticket', headers=headers(2)).status_code == 404

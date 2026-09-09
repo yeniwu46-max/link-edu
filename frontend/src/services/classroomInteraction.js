@@ -22,6 +22,7 @@ export function reduceReply(current, message) {
       studentId: m.student_id,
       text: m.text,
       replyId: m.reply_id,
+      action: m.action || current.action,
       phase: "queued",
     };
   if (m.type === "cancel" || m.type === "ended" || m.type === "disconnected")
@@ -49,6 +50,7 @@ export function reduceReply(current, message) {
       ...current,
       studentId: m.student_id,
       text: m.text,
+      action: m.action,
       phase: "queued",
     };
   if (m.type === "generation_failed")

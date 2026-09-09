@@ -1,24 +1,39 @@
 <script setup>
-defineProps({
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
+import { createBubbleRetention } from '../services/classroomBubble.js';
+const props = defineProps({
   student: Object,
   raised: Boolean,
   speaking: Boolean,
   level: Number,
   understanding: String,
   reply: Object,
+  compact: Boolean,
+});
+const bubble = ref(null);
+const visibleReply = ref(null);
+const retention = createBubbleRetention(value => { visibleReply.value = value; });
+watch(() => props.reply, value => retention.update(value), {immediate:true});
+onUnmounted(retention.clear);
+const attention = computed(() => props.raised || visibleReply.value?.phase === 'thinking' ||
+  (visibleReply.value && ['raise','followup'].includes(visibleReply.value.action)));
+watch(() => visibleReply.value?.text, async () => {
+  await nextTick();
+  if (props.compact && bubble.value) bubble.value.scrollTop = bubble.value.scrollHeight;
 });
 const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
 </script>
 
 <template>
-  <div class="student-interaction">
+  <div class="student-interaction" :class="{compact}">
     <button
       type="button"
       class="student-card"
-      :class="{ speaking, raised, thinking: reply?.phase === 'thinking' }"
+      :class="{ speaking, raised:attention, thinking: visibleReply?.phase === 'thinking' }"
       :aria-label="`${student.name}${raised ? '举手了，点击点名' : '，可用语音点名'}`"
       @click="$emit('select', student.id)"
     >
+      <span v-if="attention" class="student-attention" aria-hidden="true">!</span>
       <span class="student-status">{{
         speaking
           ? "正在发言"
@@ -53,7 +68,7 @@ const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
           <g class="student-arm">
             <path
               :d="
-                raised ? 'M139 123L159 96L161 51' : 'M139 123L158 149L172 151'
+                attention ? 'M139 123L159 96L161 51' : 'M139 123L158 149L172 151'
               "
               fill="none"
               stroke="var(--shirt)"
@@ -61,8 +76,8 @@ const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
               stroke-linecap="round"
             />
             <circle
-              :cx="raised ? 161 : 172"
-              :cy="raised ? 43 : 151"
+              :cx="attention ? 161 : 172"
+              :cy="attention ? 43 : 151"
               r="10"
               fill="#f6d0b7"
             />
@@ -119,17 +134,18 @@ const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
       }}</span>
     </button>
     <div
-      v-if="reply && reply.phase !== 'idle'"
+      ref="bubble"
+      v-if="visibleReply"
       class="student-bubble"
-      :class="reply.phase"
+      :class="visibleReply.phase"
     >
-      <span v-if="reply.phase === 'thinking'"
+      <span v-if="visibleReply.phase === 'thinking'"
         >思考中<span class="thinking-dots" aria-hidden="true">…</span></span
       >
-      <span v-else-if="reply.phase === 'failed'">{{ reply.error }}</span>
+      <span v-else-if="visibleReply.phase === 'failed'">{{ visibleReply.error }}</span>
       <template v-else
-        ><small v-if="reply.phase === 'generating'">回复生成中</small>
-        <p>{{ reply.text || "正在准备回答…" }}</p></template
+        ><small v-if="visibleReply.phase === 'generating'">回复生成中</small>
+        <p>{{ visibleReply.text || "正在准备回答…" }}</p></template
       >
     </div>
     <span class="sr-only" role="status">{{
@@ -143,6 +159,8 @@ const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
 </template>
 
 <style scoped>
+.student-attention { position:absolute; top:8px; right:14px; display:grid; place-items:center; width:24px; height:28px; border-radius:8px; background:var(--orange); color:#211008; font:bold 22px/1 sans-serif; animation:attention-pop .6s ease-out; }
+@keyframes attention-pop { from {transform:translateY(8px) scale(.5);opacity:0;} to {transform:translateY(0) scale(1);opacity:1;} }
 .student-interaction {
   min-width: 0;
   display: flex;
@@ -151,6 +169,21 @@ const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
 .student-interaction .student-card {
   width: 100%;
 }
+.student-interaction.compact {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 100px;
+  gap: 8px;
+}
+.compact .student-card { grid-row: 2; height: 100px; padding: 4px; }
+.compact .student-card.raised { transform: none; }
+.compact .student-card svg { height: 48px; width: 60px; flex-shrink: 0; }
+.compact .student-card strong { font-size: 14px; line-height: 20px; }
+.compact .student-card small, .compact .student-memory { display: none; }
+.compact .student-status { font-size: 10px; line-height: 16px; padding: 2px 4px; }
+.compact .student-bubble { grid-row: 1; grid-column: 1; min-height: 0; margin: 0; padding: 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; font-size: 13px; }
+.compact .student-bubble::before { display: none; }
 .student-bubble {
   position: relative;
   padding: 12px;
@@ -333,5 +366,10 @@ small {
   .student-memory {
     display: none;
   }
+}
+@media (max-height: 600px) {
+  .student-interaction.compact { grid-template-rows: minmax(0,1fr) 72px; }
+  .compact .student-card { height: 72px; }
+  .compact .student-card svg { height: 28px; }
 }
 </style>

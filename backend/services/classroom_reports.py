@@ -6,6 +6,8 @@ from extensions import db
 from classroom_models import Classroom, ClassroomEvent
 from services.classroom_providers import chat
 from services.classroom_knowledge import search
+from services.classroom_motion import motion_evidence
+from services.classroom_readiness import report_readiness
 
 locks = threading.RLock()
 jobs = set()
@@ -21,6 +23,12 @@ REPORT_SYSTEM = (
     'student是生成的回复文字，不保证完整播放；结合playback和interrupt区分实际完成与打断。'
     '未确认playback_completed或有失败/打断的学生文字，只能描述未完成交流，不能证明已完成互动。'
     '注意平均分与同一整体，考虑老师的自我纠错；教师异议须重新审查证据，不能直接加分。'
+    'motion_evidence是服务端从本地动作摘要形成的观察与启发式建议，不是已校准教育量表或预定分数。'
+    '在posture维度结合身体、手势、面部几何及对应授课时间点评价非语言表达，引用原始pose事件id。'
+    '样本比例不是整课时长比例；检测失败、未入镜、多人或局部遮挡不等于教态差。'
+    '不能把朝向镜头等同看向学生，不能从表情/动作推断情绪、自信、疲倦或人格。'
+    '不要求固定站姿、频繁手势或微笑；考虑坐姿、个人活动方式和板书示范情境。'
+    '动作证据不足时posture必须null；不得按观察建议自动加减分。'
 )
 
 
@@ -32,6 +40,8 @@ def validate_report(raw, events, sources):
     if not isinstance(candidates, list) or not any(isinstance(i, dict) and i.get('key') in DIMENSIONS for i in candidates):
         raise ValueError('评课返回结构不完整，请重试；未生成替代评分')
     by_id = {e['id']: e for e in events}
+    motion = motion_evidence(events)
+    motion_ids = set(motion['eligible_event_ids'])
     completed = {e.get('data', {}).get('reply_id') for e in events
                  if e['type'] == 'playback' and e.get('data', {}).get('status') == 'playback_completed'}
     incomplete = {e.get('data', {}).get('reply_id') for e in events
@@ -49,7 +59,8 @@ def validate_report(raw, events, sources):
             by_id[i].get('data', {}).get('reply_id') not in completed for i in evidence)
         # Rubric citations alone are not evidence of what this teacher did.
         if key == 'posture':
-            evidence = [i for i in evidence if usable_visual(by_id[i])]
+            evidence = [i for i in evidence if (i in motion_ids if by_id[i].get('data', {}).get('motion_version') == 2
+                                                else usable_visual(by_id[i]))]
         else:
             evidence = [i for i in evidence if by_id[i]['type'] in ('transcript', 'vision') or
                         (by_id[i]['type'] == 'student' and by_id[i].get('data', {}).get('reply_id') in completed)]
@@ -64,6 +75,7 @@ def validate_report(raw, events, sources):
     return {'demo': False, 'topic': '分数的初步认识', 'dimensions': dims,
             'overall_score': round(sum(scored) / len(scored)) if scored else None,
             'coverage': f'{len(scored)}/6', 'sources': sources,
+            'motion_evidence': motion,
             'generated_at': datetime.utcnow().isoformat(),
             'notice': 'AI辅助评价；仅聚合有证据的维度，不与演示分数直接比较。'}
 
@@ -81,6 +93,14 @@ def request_report(app, session_id, retry=False):
         room = db.session.get(Classroom, session_id)
         if session_id in jobs or (room.report_state == 'completed' and not retry):
             return
+        events = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=session_id).order_by(ClassroomEvent.id).all()]
+        elapsed = (room.ended_at - room.started_at).total_seconds() if room.ended_at else 0
+        readiness = report_readiness(events, elapsed, room.cloud_vision)
+        if room.state != 'ended' or not readiness['eligible']:
+            room.report_state = 'insufficient'
+            room.report_error = '课堂数据不足，未调用评审 AI；请查看各项缺失原因。'
+            db.session.commit()
+            return
         room.report_state = 'running'
         room.report_error = None
         db.session.commit()
@@ -95,15 +115,22 @@ def request_report(app, session_id, retry=False):
                 evidence = [e for e in events if e['type'] in ('transcript', 'student', 'pose', 'vision', 'interrupt', 'playback')]
                 if not any(e['type'] == 'transcript' for e in evidence):
                     raise ValueError('没有最终授课转写，无法生成真实评课')
+                all_evidence = evidence
+                motion = motion_evidence(all_evidence)
                 # Keep every spoken turn, thin repetitive pose observations for the prompt.
                 spoken = [e for e in evidence if e['type'] in ('transcript', 'student', 'interrupt', 'playback')]
                 visual = [e for e in evidence if e['type'] in ('pose', 'vision')]
-                evidence = sorted(spoken + visual[::max(1, len(visual) // 50)], key=lambda e: e['id'])
+                cited = {i for o in motion['observations'] for i in o['event_ids']}
+                cited.update(i for m in motion['modalities'].values() for i in m['event_ids'])
+                selected = {e['id']: e for e in visual[::max(1, len(visual) // 50)] + [e for e in visual if e['id'] in cited]}
+                evidence = sorted(spoken + list(selected.values()), key=lambda e: e['id'])
                 sources = search('平均分 分数 提问 教学评价 教态')
                 raw = chat(REPORT_SYSTEM,
-                    {'events': evidence, 'references': sources, 'teacher_objection': room.correction},
+                    {'events': evidence, 'references': sources, 'teacher_objection': room.correction, 'motion_evidence': motion,
+                     'data_readiness': readiness},
                     session_id, max_tokens=4000)
-                room.report = dict(validate_report(raw, evidence, sources), generation_seconds=round(time.monotonic() - started, 3))
+                room.report = dict(validate_report(raw, all_evidence, sources), data_readiness=readiness,
+                                   generation_seconds=round(time.monotonic() - started, 3))
                 room.report_state = 'completed'
                 room.report_version += 1
                 db.session.commit()

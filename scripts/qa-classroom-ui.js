@@ -45,32 +45,46 @@ async (page) => {
   await page.getByRole('heading', { name: '模拟课堂' }).waitFor();
   await page.waitForFunction(() => window.__classroomQA?.capabilities.value);
   await page.waitForTimeout(500);
-  check(await page.getByRole('button', { name: '开始课堂' }).isDisabled(), 'Consent must gate start');
-  check(await page.getByText('待检查', { exact: true }).first().isVisible(), 'Unverified speech must remain pending');
-  check(!await page.locator('#classroom-settings').isVisible(), 'Settings must start collapsed');
-  check(!await page.getByRole('checkbox', { name: '云端画面分析' }).isChecked(), 'Cloud vision must default off');
+  check(await page.getByRole('button', { name: '开始授课' }).isDisabled(), 'Consent must gate start');
+  check(await page.locator('.classroom-services').getByText('待检查', { exact: true }).isVisible(), 'Unverified speech must remain pending');
+  check(!await page.getByRole('dialog', {name:'课堂设置'}).isVisible(), 'Settings must start closed');
   await page.getByRole('checkbox', { name: '同意语音识别与 AI 评课' }).check();
-  check(await page.getByRole('button', { name: '开始课堂' }).isEnabled(), 'Consent should enable configured classroom');
+  check(await page.getByRole('button', { name: '开始授课' }).isDisabled(), 'Camera consent must also gate start');
+  await page.getByRole('checkbox', { name: '同意摄像头开启' }).check();
+  check(await page.getByRole('button', { name: '开始授课' }).isEnabled(), 'Both consents should enable configured classroom');
   const layouts = [];
   for (const width of [1440,1024,768,320]) {
     await page.setViewportSize({ width, height: width === 1440 ? 1080 : 900 });
     await page.waitForTimeout(150);
     const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
       startBottom: [...document.querySelectorAll('.class-controls button')][0]?.getBoundingClientRect().bottom,
-      background: getComputedStyle(document.querySelector('.class-stage')).backgroundColor }));
+      background: getComputedStyle(document.querySelector('.camera-stage')).backgroundColor,
+      cameraWidth:document.querySelector('.motion-frame').getBoundingClientRect().width,
+      stageWidth:document.querySelector('.camera-stage').getBoundingClientRect().width,
+      rosterBelow:document.querySelector('.fullscreen-students').getBoundingClientRect().top>=document.querySelector('.motion-frame').getBoundingClientRect().bottom }));
     layouts.push(layout);
     check(layout.scrollWidth <= width, `Horizontal overflow at ${width}: ${layout.scrollWidth}`);
+    check(layout.cameraWidth>layout.stageWidth*.85 && layout.rosterBelow,`Camera-first layout missing at ${width}`);
+    check(await page.locator('.student-card').count()===3,`Exactly three students expected at ${width}`);
     await page.screenshot({ path: `output/playwright/classroom-${width}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 1440, height: 1080 });
-  await page.locator('.settings-toggle').click();
-  check(await page.locator('#classroom-settings').isVisible(), 'Settings should expand');
+  await page.getByRole('button',{name:'课堂设置',exact:true}).click();
+  check(await page.getByRole('dialog',{name:'课堂设置'}).isVisible(), 'Settings should open');
+  check(!await page.getByRole('checkbox', { name: '云端画面分析' }).isChecked(), 'Cloud vision must default off');
+  await page.keyboard.press('Tab');
+  check(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))),'Settings focus escaped');
   check(await page.getByText('额度详情', { exact: true }).isVisible(), 'Budget details missing');
   await page.screenshot({ path: 'output/playwright/classroom-settings.png', fullPage: true });
-  await page.locator('.settings-toggle').click();
+  await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
+  check(await page.getByRole('button',{name:'课堂设置',exact:true}).evaluate(el=>el===document.activeElement),'Settings focus not restored');
   await page.getByRole('button', { name: '历史课堂', exact: true }).click();
   check(await page.getByText('暂无课堂记录', { exact: true }).isVisible(), 'History empty state missing');
-  await page.getByRole('button', { name: '收起历史', exact: true }).click();
+  await page.getByRole('button', { name: '关闭历史课堂', exact: true }).click();
+  await page.getByRole('button',{name:'课堂记录',exact:true}).click();
+  check(await page.getByText('暂无课堂内容',{exact:true}).isVisible(),'Empty timeline missing');
+  await page.keyboard.press('Escape');
+  check(!await page.getByRole('dialog',{name:'课堂记录',exact:true}).isVisible(),'Timeline Escape failed');
   await page.evaluate(() => {
     const live = window.__classroomQA;
     live.capabilities.value.budget.credits.accounts.vision.stopped = true;
@@ -87,6 +101,9 @@ async (page) => {
     live.state.value='listening'; live.partial.value='同学们，怎样把这块蛋糕平均分给两个人？';
   });
   check(await page.getByRole('button', { name: '结束并评课' }).isVisible(), 'Live controls missing');
+  check(await page.getByRole('button', { name: '结束并评课' }).isDisabled(),'10 second finish gate missing');
+  await page.evaluate(()=>{window.__classroomQA.elapsed.value=120;});
+  check(await page.getByRole('button', { name: '结束并评课' }).isEnabled(),'Finish should unlock after 10s');
   await page.evaluate(() => { const live=window.__classroomQA; live.state.value='speaking'; live.activeStudent.value='ming'; live.raised.value='yu';
     live.events.value=[{id:1,type:'transcript',at_ms:1000,data:{text:'同学们，怎样把这块蛋糕平均分给两个人？'}},{id:2,type:'student',at_ms:5000,data:{name:'小明',text:'老师，每个人分到一样大的一块，就是平均分。'}}]; });
   check(await page.getByRole('button', { name: '打断学生' }).isVisible(), 'Interrupt control missing');
@@ -107,13 +124,15 @@ async (page) => {
   await page.getByRole('button', { name: '↗ 0:05', exact: true }).click();
   check(await page.locator('#evidence-2').isVisible(), 'Report jump must reveal technical evidence');
   check(await page.locator('#evidence-2').evaluate(el => document.activeElement === el), 'Report jump must focus evidence');
+  await page.getByRole('button',{name:'关闭课堂记录',exact:true}).click();
   await page.getByRole('button', { name: '↗ 0:15', exact: true }).click();
   await page.getByRole('dialog', { name: '课堂截图证据' }).waitFor();
   await page.keyboard.press('Tab');
   check(await page.evaluate(() => Boolean(document.activeElement.closest('dialog'))), 'Dialog focus must stay contained');
   await page.screenshot({ path: 'output/playwright/classroom-evidence.png', fullPage: true });
   await page.keyboard.press('Escape');
-  check(!await page.getByRole('dialog').count(), 'Escape should close evidence');
+  check(!await page.getByRole('dialog',{name:'课堂截图证据'}).count(), 'Escape should close evidence');
+  await page.getByRole('button',{name:'关闭课堂记录',exact:true}).click();
   await page.getByRole('heading', { name: '课堂评课', exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'output/playwright/classroom-report.png', fullPage: true });
   await page.evaluate(() => { window.__classroomQA.room.value.report_state='running'; });
@@ -121,6 +140,11 @@ async (page) => {
   await page.evaluate(() => { window.__classroomQA.room.value.report_state='failed'; window.__classroomQA.room.value.report_error='报告生成超时，请重试。'; });
   check(await page.getByText('报告生成超时，请重试。').isVisible(), 'Report failure missing');
   check(await page.getByRole('button', { name: '重新评课', exact: true }).isEnabled(), 'Report retry missing');
+  await page.evaluate(()=>{const r=window.__classroomQA.room;r.value={...r.value,report:null,report_state:'insufficient',report_readiness:{reasons:['最终转写不足：当前 1 段、8 字；需至少 2 段、80 字。','学生反馈不足：没有完整播放的回应。','动作捕捉不足：0 个有效样本。','未识别到足够的单人教师画面。']}};});
+  check(await page.getByText('本次课堂数据不足，未生成 AI 评课报告',{exact:true}).isVisible(),'Insufficient data heading missing');
+  check(await page.locator('.report-blocked li').count()===4,'All insufficiency reasons must display');
+  check(await page.locator('.correction-form').count()===0,'Insufficient data must not offer paid retry');
+  await page.screenshot({path:'output/playwright/classroom-insufficient.png',fullPage:true});
   await page.emulateMedia({ reducedMotion: 'reduce' });
   check(await page.locator('.student-eyes').first().evaluate(el=>getComputedStyle(el).animationName) === 'none', 'Reduced motion missing');
   check(await page.evaluate(() => window.__deviceRequests) === 0, 'No devices should be requested');

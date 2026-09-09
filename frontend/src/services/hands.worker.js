@@ -1,4 +1,5 @@
-import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+import { FilesetResolver, GestureRecognizer } from "@mediapipe/tasks-vision";
+import { handFeatures } from "./motionFeatures.js";
 let model;
 self.onmessage = async ({ data }) => {
   try {
@@ -9,9 +10,10 @@ self.onmessage = async ({ data }) => {
           : "/models/wasm",
         true,
       );
-      model = await HandLandmarker.createFromOptions(files, {
+      model?.close();
+      model = await GestureRecognizer.createFromOptions(files, {
         baseOptions: {
-          modelAssetPath: "/models/hand_landmarker.task",
+          modelAssetPath: "/models/gesture_recognizer.task",
           delegate: "CPU",
         },
         runningMode: "VIDEO",
@@ -22,8 +24,8 @@ self.onmessage = async ({ data }) => {
       });
       self.postMessage({ type: "ready" });
     } else {
-      const result = model.detectForVideo(data.image, data.time);
-      self.postMessage({ type: "hands", hands: result.landmarks || [] });
+      const result = model.recognizeForVideo(data.image, data.time);
+      self.postMessage({ type: "hands", hands: result.landmarks || [], summary: handFeatures(result) });
     }
   } catch {
     self.postMessage({
