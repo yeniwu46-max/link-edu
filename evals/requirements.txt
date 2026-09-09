@@ -1,0 +1,19 @@
+# Install only in a dedicated evaluation venv. Production requirements stay unchanged.
+deepeval==4.2.2
+pytest==9.0.3
+pydantic==2.13.4
+httpx==0.28.1
+python-dotenv==1.2.2
+Flask==3.1.0
+Flask-Cors==5.0.0
+Flask-JWT-Extended==4.7.1
+Flask-SQLAlchemy==3.1.1
+PyMySQL==1.1.1
+cryptography==50.0.1
+flask-sock==0.7.0
+websocket-client==1.9.2
+rank-bm25==0.2.2
+jieba==0.42.1
+pypdf==6.18.0
+python-docx==1.2.0
+openai==1.109.1
