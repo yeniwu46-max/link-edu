@@ -51,6 +51,11 @@ def speak(text, session_id, voice, cancelled, on_audio):
 
 def describe(service):
     if service in ('dialogue', 'vision'):
+        if bailian.llm_provider() == 'openai_next':
+            configured = bool(os.getenv(f'OPENAI_NEXT_{service.upper()}_API_KEY', '').strip())
+            priced = os.getenv('OPENAI_NEXT_PRICING_CONFIRMED', '').lower() == 'true'
+            return {'provider': 'openai_next', 'model': bailian.model(service),
+                    'configured': configured, 'pricing_confirmed': priced, 'account': service}
         return {'provider': 'deepseek', 'model': bailian.model(service),
                 'configured': bool(os.getenv('DEEPSEEK_API_KEY', '').strip()), 'pricing_confirmed': True}
     try:

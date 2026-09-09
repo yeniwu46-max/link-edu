@@ -48,6 +48,21 @@ class ApiUsage(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class CreditUsage(db.Model):
+    """OpenAI Next USD estimates; never mix these with the historical CNY ledger."""
+    __tablename__ = 'classroom_credit_usage'
+    id = db.Column(db.Integer, primary_key=True)
+    account = db.Column(db.String(16), nullable=False, index=True)
+    service = db.Column(db.String(16), nullable=False)
+    model = db.Column(db.String(80), nullable=False)
+    session_id = db.Column(db.Integer, index=True)
+    reserved_usd = db.Column(db.Float, nullable=False)
+    charged_usd = db.Column(db.Float)
+    units = db.Column(db.JSON, default=dict)
+    state = db.Column(db.String(20), default='reserved', nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class ClassroomTicket(db.Model):
     __tablename__ = 'classroom_tickets'
     digest = db.Column(db.String(64), primary_key=True)

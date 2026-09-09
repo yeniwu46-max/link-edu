@@ -10,6 +10,12 @@ from services.classroom_budget import reserve, settle, status
 
 @pytest.fixture
 def app(monkeypatch, tmp_path):
+    # New stream transports must be explicitly mocked; never use real credentials in tests.
+    import httpx
+    def blocked_stream(*args, **kwargs):
+        raise AssertionError('Unmocked external stream in unit test')
+    monkeypatch.setattr(httpx, 'stream', blocked_stream)
+    monkeypatch.setenv('CLASSROOM_LLM_PROVIDER', 'deepseek')
     monkeypatch.setenv('AI_PRICING_CONFIRMED', 'true')
     class Config:
         TESTING = True

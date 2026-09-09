@@ -28,6 +28,7 @@ cases=[
 ]
 
 init_db()
+app.config['CLASSROOM_API_PROFILE'] = 'test'
 out={'provenance':'合成文本/报告探针，不是麦克风授课，不计入三次10分钟验收或语音P95',
      'at':datetime.now(timezone.utc).isoformat(),'results':[]}
 with app.app_context():

@@ -5,6 +5,7 @@ import os
 import time
 import uuid
 from urllib.parse import urlencode
+from flask import current_app
 import httpx
 import websocket
 from services.classroom_budget import reserve, settle, price
@@ -21,14 +22,26 @@ def key(name):
     return value
 
 
+def llm_provider():
+    selected = os.getenv('CLASSROOM_LLM_PROVIDER', 'deepseek').strip().lower()
+    if selected not in ('deepseek', 'openai_next'):
+        raise ProviderError('CLASSROOM_LLM_PROVIDER 仅支持 deepseek 或 openai_next')
+    return selected
+
+
 def model(service):
+    if service in ('dialogue', 'vision') and llm_provider() == 'openai_next':
+        return os.getenv(f'OPENAI_NEXT_{service.upper()}_MODEL',
+                         'deepseek-v4-flash-vision-exp' if service == 'vision' else 'deepseek-v4-flash')
     return os.getenv({'dialogue': 'DEEPSEEK_CHAT_MODEL', 'vision': 'DEEPSEEK_VISION_MODEL',
                       'asr': 'DASHSCOPE_ASR_MODEL', 'tts': 'DASHSCOPE_TTS_MODEL'}[service],
                      {'dialogue': 'deepseek-v4-flash', 'vision': 'deepseek-v4-flash-vision-exp',
                       'asr': 'qwen3-asr-flash-realtime', 'tts': 'qwen3-tts-flash-realtime'}[service])
 
 
-def chat(system, payload, session_id=None, image=None, max_tokens=600):
+def chat(system, payload, session_id=None, image=None, max_tokens=600, *, test=False):
+    if llm_provider() == 'openai_next':
+        return next_chat(system, payload, session_id, image, max_tokens, test=test)
     token = key('DEEPSEEK_API_KEY')
     endpoint = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com').rstrip('/')
     if not endpoint.startswith('https://'):
@@ -66,6 +79,56 @@ def chat(system, payload, session_id=None, image=None, max_tokens=600):
         raise ProviderError('DeepSeek 网络请求失败或超时，请重试') from None
     except (ValueError, KeyError, IndexError):
         raise ProviderError('DeepSeek 返回JSON结构无效，请重试') from None
+
+
+def next_chat(system, payload, session_id, image, max_tokens, *, test=False):
+    from services import classroom_credits as credits
+    service = 'vision' if image else 'dialogue'
+    account = 'test' if test or current_app.config.get('CLASSROOM_API_PROFILE') == 'test' else service
+    token = key(f'OPENAI_NEXT_{account.upper()}_API_KEY')
+    endpoint = os.getenv('OPENAI_NEXT_BASE_URL', 'https://api.openai-next.com/v1').rstrip('/')
+    if endpoint != 'https://api.openai-next.com/v1':
+        raise ProviderError('OpenAI Next端点必须为 https://api.openai-next.com/v1，本次未发送密钥')
+    selected_model = model(service)
+    # These rates and the non-thinking payload have only been checked for Flash.
+    # Changing model families requires explicit adapter/pricing validation.
+    if selected_model not in ('deepseek-v4-flash', 'deepseek-v4-flash-vision-exp'):
+        raise ProviderError('此适配器仅核验了 DeepSeek V4 Flash 系列，请先核对新模型协议和单价')
+    input_price = price(f'OPENAI_NEXT_{service.upper()}_INPUT_USD_PER_MILLION')
+    output_price = price(f'OPENAI_NEXT_{service.upper()}_OUTPUT_USD_PER_MILLION')
+    content = json.dumps(payload, ensure_ascii=False)
+    upper_input = len((system + content).encode('utf-8')) + (4096 if image else 0) + 1024
+    usage_id = credits.reserve(account, service, selected_model,
+        (upper_input * input_price + max_tokens * output_price) / 1e6, session_id)
+    if image:
+        content = [{'type': 'text', 'text': content}, {'type': 'image_url', 'image_url': {'url': image}}]
+    try:
+        response = httpx.post(endpoint + '/chat/completions',
+            headers={'Authorization': f'Bearer {token}'}, timeout=45,
+            json={'model': selected_model,
+                  'messages': [{'role': 'system', 'content': system}, {'role': 'user', 'content': content}],
+                  'thinking': {'type': 'disabled'}, 'max_tokens': max_tokens,
+                  'response_format': {'type': 'json_object'}})
+        if response.status_code != 200:
+            raise ProviderError(f'OpenAI Next 请求失败（HTTP {response.status_code}），请检查该用途密钥的额度、有效期与模型权限')
+        result = response.json()
+        usage = result.get('usage') or {}
+        counts = [usage.get('prompt_tokens'), usage.get('completion_tokens')]
+        if all(type(n) is int and n >= 0 for n in counts):
+            credits.settle(usage_id, (counts[0] * input_price + counts[1] * output_price) / 1e6,
+                {'prompt_tokens': counts[0], 'completion_tokens': counts[1],
+                 'billing': 'estimated_peak_cache_miss', 'input_usd_per_million': input_price,
+                 'output_usd_per_million': output_price})
+        output = json.loads(result['choices'][0]['message']['content'])
+        if not isinstance(output, dict):
+            raise ValueError()
+        return output
+    except ProviderError:
+        raise
+    except httpx.HTTPError:
+        raise ProviderError('OpenAI Next 网络请求失败或超时，请重试') from None
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        raise ProviderError('OpenAI Next 返回JSON结构无效，请重试') from None
 
 
 class SpeechSocket:

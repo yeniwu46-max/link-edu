@@ -13,9 +13,16 @@ lock = threading.RLock()
 def status():
     total = float(db.session.query(func.coalesce(func.sum(
         func.coalesce(ApiUsage.charged_cny, ApiUsage.reserved_cny)), 0)).scalar())
-    return {'spent_and_reserved_cny': round(total, 4), 'warning': total >= 80,
+    result = {'spent_and_reserved_cny': round(total, 4), 'warning': total >= 80,
             'stopped': total >= 90, 'limit_cny': 100, 'stop_cny': 90,
             'pricing_confirmed': os.getenv('AI_PRICING_CONFIRMED', '').lower() == 'true'}
+    if os.getenv('CLASSROOM_LLM_PROVIDER', '').lower() == 'openai_next':
+        from services.classroom_credits import status as credit_status
+        result['credits'] = credit_status()
+        result['pricing_confirmed'] = result['pricing_confirmed'] and result['credits']['pricing_confirmed']
+        result['stopped'] = result['stopped'] or result['credits']['accounts']['dialogue']['stopped']
+        result['warning'] = result['warning'] or any(a['warning'] for a in result['credits']['accounts'].values())
+    return result
 
 
 def reserve(service, amount, session_id=None):

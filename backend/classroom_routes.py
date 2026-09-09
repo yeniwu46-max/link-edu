@@ -94,11 +94,11 @@ def probe():
                     from services.classroom_fixtures import probe_image
                     image = probe_image()
                     answer = chat('Read the image. Return JSON with left_color and right_color, each one common English color name.',
-                                  {'test': 'synthetic two-color image'}, image=image, max_tokens=128)
+                                  {'test': 'synthetic two-color image'}, image=image, max_tokens=128, test=True)
                     if answer.get('left_color', '').lower() != 'blue' or answer.get('right_color', '').lower() != 'pink':
                         raise ValueError('视觉接口返回成功，但色块内容验证未通过')
                 else:
-                    answer = chat('返回JSON对象，包含ok=true。', {'test': 'API smoke test'}, max_tokens=128)
+                    answer = chat('返回JSON对象，包含ok=true。', {'test': 'API smoke test'}, max_tokens=128, test=True)
                     if answer.get('ok') is not True:
                         raise ValueError('对话接口返回成功，但JSON内容验证未通过')
             elif service == 'tts':
@@ -109,6 +109,8 @@ def probe():
             else:
                 probe_asr()
             probe_results[service] = {'status': 'available', 'message': '接口验证通过' if service != 'asr' else '会话握手通过；真实识别需麦克风验收'}
+            if service in ('dialogue', 'vision') and describe(service)['provider'] == 'openai_next':
+                probe_results[service]['message'] = '测试密钥模型验证通过；正式课堂使用该用途专属密钥'
         except Exception as exc:
             probe_results[service] = {'status': 'failed', 'message': str(exc)[:160] if isinstance(exc, ValueError) else '接口验证失败，请检查配置与网络'}
         return jsonify(probe_results[service])

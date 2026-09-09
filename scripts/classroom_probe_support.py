@@ -24,6 +24,9 @@ def isolated_app(output, allowance=10):
         JWT_SECRET_KEY = secrets.token_hex(32)
         SEED_ON_STARTUP = False
     probe = create_app(ProbeConfig)
+    probe.config['CLASSROOM_API_PROFILE'] = 'test'
+    with main_app.app_context():
+        probe.config['OPENAI_NEXT_LEDGER_ENGINE'] = db.engine
     probe.instance_path = str(output)
     with probe.app_context():
         db.create_all()
