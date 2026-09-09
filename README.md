@@ -2,6 +2,8 @@
 
 ## 2026-09-07 真实 AI 课堂开发版
 
+2026-09-09：本机已接入 OpenAI Next 三用途额度（授课 $30 / 视觉 $40 / 测试 $30），讯飞语音独立计费。配置和美元预算说明见 [活动额度接入](docs/classroom-openai-next.md)。
+
 先读 [技术交接与架构/接口](docs/技术沉淀.md)，再按 [新版启动说明](docs/classroom-runbook.md) 配置；真实入口为 `http://127.0.0.1:5188/classroom`，本机新版后端为 5001。
 
 9月8日已接入讯飞识别/合成，真实语音探针有返回，完整真人课堂仍待验收。最新状态见 [讯飞联调记录](docs/classroom-xfyun.md)，另有 [历史验收记录](docs/classroom-validation.md)、[资料索引](docs/classroom-sources.md) 与 [架构决策](docs/decisions/002-xfyun-streaming-speech.md)。仓库已设私有，密钥仍只放本地忽略文件，不随仓库分享。

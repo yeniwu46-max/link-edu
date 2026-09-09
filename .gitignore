@@ -22,3 +22,5 @@ backend/private/
 .pytest_cache/
 artifacts/private/
 frontend/public/models/
+.playwright-cli/
+output/playwright/

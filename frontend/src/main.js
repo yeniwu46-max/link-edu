@@ -26,7 +26,7 @@ const router = createRouter({
         { path: 'dashboard', component: DashboardView, meta: { crumb: '工作台  /  总览' } },
         { path: 'courses', component: CoursesView, meta: { crumb: '课程中心  /  选课' } },
         { path: 'training', component: TrainingView, meta: { crumb: '教学训练  /  微格课堂', immersive: true } },
-        { path: 'classroom', component: ClassroomView, meta: { crumb: '教学训练  /  真实 AI 课堂' } },
+        { path: 'classroom', component: ClassroomView, meta: { crumb: '教学训练  /  模拟课堂' } },
         { path: 'ai-review', component: AiReviewView, meta: { crumb: 'AI 评课  /  报告' } },
         { path: 'growth', component: GrowthView, meta: { crumb: '成长档案  /  轨迹' } },
         { path: 'resources', component: ResourcesView, meta: { crumb: '资源库  /  教案与素材' } },

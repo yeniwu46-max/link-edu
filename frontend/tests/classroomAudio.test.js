@@ -64,3 +64,12 @@ test('closing releases capture tracks and audio resources', async t => {
   await f.audio.close();
   assert.equal(stopped,1); assert.equal(disconnected,1); assert.ok(f.audio.ctx.closed);
 });
+
+test('avatar playback waits for scheduled audio and cancel suppresses late animation',t=>{
+  const f=fixture(t), phases=[]; f.audio.onPlayback=(id,phase)=>phases.push([id,phase]);
+  f.audio.chunk('one',f.pcm(100),16000);
+  assert.equal(phases.length,0); f.flush(); assert.deepEqual(phases,[['one','playing']]);
+  f.audio.end('one');f.flush();assert.deepEqual(phases.at(-1),['one','done']);
+  f.audio.chunk('two',f.pcm(100),16000);f.audio.cancel('two');f.flush();
+  assert.equal(phases.some(([id])=>id==='two'),false);
+});

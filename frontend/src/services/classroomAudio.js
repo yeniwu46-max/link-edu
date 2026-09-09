@@ -1,7 +1,8 @@
 export class ClassroomAudio {
-  constructor(send, onLevel) {
+  constructor(send, onLevel, onPlayback = () => {}) {
     this.send = send;
     this.onLevel = onLevel;
+    this.onPlayback = onPlayback;
     this.nodes = new Set();
     this.cancelled = new Set();
     this.reply = null;
@@ -76,6 +77,14 @@ export class ClassroomAudio {
     node.connect(this.analyser);
     const start = Math.max(this.ctx.currentTime + 0.01, this.endAt);
     if (this.first) {
+      clearTimeout(this.playingTimer);
+      this.playingTimer = setTimeout(
+        () => {
+          if (!this.disposed && !this.cancelled.has(id) && this.reply === id)
+            this.onPlayback(id, "playing");
+        },
+        Math.max(0, start - this.ctx.currentTime) * 1000,
+      );
       this.send("playback_started", {
         reply_id: id,
         latency_ms: Math.round(
@@ -95,13 +104,19 @@ export class ClassroomAudio {
     };
   }
   end(id, ok = true) {
-    if (this.disposed || this.cancelled.has(id) || (this.reply && this.reply !== id)) return;
+    if (
+      this.disposed ||
+      this.cancelled.has(id) ||
+      (this.reply && this.reply !== id)
+    )
+      return;
     clearTimeout(this.timer);
     this.timer = setTimeout(
       () => {
         if (!this.disposed && !this.cancelled.has(id)) {
           // Terminal replies must not be replayed or acknowledge completion twice.
           this.cancelled.add(id);
+          this.onPlayback(id, ok && this.reply === id ? "done" : "failed");
           this.send(
             ok && this.reply === id ? "playback_done" : "playback_failed",
             { reply_id: id },
@@ -118,6 +133,7 @@ export class ClassroomAudio {
     if (id) this.cancelled.add(id);
     if (id && this.reply && id !== this.reply) return;
     clearTimeout(this.timer);
+    clearTimeout(this.playingTimer);
     this.nodes.forEach((n) => {
       try {
         n.stop();

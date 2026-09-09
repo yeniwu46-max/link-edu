@@ -2,6 +2,7 @@ import { ref, onUnmounted } from "vue";
 import { api } from "./api";
 import { ClassroomAudio } from "./classroomAudio";
 import { classroomLoadError } from "./classroomStatus.js";
+import { emptyReply, reduceReply } from "./classroomInteraction.js";
 
 export function useClassroom() {
   const room = ref(null),
@@ -14,6 +15,12 @@ export function useClassroom() {
     activeStudent = ref(null),
     raised = ref(null),
     mouth = ref(0);
+  const reply = ref(emptyReply()),
+    playbackStudent = ref(null);
+  const landmarks = ref(null),
+    motionStatus = ref("idle"),
+    handStatus = ref("idle"),
+    cameraEnabled = ref(false);
   const pose = ref(null),
     camera = ref(null),
     elapsed = ref(0),
@@ -35,6 +42,8 @@ export function useClassroom() {
     disposed = false,
     polling = false;
   const seen = new Set();
+  let motionTimeout,
+    cameraPending = false;
   const send = (type, payload = {}) => {
     if (ws?.readyState === WebSocket.OPEN && ws.bufferedAmount < 200000) {
       ws.send(
@@ -44,7 +53,7 @@ export function useClassroom() {
       ws?.readyState === WebSocket.OPEN &&
       ws.bufferedAmount >= 200000
     ) {
-      error.value = "网络发送积压，部分音频未送达，请重连；缺失内容不会补造";
+      error.value = "网络不畅，部分音频未送达，请重新连接。";
       ws.close();
     }
   };
@@ -52,10 +61,11 @@ export function useClassroom() {
     try {
       capabilities.value = (await api.get("/classroom/capabilities")).data;
     } catch (e) {
-      error.value = classroomLoadError(e, "无法读取服务状态，请确认后端已启动");
+      error.value = classroomLoadError(e, "无法读取课堂状态，请稍后刷新。");
     }
   }
   async function load(sid) {
+    if (room.value?.session_id !== Number(sid)) reply.value = emptyReply();
     room.value = (await api.get(`/classroom/sessions/${sid}`)).data;
     events.value = room.value.events || [];
     seen.clear();
@@ -86,8 +96,22 @@ export function useClassroom() {
     socket.onmessage = async ({ data }) => {
       if (disposed || socket !== ws) return;
       const m = JSON.parse(data);
-      if (m.session_id !== room.value?.session_id || !Number.isInteger(m.seq) || m.seq <= lastSequence) return;
+      if (
+        m.session_id !== room.value?.session_id ||
+        !Number.isInteger(m.seq) ||
+        m.seq <= lastSequence
+      )
+        return;
       lastSequence = m.seq;
+      if (
+        ["finishing", "ended"].includes(state.value) &&
+        (m.type.startsWith("generation_") ||
+          ["reply_delta", "reply", "raise", "audio", "audio_end"].includes(
+            m.type,
+          ))
+      )
+        return;
+      reply.value = reduceReply(reply.value, m);
       if (m.type === "connected") {
         students.value = m.students;
         baseTime = performance.now() - m.elapsed * 1000;
@@ -105,7 +129,8 @@ export function useClassroom() {
       if (m.type === "event" && !seen.has(m.event.id)) {
         seen.add(m.event.id);
         events.value.push(m.event);
-        if (m.event.type === "student") room.value.students = m.event.data.states;
+        if (m.event.type === "student")
+          room.value.students = m.event.data.states;
       }
       if (m.type === "partial") partial.value = m.text;
       if (m.type === "speech_stopped" && audio)
@@ -119,19 +144,22 @@ export function useClassroom() {
       if (m.type === "audio") audio?.chunk(m.reply_id, m.audio, m.sample_rate);
       if (m.type === "audio_end") {
         audio?.end(m.reply_id, m.ok);
-        if (m.ok === false) error.value = "文字已生成，语音播放失败；未记为完整发言。";
+        if (m.ok === false) error.value = "学生语音播放失败，可查看回复文字。";
       }
       if (m.type === "cancel") {
+        playbackStudent.value = null;
         audio?.cancel(m.reply_id);
         activeStudent.value = null;
         if (state.value !== "finishing") state.value = "listening";
       }
       if (m.type === "listening") {
+        playbackStudent.value = null;
         activeStudent.value = null;
         if (state.value !== "finishing") state.value = "listening";
       }
       if (m.type === "error") error.value = m.message;
       if (m.type === "ended") {
+        playbackStudent.value = null;
         state.value = "ended";
         clearInterval(clock);
         await audio?.close();
@@ -142,6 +170,10 @@ export function useClassroom() {
     };
     socket.onclose = () => {
       if (socket !== ws) return;
+      reply.value = emptyReply();
+      playbackStudent.value = null;
+      activeStudent.value = null;
+      raised.value = null;
       clearTimeout(connectTimeout);
       audio?.close();
       clearInterval(clock);
@@ -151,7 +183,7 @@ export function useClassroom() {
       }
     };
     socket.onerror = () => {
-      error.value = "实时连接失败，请检查后端和网络";
+      error.value = "课堂连接失败，请检查网络后重连。";
     };
   }
   async function begin(mode, consent) {
@@ -196,6 +228,9 @@ export function useClassroom() {
     if (!room.value || busy.value) return;
     busy.value = true;
     state.value = "finishing";
+    reply.value = emptyReply();
+    playbackStudent.value = null;
+    audio?.cancel();
     await audio?.stopCapture(true);
     send("finish");
     try {
@@ -233,9 +268,22 @@ export function useClassroom() {
   async function prepareAudio() {
     // Called from a user gesture, so AudioContext can resume before the WebSocket handshake.
     await audio?.close();
-    audio = new ClassroomAudio(send, (value) => {
-      mouth.value = value;
-    });
+    audio = new ClassroomAudio(
+      send,
+      (value) => {
+        mouth.value = value;
+      },
+      (id, phase) => {
+        if (reply.value.replyId !== id) return;
+        playbackStudent.value =
+          phase === "playing" ? reply.value.studentId : null;
+        reply.value = {
+          ...reply.value,
+          phase,
+          error: phase === "failed" ? "语音播放失败，可查看回复文字" : "",
+        };
+      },
+    );
     try {
       await audio.start();
     } catch {
@@ -257,11 +305,68 @@ export function useClassroom() {
       busy.value = false;
     }
   }
+  function initializeMotion() {
+    clearTimeout(motionTimeout);
+    poseWorker?.terminate();
+    poseReady = frameBusy = false;
+    motionStatus.value = handStatus.value = "loading";
+    poseWorker = new Worker(new URL("./pose.worker.js", import.meta.url), {
+      type: "module",
+    });
+    const worker = poseWorker;
+    motionTimeout = setTimeout(() => {
+      if (worker !== poseWorker) return;
+      worker.terminate();
+      poseReady = frameBusy = false;
+      motionStatus.value = "failed";
+      landmarks.value = null;
+    }, 20000);
+    poseWorker.onmessage = ({ data }) => {
+      if (worker !== poseWorker) return;
+      if (["ready", "pose", "error"].includes(data.type)) frameBusy = false;
+      if (data.type === "ready") {
+        clearTimeout(motionTimeout);
+        poseReady = true;
+        motionStatus.value = "ready";
+      }
+      if (data.type === "hands_status") handStatus.value = data.status;
+      if (data.type === "pose") {
+        pose.value = data.data;
+        landmarks.value = {
+          body: data.landmarks || [],
+          hands: data.hands || [],
+          at: performance.now(),
+        };
+        send("pose", { data: data.data });
+      }
+      if (data.type === "error") {
+        clearTimeout(motionTimeout);
+        error.value = data.message;
+        poseReady = false;
+        motionStatus.value = "failed";
+        landmarks.value = null;
+      }
+    };
+    poseWorker.onerror = () => {
+      if (worker !== poseWorker) return;
+      clearTimeout(motionTimeout);
+      frameBusy = false;
+      error.value = "动作检测暂不可用，镜头仍可使用。";
+      motionStatus.value = "failed";
+      poseReady = false;
+      landmarks.value = null;
+    };
+    poseWorker.postMessage({ type: "init" });
+  }
   function stopCamera() {
+    clearTimeout(motionTimeout);
     clearInterval(frameTimer);
     clearInterval(visionTimer);
     cameraStream?.getTracks().forEach((t) => t.stop());
     cameraStream = null;
+    cameraEnabled.value = false;
+    landmarks.value = null;
+    motionStatus.value = handStatus.value = "idle";
     if (camera.value) camera.value.srcObject = null;
     poseWorker?.terminate();
     poseWorker = null;
@@ -270,12 +375,14 @@ export function useClassroom() {
     pose.value = null;
   }
   async function toggleCamera() {
+    if (cameraPending) return;
     if (cameraStream) {
       stopCamera();
       return;
     }
     try {
       error.value = "正在等待摄像头授权；若浏览器未弹窗，请在地址栏检查权限。";
+      cameraPending = true;
       let timedOut = false,
         timer;
       const request = navigator.mediaDevices
@@ -303,32 +410,19 @@ export function useClassroom() {
       error.value = "";
       camera.value.srcObject = cameraStream;
       await camera.value.play();
-      poseWorker = new Worker(new URL("./pose.worker.js", import.meta.url), {
-        type: "module",
-      });
-      poseWorker.onmessage = ({ data }) => {
-        frameBusy = false;
-        if (data.type === "ready") poseReady = true;
-        if (data.type === "pose") {
-          pose.value = data.data;
-          send("pose", { data: data.data });
-        }
-        if (data.type === "error") {
-          error.value = data.message;
-          poseReady = false;
-        }
-      };
-      poseWorker.onerror = () => {
-        frameBusy = false;
-        error.value = "动作检测线程启动失败，摄像头仍可使用";
-      };
-      poseWorker.postMessage({ type: "init" });
+      cameraEnabled.value = true;
+      initializeMotion();
       frameTimer = setInterval(async () => {
         if (!poseReady || frameBusy || !camera.value?.videoWidth) return;
         frameBusy = true;
+        const worker = poseWorker;
         try {
           const image = await createImageBitmap(camera.value);
-          poseWorker?.postMessage({ image, time: performance.now() }, [image]);
+          if (!worker || worker !== poseWorker) {
+            image.close();
+            return;
+          }
+          worker.postMessage({ image, time: performance.now() }, [image]);
         } catch {
           frameBusy = false;
         }
@@ -352,10 +446,21 @@ export function useClassroom() {
     } catch {
       stopCamera();
       error.value = "摄像头不可用，请检查权限；仍可进行语音课堂";
+    } finally {
+      cameraPending = false;
     }
   }
   function setVision() {
     send("vision_consent", { enabled: cloudVision.value });
+  }
+  function retryMotion() {
+    if (!poseWorker) return;
+    if (motionStatus.value === "failed") {
+      initializeMotion();
+    } else {
+      handStatus.value = "loading";
+      poseWorker.postMessage({ type: "retry_hands" });
+    }
   }
   onUnmounted(() => {
     disposed = true;
@@ -368,6 +473,13 @@ export function useClassroom() {
   });
   return {
     room,
+    reply,
+    playbackStudent,
+    landmarks,
+    motionStatus,
+    handStatus,
+    cameraEnabled,
+    retryMotion,
     capabilities,
     events,
     error,

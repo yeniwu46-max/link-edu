@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onUnmounted } from "vue";
+import { ref, nextTick, onUnmounted } from "vue";
 import { api } from "../services/api";
 const props = defineProps({ room: Object, busy: Boolean });
-defineEmits(["regenerate", "jump"]);
+const emit = defineEmits(["regenerate", "jump"]);
+const imageDialog = ref(null);
 const objection = ref(""),
   image = ref(""),
   imageError = ref("");
@@ -15,20 +16,21 @@ async function showImage(event) {
     );
     if (image.value) URL.revokeObjectURL(image.value);
     image.value = URL.createObjectURL(data);
+    await nextTick();
+    imageDialog.value?.showModal();
   } catch {
     imageError.value = "截图不可用或无访问权限";
   }
 }
 function closeImage() {
+  imageDialog.value?.close();
   URL.revokeObjectURL(image.value);
   image.value = "";
 }
 function jump(id) {
+  emit("jump", id);
   const e = props.room.events.find((e) => e.id === id);
   if (e?.type === "vision") showImage(e);
-  document
-    .getElementById(`evidence-${id}`)
-    ?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 const time = (ms) =>
   `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
@@ -45,8 +47,7 @@ onUnmounted(() => {
   <section class="class-report" aria-labelledby="report-heading">
     <header class="report-heading">
       <div>
-        <p class="eyebrow">EVIDENCE, NOT IMPRESSION</p>
-        <h2 id="report-heading">课堂证据与评课</h2>
+        <h2 id="report-heading">课堂评课</h2>
       </div>
       <span class="soft-tag"
         >{{
@@ -57,14 +58,13 @@ onUnmounted(() => {
             failed: "生成失败",
           }[room.report_state]
         }}
-        · v{{ room.report_version }}</span
-      >
+      </span>
     </header>
     <p v-if="room.report_state === 'running'" role="status">
-      正在整理真实课堂证据。可留在此页等待，也可稍后从历史课堂查看。
+      正在生成报告，可稍后在历史课堂查看。
     </p>
     <p v-if="room.report_state === 'failed'" class="class-alert" role="alert">
-      {{ room.report_error }}。不会自动生成演示分数。
+      {{ room.report_error || "报告生成失败，请重试。" }}
     </p>
     <template v-if="room.report">
       <p v-if="room.report_state !== 'completed'" class="class-alert">
@@ -76,7 +76,7 @@ onUnmounted(() => {
         >
         <div>
           证据覆盖 {{ room.report.coverage }}
-          <p>{{ room.report.notice }}</p>
+          <p>AI 辅助评价 · 仅对有证据的维度评分</p>
         </div>
       </div>
       <div class="report-dimensions">
@@ -93,20 +93,16 @@ onUnmounted(() => {
               type="button"
               @click="jump(id)"
             >
-              ↗ {{ time(room.events.find((e) => e.id === id)?.at_ms || 0) }} ·
-              #{{ id }}
+              ↗ {{ time(room.events.find((e) => e.id === id)?.at_ms || 0) }}
             </button>
           </div>
-          <small v-if="d.source_ids.length"
-            >资料依据：{{ d.source_ids.join("、") }}</small
-          >
         </article>
       </div>
       <details class="reference-list">
         <summary>教学依据与来源（{{ room.report.sources.length }}）</summary>
         <article v-for="s in room.report.sources" :key="s.id">
           <b>{{ s.title }}</b
-          ><small>{{ s.type }} · {{ s.location }} · {{ s.id }}</small>
+          ><small>{{ s.type }} · {{ s.location }}</small>
           <p>{{ s.text }}</p>
           <a
             v-if="sourceLink(s)"
@@ -119,7 +115,7 @@ onUnmounted(() => {
       </details>
     </template>
     <div v-if="room.report_state !== 'running'" class="correction-form">
-      <label for="objection">教师异议（可选，结合时间点说明）</label
+      <label for="objection">补充说明（可选）</label
       ><textarea
         id="objection"
         v-model="objection"
@@ -131,23 +127,29 @@ onUnmounted(() => {
         :disabled="busy"
         @click="$emit('regenerate', objection)"
       >
-        {{ room.report ? "保存异议并重新评课" : "重试生成真实报告" }}</button
-      ><small>重新调用模型并保留异议，不固定加分；会计入云调用预算。</small>
+        {{
+          room.report
+            ? "重新评课"
+            : room.report_state === "failed"
+              ? "重试生成"
+              : "生成报告"
+        }}</button
+      ><small>生成报告会消耗授课额度</small>
     </div>
     <p v-if="imageError" role="alert">{{ imageError }}</p>
-    <div
+    <dialog
       v-if="image"
+      ref="imageDialog"
       class="evidence-overlay"
-      role="dialog"
-      aria-modal="true"
       aria-label="课堂截图证据"
       @click.self="closeImage"
-      @keydown.esc="closeImage"
+      @cancel.prevent="closeImage"
+      @keydown.tab.prevent="imageDialog?.querySelector('button')?.focus()"
     >
       <div>
         <button class="class-btn" autofocus @click="closeImage">关闭截图</button
         ><img :src="image" alt="此课堂时间点的分析截图" />
       </div>
-    </div>
+    </dialog>
   </section>
 </template>

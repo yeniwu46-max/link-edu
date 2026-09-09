@@ -30,3 +30,22 @@ if (
 console.log(
   "WASM copied locally. Browser runtime does not fetch models from a CDN.",
 );
+const handModel = path.join(target, "hand_landmarker.task");
+if (
+  await stat(handModel)
+    .then((s) => s.size > 1000000)
+    .catch(() => false)
+) {
+  console.log("Existing local hand model retained.");
+} else {
+  const response = await fetch(
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+    { signal: AbortSignal.timeout(60000) },
+  );
+  if (!response.ok)
+    throw new Error(`Hand model download failed: HTTP ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 1000000) throw new Error("Unexpected hand model size");
+  await writeFile(handModel, bytes);
+  console.log(`Installed local hand model (${bytes.length} bytes).`);
+}
