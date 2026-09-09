@@ -7,7 +7,14 @@ from models import User
 from services.dashboard import build_dashboard_overview, list_courses, list_resources
 from services.growth import build_growth, get_feedback, list_feedbacks
 from services.studio import CORRECTION_OPTIONS, add_journal, build_profile, list_journals, update_profile
-from services.training import complete_session, regenerate_feedback, start_session, update_session
+from services.training import (
+    ask_ai_review_question,
+    complete_session,
+    generate_ai_review,
+    regenerate_feedback,
+    start_session,
+    update_session,
+)
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/api/dashboard')
@@ -154,6 +161,48 @@ def finish_training_session(session_id):
     return jsonify(session=session.to_dict(), feedback=feedback.to_dict())
 
 
+@content_bp.post('/training/sessions/<int:session_id>/ai-review')
+@jwt_required()
+def create_ai_review(session_id):
+    user = current_user()
+    if not user:
+        return jsonify(message='用户不存在'), 404
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return jsonify(message='请求内容必须是 JSON 对象'), 400
+    transcript_value = data.get('transcript_text')
+    notes_value = data.get('teacher_notes')
+    regenerate_value = data.get('regenerate', False)
+    if transcript_value is not None and not isinstance(transcript_value, str):
+        return jsonify(message='课堂转写必须是文本'), 400
+    if notes_value is not None and not isinstance(notes_value, str):
+        return jsonify(message='教师备注必须是文本'), 400
+    if not isinstance(regenerate_value, bool):
+        return jsonify(message='regenerate 必须是布尔值'), 400
+    transcript_text = (transcript_value or '').strip()
+    teacher_notes = (notes_value or '').strip()
+    feedback, error = generate_ai_review(
+        user,
+        session_id,
+        transcript_text,
+        teacher_notes,
+        force_regenerate=regenerate_value,
+    )
+    if error:
+        if error == '训练不存在':
+            status = 404
+        elif error.startswith('AI 评课请求过于频繁'):
+            status = 429
+        elif error.startswith('请先') or error.startswith('AI 评课正在生成'):
+            status = 409
+        else:
+            status = 502
+        return jsonify(message=error), status
+    return jsonify(feedback=feedback.to_dict())
+
+
 @content_bp.get('/feedbacks')
 @jwt_required()
 def feedbacks():
@@ -173,6 +222,35 @@ def feedback_detail(feedback_id):
     if not item:
         return jsonify(message='评课不存在'), 404
     return jsonify(item)
+
+
+@content_bp.post('/feedbacks/<int:feedback_id>/ask')
+@jwt_required()
+def ask_feedback_question(feedback_id):
+    user = current_user()
+    if not user:
+        return jsonify(message='用户不存在'), 404
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return jsonify(message='请求内容必须是 JSON 对象'), 400
+    question = data.get('question')
+    if not isinstance(question, str):
+        return jsonify(message='问题必须是文本'), 400
+    if not question.strip():
+        return jsonify(message='问题不能为空'), 400
+
+    result, error = ask_ai_review_question(user, feedback_id, question)
+    if error:
+        if error == '评课不存在':
+            status = 404
+        elif error.startswith('请先'):
+            status = 409
+        else:
+            status = 502
+        return jsonify(message=error), status
+    return jsonify(result)
 
 
 @content_bp.get('/growth')

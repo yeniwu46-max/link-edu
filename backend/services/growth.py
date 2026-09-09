@@ -38,6 +38,8 @@ def build_growth(user: User, range_key: str = 'all'):
         days = 30
         query = query.filter(AiFeedback.created_at >= datetime.utcnow() - timedelta(days=30))
     rows = query.order_by(AiFeedback.created_at.asc()).all()
+    from services.training import report_from_feedback_row
+    rows = [row for row in rows if not report_from_feedback_row(row).get('insufficient_evidence')]
 
     points = [
         {

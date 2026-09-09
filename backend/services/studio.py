@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from extensions import db
 from models import AiFeedback, TrainingJournal, TrainingSession, User
+from services.training import feedback_is_scorable
 
 CORRECTION_OPTIONS = [
     {'id': 'pace_ok', 'label': '节奏其实正常，没有赶课', 'key': 'pace', 'delta': 6},
@@ -79,6 +80,8 @@ def build_replay(user: User, days=30):
     )
     items = []
     for row in rows:
+        if not feedback_is_scorable(row):
+            continue
         payload = row.to_dict()
         stamp = row.created_at
         items.append({
@@ -164,6 +167,7 @@ def build_ai_summaries(user: User):
         .limit(12)
         .all()
     )
+    rows = [row for row in rows if feedback_is_scorable(row)]
     if not rows:
         return []
     groups = []

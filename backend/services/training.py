@@ -1,11 +1,40 @@
 import json
-from datetime import datetime
+import time
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
+from threading import Lock
+
+from flask import current_app
 
 from extensions import db
 from models import AiFeedback, Course, TrainingSession, User
+from services.llm.deepseek import (
+    DeepSeekReviewError,
+    answer_review_question,
+    generate_review_report,
+    has_insufficient_evidence,
+)
 
 FRAGMENT_MINUTES = 8
 FULL_MINUTES = 10
+AI_REVIEW_RATE_WINDOW_SECONDS = 10 * 60
+AI_REVIEW_RATE_MAX_ATTEMPTS = 5
+HISTORY_QUESTION_MARKERS = (
+    '最近',
+    '近30天',
+    '近 30 天',
+    '历史',
+    '进步',
+    '趋势',
+    '相比',
+    '上次',
+    '变化',
+    '长期',
+)
+
+_ai_review_guard = Lock()
+_ai_review_inflight = set()
+_ai_review_attempts = defaultdict(deque)
 
 SCENE_TIPS = {
     '导入': '开场再慢半拍，把问题抛给学生后再讲概念。',
@@ -181,7 +210,14 @@ def report_from_feedback_row(row: AiFeedback):
     if row.report_json:
         try:
             payload = json.loads(row.report_json)
-            if isinstance(payload, dict) and payload.get('dimensions'):
+            if isinstance(payload, dict) and (payload.get('dimensions') or payload.get('generation_status')):
+                if (
+                    payload.get('source') == 'deepseek'
+                    and 'insufficient_evidence' not in payload
+                    and has_insufficient_evidence(payload.get('dimensions') or [])
+                ):
+                    payload['insufficient_evidence'] = True
+                    payload['overall_score'] = None
                 return payload
         except (TypeError, ValueError):
             pass
@@ -211,6 +247,177 @@ def report_from_feedback_row(row: AiFeedback):
         '下方六个维度由当时的三维分数补全，便于对照新报告。'
     )
     return report
+
+
+def feedback_is_scorable(row: AiFeedback):
+    return not report_from_feedback_row(row).get('insufficient_evidence')
+
+
+def classify_question_scope(question):
+    """Classify whether a follow-up needs the user's recent history."""
+    question_text = str(question or '')
+    return 'history' if any(marker in question_text for marker in HISTORY_QUESTION_MARKERS) else 'current'
+
+
+def _compact_report(report):
+    """Keep only report fields useful for a follow-up answer."""
+    dimensions = []
+    for item in report.get('dimensions') or []:
+        if not isinstance(item, dict):
+            continue
+        dimensions.append({
+            'key': item.get('key'),
+            'label': item.get('label'),
+            'score': item.get('score'),
+            'evidence': item.get('evidence'),
+            'brief': item.get('brief'),
+        })
+    return {
+        'source': report.get('source'),
+        'generation_status': report.get('generation_status'),
+        'insufficient_evidence': bool(report.get('insufficient_evidence')),
+        'overall_score': report.get('overall_score'),
+        'summary': report.get('summary'),
+        'strengths': report.get('strengths') or [],
+        'problems': report.get('problems') or [],
+        'fixes': report.get('fixes') or [],
+        'next_action': report.get('next_action'),
+        'dimensions': dimensions,
+    }
+
+
+def build_recent_review_summary(user, *, exclude_feedback_id=None):
+    """Build a compact, recent-only summary without exposing full reports."""
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    rows = (
+        AiFeedback.query
+        .filter(
+            AiFeedback.user_id == user.id,
+            AiFeedback.created_at >= cutoff,
+        )
+        .order_by(AiFeedback.created_at.desc())
+        .all()
+    )
+    valid_rows = []
+    for row in rows:
+        if exclude_feedback_id is not None and row.id == exclude_feedback_id:
+            continue
+        report = report_from_feedback_row(row)
+        if report.get('source') != 'deepseek':
+            continue
+        if report.get('generation_status') != 'succeeded':
+            continue
+        if report.get('insufficient_evidence'):
+            continue
+        valid_rows.append((row, report))
+        if len(valid_rows) >= 10:
+            break
+
+    records = []
+    for row, report in valid_rows:
+        records.append({
+            'id': row.id,
+            'date': row.created_at.isoformat() if row.created_at else None,
+            'course_title': row.session.course.title if row.session and row.session.course else None,
+            'scene': report.get('scene'),
+            'overall_score': report.get('overall_score'),
+            'dimensions': {
+                item.get('key'): item.get('score')
+                for item in report.get('dimensions') or []
+                if isinstance(item, dict) and item.get('key')
+            },
+            'problems': (report.get('problems') or [])[:3],
+        })
+
+    scores = [item['overall_score'] for item in records if isinstance(item.get('overall_score'), (int, float))]
+    chronological = sorted(
+        [item for item in records if isinstance(item.get('overall_score'), (int, float))],
+        key=lambda item: item.get('date') or '',
+    )
+    dimension_values = defaultdict(list)
+    problem_counts = defaultdict(int)
+    problem_labels = {}
+    for row, report in valid_rows:
+        for item in report.get('dimensions') or []:
+            if not isinstance(item, dict) or not item.get('key'):
+                continue
+            score = item.get('score')
+            if isinstance(score, (int, float)):
+                dimension_values[item['key']].append(score)
+        for problem in report.get('problems') or []:
+            label = ' '.join(str(problem).split())
+            if label:
+                problem_counts[label] += 1
+                problem_labels[label] = label
+
+    recurring_problems = [
+        problem_labels[label]
+        for label, count in sorted(problem_counts.items(), key=lambda item: (-item[1], item[0]))
+        if count >= 2
+    ][:5]
+
+    return {
+        'period_days': 30,
+        'record_count': len(records),
+        'average_overall_score': round(sum(scores) / len(scores), 1) if scores else None,
+        'highest_score': max(scores) if scores else None,
+        'lowest_score': min(scores) if scores else None,
+        'first_score': chronological[0]['overall_score'] if chronological else None,
+        'latest_score': chronological[-1]['overall_score'] if chronological else None,
+        'score_change': (
+            chronological[-1]['overall_score'] - chronological[0]['overall_score']
+            if len(chronological) >= 2 else None
+        ),
+        'dimension_averages': {
+            key: round(sum(values) / len(values), 1)
+            for key, values in sorted(dimension_values.items())
+        },
+        'recurring_problems': recurring_problems,
+        'records': records,
+    }
+
+
+def build_review_question_context(user, feedback: AiFeedback, question):
+    """Assemble current report context and optional recent trend context."""
+    report = report_from_feedback_row(feedback)
+    session = feedback.session
+    course = session.course if session else None
+    scope = classify_question_scope(question)
+    current_report = _compact_report(report)
+    current = {
+        'feedback_id': feedback.id,
+        'session_id': session.id if session else feedback.session_id,
+        'course_title': course.title if course else None,
+        'category': course.category if course else None,
+        'scene': report.get('scene'),
+        'mode': report.get('mode'),
+        'duration_minutes': session.duration_minutes if session else report.get('duration_minutes'),
+        'progress_percent': session.progress_percent if session else None,
+        'status': session.status if session else None,
+        'started_at': session.started_at.isoformat() if session and session.started_at else None,
+        'last_trained_at': session.last_trained_at.isoformat() if session and session.last_trained_at else None,
+        **{key: current_report[key] for key in (
+            'summary',
+            'strengths',
+            'problems',
+            'fixes',
+            'next_action',
+            'dimensions',
+            'overall_score',
+            'insufficient_evidence',
+        )},
+        'report': current_report,
+    }
+    context = {
+        'scope': scope,
+        'current': current,
+    }
+    if scope == 'history':
+        context['recent_30_days'] = build_recent_review_summary(
+            user,
+            exclude_feedback_id=feedback.id,
+        )
+    return context
 
 
 def start_session(user: User, course_id: int):
@@ -274,6 +481,159 @@ def complete_session(user: User, session_id: int, duration_minutes: int, scene: 
     db.session.add(feedback)
     db.session.commit()
     return session, feedback, None
+
+
+def generate_ai_review(
+    user: User,
+    session_id: int,
+    transcript_text='',
+    teacher_notes='',
+    force_regenerate=False,
+):
+    """Generate and persist a real DeepSeek report for a completed session."""
+    session = TrainingSession.query.filter_by(id=session_id, user_id=user.id).first()
+    if not session:
+        return None, '训练不存在'
+    if session.status != 'completed':
+        return None, '请先完成训练再生成评课'
+
+    feedback = (
+        AiFeedback.query.filter_by(user_id=user.id, session_id=session_id)
+        .order_by(AiFeedback.created_at.desc())
+        .first()
+    )
+    existing_report = report_from_feedback_row(feedback) if feedback else {}
+    generation_status = existing_report.get('generation_status')
+    if (
+        existing_report.get('source') == 'deepseek'
+        and not existing_report.get('insufficient_evidence')
+        and generation_status in {None, 'succeeded'}
+        and not force_regenerate
+    ):
+        return feedback, None
+
+    gate_error = _begin_ai_review(user.id, session_id)
+    if gate_error:
+        return None, gate_error
+
+    course = session.course
+    review_input = {
+        'course_title': course.title if course else None,
+        'scene': existing_report.get('scene') or ('完整' if course and str(course.stage or '').startswith('综合') else '导入'),
+        'mode': existing_report.get('mode') or ('full' if course and str(course.stage or '').startswith('综合') else 'fragment'),
+        'duration_minutes': session.duration_minutes,
+        'progress_percent': session.progress_percent,
+        'status': session.status,
+        'started_at': session.started_at.isoformat() if session.started_at else None,
+        'last_trained_at': session.last_trained_at.isoformat() if session.last_trained_at else None,
+        'transcript_text': transcript_text,
+        'teacher_notes': teacher_notes,
+    }
+    try:
+        if feedback is None:
+            feedback = AiFeedback(user_id=user.id, session_id=session_id, overall_score=0)
+            db.session.add(feedback)
+        previous_report = dict(existing_report)
+        generating_report = dict(previous_report)
+        generating_report.update({
+            'generation_status': 'generating',
+            'generation_started_at': datetime.utcnow().isoformat(),
+            'material_length': len(transcript_text) + len(teacher_notes),
+        })
+        generating_report.pop('generation_error', None)
+        feedback.report_json = json.dumps(generating_report, ensure_ascii=False)
+        db.session.commit()
+        try:
+            report = generate_review_report(review_input, config=current_app.config)
+        except DeepSeekReviewError as error:
+            current_app.logger.warning('DeepSeek review failed for session %s: %s', session_id, error)
+            failed_report = dict(previous_report)
+            failed_report.update({
+                'generation_status': 'failed',
+                'generation_error': 'AI 评课生成失败，请稍后重试',
+                'generation_failed_at': datetime.utcnow().isoformat(),
+                'material_length': len(transcript_text) + len(teacher_notes),
+            })
+            feedback.report_json = json.dumps(failed_report, ensure_ascii=False)
+            db.session.commit()
+            return None, 'AI 评课生成失败，请检查配置后重试'
+
+        report['generation_status'] = 'succeeded'
+        report['generation_completed_at'] = datetime.utcnow().isoformat()
+        report['material_length'] = len(transcript_text) + len(teacher_notes)
+        score_map = {item['key']: item['score'] for item in report.get('dimensions') or []}
+        if not report.get('insufficient_evidence'):
+            feedback.overall_score = report['overall_score']
+            feedback.clarity_score = score_map.get('clarity')
+            feedback.pace_score = score_map.get('pace')
+            feedback.interaction_score = score_map.get('interaction')
+        feedback.suggestion = report.get('next_action')
+        feedback.report_json = json.dumps(report, ensure_ascii=False)
+        db.session.commit()
+        return feedback, None
+    finally:
+        _finish_ai_review(user.id, session_id)
+
+
+def ask_ai_review_question(user: User, feedback_id: int, question):
+    """Answer a question using an existing DeepSeek report without writing data."""
+    question_text = str(question or '').strip()
+    if not question_text:
+        return None, '问题不能为空'
+
+    feedback = AiFeedback.query.filter_by(id=feedback_id, user_id=user.id).first()
+    if not feedback:
+        return None, '评课不存在'
+
+    report = report_from_feedback_row(feedback)
+    if (
+        report.get('source') != 'deepseek'
+        or report.get('generation_status') != 'succeeded'
+    ):
+        return None, '请先生成 DeepSeek 评课报告'
+
+    context = build_review_question_context(user, feedback, question_text)
+    try:
+        answer = answer_review_question(
+            question_text,
+            context,
+            config=current_app.config,
+        )
+    except DeepSeekReviewError as error:
+        current_app.logger.warning(
+            'DeepSeek follow-up failed for feedback %s: %s',
+            feedback_id,
+            error,
+        )
+        return None, 'AI 评课追问失败，请检查配置后重试'
+
+    return {
+        'feedback_id': feedback.id,
+        'scope': context['scope'],
+        'answer': answer,
+    }, None
+
+
+def _begin_ai_review(user_id, session_id):
+    now = time.monotonic()
+    cutoff = now - AI_REVIEW_RATE_WINDOW_SECONDS
+    key = (user_id, session_id)
+    with _ai_review_guard:
+        attempts = _ai_review_attempts[user_id]
+        while attempts and attempts[0] < cutoff:
+            attempts.popleft()
+        if key in _ai_review_inflight:
+            return 'AI 评课正在生成，请稍后查看'
+        if len(attempts) >= AI_REVIEW_RATE_MAX_ATTEMPTS:
+            return 'AI 评课请求过于频繁，请十分钟后再试'
+        attempts.append(now)
+        _ai_review_inflight.add(key)
+    return None
+
+
+def _finish_ai_review(user_id, session_id):
+    with _ai_review_guard:
+        _ai_review_inflight.discard((user_id, session_id))
 
 
 def get_session(user: User, session_id: int):

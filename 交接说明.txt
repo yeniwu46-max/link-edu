@@ -81,7 +81,8 @@ GET  /api/courses                    课程列表（含进度）
 GET  /api/resources                  资源列表
 POST /api/training/sessions          开始训练
 PATCH /api/training/sessions/:id     更新进度
-POST /api/training/sessions/:id/complete  结束并生成评课
+POST /api/training/sessions/:id/complete  结束训练并保存演示结果
+POST /api/training/sessions/:id/ai-review  使用 DeepSeek 生成真实 AI 评课
 GET  /api/feedbacks                  评课历史
 GET  /api/growth?range=all|7d        成长轨迹
 GET  /api/health                     健康检查
@@ -102,7 +103,8 @@ GET  /api/health                     健康检查
 - 帮助中心右侧抽屉
 
 【待开发建议】
-- 真 LLM 评课（当前为规则打分，便于演示）
+- 音视频采集、转写与 30 天数据保留策略
+- 真实 AI 评课的长期趋势算法与教师授权管理
 - 第三方登录（Google / Apple）
 - 文件上传（教案、素材）
 - 生产环境部署配置
@@ -112,6 +114,9 @@ GET  /api/health                     健康检查
 backend/.env（从 .env.example 复制，本压缩包不含真实 .env）：
   DATABASE_URL=mysql+pymysql://root:密码@127.0.0.1:3306/link?charset=utf8mb4
   JWT_SECRET_KEY=请修改为随机字符串
+  DEEPSEEK_API_KEY=你的 DeepSeek API Key（只放后端）
+  DEEPSEEK_MODEL=deepseek-v4-flash
+  DEEPSEEK_REASONING_EFFORT=high
 
 前端代理已配置：/api → http://127.0.0.1:5000
 

@@ -30,6 +30,20 @@ export async function completeTraining(sessionId, payload) {
   return data
 }
 
+export async function generateAiReview(sessionId, payload) {
+  const { data } = await api.post(`/training/sessions/${sessionId}/ai-review`, payload, { skipBusy: true })
+  return data.feedback
+}
+
+export async function askAiReviewQuestion(feedbackId, question) {
+  const { data } = await api.post(
+    `/feedbacks/${feedbackId}/ask`,
+    { question },
+    { skipBusy: true },
+  )
+  return data
+}
+
 export async function fetchFeedbacks() {
   const { data } = await api.get('/feedbacks')
   return data.items
