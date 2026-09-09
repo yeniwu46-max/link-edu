@@ -1397,9 +1397,18 @@ button.learn-more:focus-visible{
   border-radius:22px;
   overflow:hidden;
   background:
-    radial-gradient(circle at 74% 18%,rgba(180,92,255,.42),transparent 48%),
-    radial-gradient(circle at 18% 82%,rgba(255,122,24,.3),transparent 46%),
-    linear-gradient(160deg,#1c1428,#09070f);
+    radial-gradient(circle at 74% 18%,rgba(180,92,255,.55),transparent 48%),
+    radial-gradient(circle at 18% 82%,rgba(255,122,24,.42),transparent 46%),
+    linear-gradient(160deg,#2a1838,#120b18 58%,#09070f);
+}
+.dash-hero__art{
+  position:absolute;
+  inset:18% 10% 16%;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  opacity:.92;
+  filter:saturate(1.15);
 }
 .app-shell .page-dashboard .dash-hero .wave{
   position:absolute;
@@ -1558,11 +1567,14 @@ button.learn-more:focus-visible{
   box-shadow:inset 1px 0 0 rgba(255,255,255,.16),-24px 0 60px rgba(0,0,0,.35);
   backdrop-filter:blur(22px) saturate(150%);
 }
+.dash-sheet{z-index:60}
 .dash-modal{
+  z-index:61;
   border-radius:28px;
   border:1px solid rgba(255,255,255,.2);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 24px 80px rgba(0,0,0,.4);
 }
+.page-dashboard .help-mask{z-index:55}
 
 @media(max-width:1100px){
   .page-dashboard .dash-grid{

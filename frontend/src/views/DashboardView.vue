@@ -3,6 +3,7 @@
     <div class="dash-grid">
       <section v-if="continueTraining" class="glass dash-hero continue">
         <div class="dash-hero__stage">
+          <img class="dash-hero__art" src="/assets/summaries/intro.svg" alt="" />
           <div class="wave" aria-hidden="true">▮▮▮▮▮</div>
           <div class="dash-hero__meta">
             <div>
