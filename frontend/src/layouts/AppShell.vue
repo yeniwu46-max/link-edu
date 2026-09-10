@@ -88,7 +88,7 @@ const menuOpen = ref(false)
 const nav = [
   { label: '工作台', to: '/dashboard' },
   { label: '课程中心', to: '/courses' },
-  { label: '教学训练', to: '/training' },
+  { label: '教学训练', to: '/classroom' },
   { label: 'AI 评课', to: '/ai-review' },
   { label: '成长档案', to: '/growth' },
   { label: '资源库', to: '/resources' },

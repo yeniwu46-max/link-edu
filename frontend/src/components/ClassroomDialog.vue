@@ -11,10 +11,18 @@ watch(()=>props.modelValue, async value=>{
   else if (!value) dialog.value?.close();
 });
 function close() { dialog.value?.close(); emit('update:modelValue',false); trigger?.focus(); }
+function trapFocus(event) {
+  const controls=[...dialog.value.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+    .filter(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden');
+  const first=controls[0], last=controls.at(-1), active=document.activeElement;
+  if (!first) {event.preventDefault();dialog.value.focus();return;}
+  if(event.shiftKey && (active===first || !controls.includes(active))) {event.preventDefault();last.focus();}
+  else if(!event.shiftKey && (active===last || !controls.includes(active))) {event.preventDefault();first.focus();}
+}
 onBeforeUnmount(()=>dialog.value?.close());
 </script>
 <template>
-  <dialog ref="dialog" class="classroom-dialog" :aria-label="title" @cancel.prevent="close" @click.self="close" @close="emit('update:modelValue',false)">
+  <dialog ref="dialog" class="classroom-dialog" :aria-label="title" tabindex="-1" @keydown.tab="trapFocus" @cancel.prevent="close" @click.self="close" @close="emit('update:modelValue',false)">
     <header><h2>{{ title }}</h2><button class="dialog-close" :aria-label="`关闭${title}`" autofocus @click="close">×</button></header>
     <div class="dialog-content"><slot /></div>
   </dialog>

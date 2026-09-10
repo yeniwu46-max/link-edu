@@ -1,375 +1,107 @@
 <script setup>
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { createBubbleRetention } from '../services/classroomBubble.js';
+import { studentPresentation } from '../services/classroomStudent.js';
 const props = defineProps({
-  student: Object,
-  raised: Boolean,
-  speaking: Boolean,
-  level: Number,
-  understanding: String,
-  reply: Object,
-  compact: Boolean,
+  student: Object, raised: Boolean, speaking: Boolean, level: Number,
+  understanding: String, reply: Object, compact: Boolean,
 });
-const bubble = ref(null);
-const visibleReply = ref(null);
+defineEmits(['select']);
+const bubble = ref(null), visibleReply = ref(null);
 const retention = createBubbleRetention(value => { visibleReply.value = value; });
-watch(() => props.reply, value => retention.update(value), {immediate:true});
+watch(() => props.reply, value => retention.update(value), { immediate: true });
 onUnmounted(retention.clear);
-const attention = computed(() => props.raised || visibleReply.value?.phase === 'thinking' ||
-  (visibleReply.value && ['raise','followup'].includes(visibleReply.value.action)));
+const presentation = computed(() => studentPresentation(props.student.id, props));
+const colors = { ming: '#ba98eb', yu: '#ffa26d', lin: '#92b9e7' };
 watch(() => visibleReply.value?.text, async () => {
   await nextTick();
-  if (props.compact && bubble.value) bubble.value.scrollTop = bubble.value.scrollHeight;
+  if (bubble.value) bubble.value.scrollTop = bubble.value.scrollHeight;
 });
-const colors = { ming: "#9a75ce", yu: "#cd815b", lin: "#7889ae" };
 </script>
 
 <template>
-  <div class="student-interaction" :class="{compact}">
-    <button
-      type="button"
-      class="student-card"
-      :class="{ speaking, raised:attention, thinking: visibleReply?.phase === 'thinking' }"
-      :aria-label="`${student.name}${raised ? '举手了，点击点名' : '，可用语音点名'}`"
-      @click="$emit('select', student.id)"
-    >
-      <span v-if="attention" class="student-attention" aria-hidden="true">!</span>
-      <span class="student-status">{{
-        speaking
-          ? "正在发言"
-          : reply?.phase === "thinking"
-            ? "思考中…"
-            : reply?.phase === "generating"
-              ? "正在组织回答…"
-              : raised
-                ? "我有问题"
-                : reply?.phase === "queued"
-                  ? "等待播放"
-                  : reply?.phase === "failed"
-                    ? "回复暂不可用"
-                    : "认真听讲"
-      }}</span>
-      <svg
-        viewBox="0 0 200 180"
-        aria-hidden="true"
-        :style="{ '--shirt': colors[student.id] }"
-      >
-        <ellipse
-          cx="100"
-          cy="169"
-          rx="72"
-          ry="8"
-          fill="#344567"
-          opacity=".08"
-        />
-        <g class="student-body" :class="{ nod: speaking }">
-          <path d="M49 154Q49 108 99 108Q151 108 151 154" fill="var(--shirt)" />
-          <path d="M89 108L100 126L111 108" fill="#fff8f4" />
-          <g class="student-arm">
-            <path
-              :d="
-                attention ? 'M139 123L159 96L161 51' : 'M139 123L158 149L172 151'
-              "
-              fill="none"
-              stroke="var(--shirt)"
-              stroke-width="19"
-              stroke-linecap="round"
-            />
-            <circle
-              :cx="attention ? 161 : 172"
-              :cy="attention ? 43 : 151"
-              r="10"
-              fill="#f6d0b7"
-            />
-          </g>
-          <rect x="91" y="96" width="19" height="19" rx="7" fill="#edbea1" />
-          <ellipse cx="100" cy="68" rx="39" ry="43" fill="#f6d0b7" />
-          <path
-            d="M62 67Q48 26 85 19Q132 8 141 49L140 72L128 44Q114 59 85 44L71 71Z"
-            fill="#39465c"
-          />
-          <path
-            v-if="student.id === 'yu'"
-            d="M65 53Q36 34 44 80L63 73M135 48Q159 30 157 79L137 73"
-            fill="#39465c"
-          />
-          <g class="student-eyes">
-            <ellipse cx="85" cy="73" rx="3" ry="4" fill="#39465c" />
-            <ellipse cx="115" cy="73" rx="3" ry="4" fill="#39465c" />
-          </g>
-          <g
-            v-if="student.id === 'lin'"
-            fill="none"
-            stroke="#58667b"
-            stroke-width="2"
-          >
-            <rect x="74" y="63" width="23" height="19" rx="7" />
-            <rect x="103" y="63" width="23" height="19" rx="7" />
-            <path d="M97 71h6" />
-          </g>
-          <path
-            v-if="raised"
-            d="M78 60l10 -3M109 57l11 4"
-            fill="none"
-            stroke="#39465c"
-            stroke-width="2"
-          />
-          <ellipse
-            cx="100"
-            cy="91"
-            :rx="speaking ? 5 + level * 3 : 5"
-            :ry="speaking ? 2 + level * 9 : 1.8"
-            fill="#9f5b60"
-          />
-        </g>
-        <path d="M23 155H177V171H23Z" fill="#eadfcf" />
-        <path d="M72 148l26 3 32-3v7H72Z" fill="#fff" />
-      </svg>
-      <strong>{{ student.name }}</strong>
-      <small>{{
-        { ming: "爱问为什么", yu: "在尝试理解", lin: "安静思考中" }[student.id]
-      }}</small>
-      <span v-if="understanding" class="student-memory">{{
-        understanding
-      }}</span>
+  <div class="student-interaction" :class="{ compact, 'has-reply': visibleReply, speaking }"
+    :style="{ '--student-accent': colors[student.id] || colors.lin }">
+    <button type="button" class="student-card"
+      :class="{ speaking, raised: presentation.pose === 'raised', thinking: reply?.phase === 'thinking' }"
+      :aria-label="student.name + (raised ? '举手了，点击点名' : '，可用语音点名')"
+      @click="$emit('select', student.id)">
+      <span class="student-sprite-wrap">
+        <!-- Preload both poses so the first reply cannot flash a missing image. -->
+        <img v-for="pose in ['listening', 'raised']" :key="pose"
+          class="student-sprite" :class="{ visible: presentation.pose === pose }"
+          :src="studentPresentation(student.id, { raised: pose === 'raised' }).src"
+          alt="" aria-hidden="true" width="1254" height="1254" draggable="false" />
+        <span v-if="presentation.pose === 'raised'" class="student-attention" aria-hidden="true">!</span>
+      </span>
+      <span class="student-name"><strong>{{ student.name }}</strong>
+        <span v-if="speaking" class="student-equalizer" aria-hidden="true"><i /><i /><i /><i /></span>
+      </span>
+      <span class="student-status">{{ presentation.label }}</span>
     </button>
-    <div
-      ref="bubble"
-      v-if="visibleReply"
-      class="student-bubble"
-      :class="visibleReply.phase"
-    >
-      <span v-if="visibleReply.phase === 'thinking'"
-        >思考中<span class="thinking-dots" aria-hidden="true">…</span></span
-      >
-      <span v-else-if="visibleReply.phase === 'failed'">{{ visibleReply.error }}</span>
-      <template v-else
-        ><small v-if="visibleReply.phase === 'generating'">回复生成中</small>
-        <p>{{ visibleReply.text || "正在准备回答…" }}</p></template
-      >
+    <div class="student-response-slot">
+      <Transition name="bubble-pop">
+        <div v-if="visibleReply" ref="bubble" class="student-bubble" :class="visibleReply.phase">
+          <span v-if="visibleReply.phase === 'thinking'" class="bubble-thinking">思考中<span class="thinking-dots" aria-hidden="true">…</span></span>
+          <span v-else-if="visibleReply.phase === 'failed'">{{ visibleReply.error }}</span>
+          <p v-else>{{ visibleReply.text || '正在准备回答…' }}<span v-if="visibleReply.phase === 'generating'" class="stream-caret" aria-hidden="true" /></p>
+        </div>
+      </Transition>
+      <div v-if="!visibleReply" class="student-idle-mark" aria-hidden="true"><span /><span /><span /></div>
     </div>
-    <span class="sr-only" role="status">{{
-      reply?.phase === "thinking"
-        ? `${student.name}正在思考`
-        : reply?.phase === "queued"
-          ? `${student.name}：${reply.text}`
-          : ""
-    }}</span>
+    <span class="sr-only" role="status">{{ reply?.phase === 'queued' ? student.name + '：' + reply.text : reply?.phase === 'thinking' ? student.name + '正在思考' : '' }}</span>
   </div>
 </template>
 
 <style scoped>
-.student-attention { position:absolute; top:8px; right:14px; display:grid; place-items:center; width:24px; height:28px; border-radius:8px; background:var(--orange); color:#211008; font:bold 22px/1 sans-serif; animation:attention-pop .6s ease-out; }
-@keyframes attention-pop { from {transform:translateY(8px) scale(.5);opacity:0;} to {transform:translateY(0) scale(1);opacity:1;} }
-.student-interaction {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+.student-interaction { container:student-seat / inline-size; position:relative; min-width:0; min-height:0; display:flex; align-items:center; gap:8px; padding:8px; border:1px solid var(--line); border-radius:12px; background:var(--class-surface); }
+.student-interaction.speaking { border-color:var(--student-accent); }
+.student-interaction:not(.has-reply) .student-card { flex:1; }
+.student-interaction:not(.has-reply) .student-response-slot { display:none; }
+.student-card { position:relative; flex:0 0 120px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; height:100%; padding:0; background:none; border:0; color:var(--class-ink); cursor:pointer; border-radius:8px; }
+.student-card:hover { background:var(--class-hover); }
+.student-sprite-wrap { position:relative; display:block; width:148px; height:128px; flex-shrink:1; min-height:0; }
+.student-sprite { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transform-origin:50% 94%; pointer-events:none; }
+.student-sprite.visible { opacity:1; animation:student-breathe 4s ease-in-out infinite; }
+.raised .student-sprite.visible { animation:student-wave 2.4s ease-in-out infinite; }
+.speaking .student-sprite.visible { animation:student-talk 1.2s ease-in-out infinite; }
+.student-name { display:flex; align-items:center; gap:8px; height:20px; }
+.student-name strong { font-size:13px; font-weight:600; }
+.student-status { font-size:10px; line-height:18px; white-space:nowrap; color:var(--class-muted); }
+.raised .student-status, .speaking .student-status { color:var(--student-accent); }
+.student-attention { position:absolute; top:8px; right:4px; display:grid; place-items:center; width:20px; height:24px; border-radius:8px 8px 8px 2px; background:var(--student-accent); color:var(--class-surface); font:bold 18px/1 sans-serif; animation:attention-pop .3s ease-out; }
+.student-response-slot { position:relative; flex:1; align-self:stretch; min-width:0; min-height:0; display:flex; align-items:center; }
+.student-bubble { max-height:100%; width:100%; padding:12px; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; border:1px solid var(--line); border-radius:12px 12px 12px 2px; background:var(--class-surface-raised); color:var(--class-ink); font-size:13px; line-height:1.65; overflow-wrap:anywhere; }
+.student-bubble p { margin:0; }
+.student-bubble.failed { color:var(--class-danger); }
+.bubble-thinking { color:var(--student-accent); }
+.student-idle-mark { display:flex; gap:4px; margin:auto; opacity:.28; }
+.student-idle-mark span { width:4px; height:4px; background:var(--student-accent); border-radius:50%; }
+.stream-caret { display:inline-block; width:2px; height:1em; margin-left:3px; background:var(--student-accent); vertical-align:middle; animation:caret-pulse .8s infinite; }
+.student-equalizer { display:flex; align-items:center; gap:2px; height:14px; }
+.student-equalizer i { width:2px; height:10px; background:var(--student-accent); animation:equalize .65s ease-in-out infinite alternate; }
+.student-equalizer i:nth-child(2) { animation-delay:-.2s; height:14px; }
+.student-equalizer i:nth-child(3) { animation-delay:-.4s; height:7px; }
+.bubble-pop-enter-active, .bubble-pop-leave-active { transition:opacity .2s, transform .2s; }
+.bubble-pop-enter-from, .bubble-pop-leave-to { opacity:0; transform:translateY(4px); }
+@keyframes student-breathe { 50% { transform:translateY(-2px) rotate(.5deg); } }
+@keyframes student-wave { 50% { transform:rotate(-2deg) translateY(-2px); } }
+@keyframes student-talk { 50% { transform:translateY(-2px) rotate(1deg); } }
+@keyframes attention-pop { from { transform:scale(.6); opacity:0; } }
+@keyframes caret-pulse { 50% { opacity:0; } }
+@keyframes equalize { to { transform:scaleY(.3); } }
+@container student-seat (max-width:220px) {
+  .student-card { flex-basis:100%; height:112px; }
+  .student-sprite-wrap { width:88px; height:80px; }
+  .student-response-slot { position:absolute; inset:120px 4px 4px; }
+  .student-bubble { padding:6px; font-size:11px; line-height:1.45; }
+  .student-attention { top:0; right:0; width:16px; height:20px; font-size:14px; }
 }
-.student-interaction .student-card {
-  width: 100%;
+@media (max-width:900px) { .student-interaction { align-items:flex-start; } }
+@media (max-height:600px) {
+  .student-sprite-wrap { height:64px; width:88px; }
+  .student-card { flex-basis:88px; }
+  @container student-seat (max-width:220px) { .student-response-slot { inset-block-start:100px; } }
 }
-.student-interaction.compact {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) 100px;
-  gap: 8px;
-}
-.compact .student-card { grid-row: 2; height: 100px; padding: 4px; }
-.compact .student-card.raised { transform: none; }
-.compact .student-card svg { height: 48px; width: 60px; flex-shrink: 0; }
-.compact .student-card strong { font-size: 14px; line-height: 20px; }
-.compact .student-card small, .compact .student-memory { display: none; }
-.compact .student-status { font-size: 10px; line-height: 16px; padding: 2px 4px; }
-.compact .student-bubble { grid-row: 1; grid-column: 1; min-height: 0; margin: 0; padding: 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; font-size: 13px; }
-.compact .student-bubble::before { display: none; }
-.student-bubble {
-  position: relative;
-  padding: 12px;
-  margin-top: 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  color: var(--class-ink, #f4f2f6);
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  line-height: 1.6;
-}
-.student-bubble::before {
-  content: "";
-  position: absolute;
-  top: -7px;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  background: var(--class-raised, #1b1524);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-}
-.student-bubble p {
-  margin: 0;
-}
-.student-bubble small {
-  display: block;
-  color: var(--class-violet-text, #d5a5ff);
-  margin-bottom: 4px;
-}
-.student-bubble.failed {
-  color: var(--class-danger, #ffaaa7);
-}
-.student-body {
-  transform-origin: 100px 154px;
-  animation: breathe 4s ease-in-out infinite;
-}
-.student-card.thinking {
-  border-color: var(--violet);
-}
-.student-card.raised .student-arm {
-  transform-origin: 140px 125px;
-  animation: wave 1.2s ease-in-out infinite alternate;
-}
-@keyframes breathe {
-  50% {
-    transform: translateY(-2px);
-  }
-}
-@keyframes wave {
-  to {
-    transform: rotate(-5deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .student-body,
-  .student-card.raised .student-arm {
-    animation: none !important;
-  }
-}
-.student-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  padding: 14px 8px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--class-surface-raised);
-  color: var(--class-ink);
-  cursor: pointer;
-  transition:
-    transform 0.2s,
-    border-color 0.2s;
-  min-width: 0;
-}
-.student-card.speaking {
-  border-color: var(--violet);
-  box-shadow: 0 0 0 3px rgba(180, 92, 255, 0.12);
-}
-.student-card.raised {
-  border-color: var(--orange);
-  transform: translateY(-3px);
-}
-.student-card:hover {
-  background: var(--class-hover);
-}
-svg {
-  width: 100%;
-  max-width: 160px;
-}
-.student-status {
-  font-size: 11px;
-  color: var(--class-muted);
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20px;
-  padding: 5px 10px;
-}
-.raised .student-status {
-  background: rgba(255, 122, 24, 0.12);
-  color: var(--class-orange-text);
-}
-.speaking .student-status {
-  background: rgba(180, 92, 255, 0.14);
-  color: var(--class-violet-text);
-}
-strong {
-  font-size: 17px;
-}
-small {
-  font-size: 12px;
-  color: var(--class-muted);
-  margin-top: 5px;
-}
-.student-memory {
-  font-size: 11px;
-  line-height: 1.6;
-  margin-top: 10px;
-  color: var(--class-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.student-arm {
-  transform-origin: 140px 123px;
-  transition: transform 0.6s;
-}
-.student-arm.up {
-  transform: rotate(-115deg);
-}
-.student-eyes {
-  animation: blink 6s infinite;
-  transform-origin: 100px 73px;
-}
-.nod {
-  animation: nod 1.8s ease-in-out infinite;
-  transform-origin: 100px 150px;
-}
-@keyframes blink {
-  0%,
-  43%,
-  46%,
-  100% {
-    transform: scaleY(1);
-  }
-  45% {
-    transform: scaleY(0.1);
-  }
-}
-@keyframes nod {
-  50% {
-    transform: rotate(1.5deg) translateY(1px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-@media (max-width: 600px) {
-  .student-card {
-    padding: 12px 4px;
-    border-radius: 12px;
-  }
-  .student-status {
-    font-size: 10px;
-    padding: 4px;
-  }
-  strong {
-    font-size: 14px;
-  }
-  small {
-    font-size: 10px;
-  }
-  .student-memory {
-    display: none;
-  }
-}
-@media (max-height: 600px) {
-  .student-interaction.compact { grid-template-rows: minmax(0,1fr) 72px; }
-  .compact .student-card { height: 72px; }
-  .compact .student-card svg { height: 28px; }
-}
+@media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>

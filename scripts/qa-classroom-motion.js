@@ -36,10 +36,12 @@ async (page) => {
   check(await page.locator('.student-bubble').first().innerText().then(t=>t.includes('思考中')), 'Thinking bubble missing');
   check(await page.locator('.camera-captions').isVisible(), 'Captions must default on in primary camera');
   await page.waitForTimeout(200);
-  check((await page.locator('.motion-statusbar').innerText()).includes('身体已捕捉 · 2 只手'),'Body/hands status missing');
-  check((await page.locator('.motion-statusbar').innerText()).includes('面部已捕捉'),'Face status missing');
+  await page.getByRole('button',{name:'课堂设置',exact:true}).click();
+  check((await page.locator('.pose-caption').first().innerText()).includes('身体已捕捉 · 2 只手'),'Body/hands status missing');
+  check((await page.locator('.pose-caption').first().innerText()).includes('面部已捕捉'),'Face status missing');
   check(await page.locator('.student-attention').count()===2,'Thinking and question exclamation marks missing');
   check(await page.locator('.motion-observations').innerText().then(t=>t.includes('手掌展开')&&t.includes('面部大致朝向镜头')),'Motion features missing');
+  await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
   check(await page.locator('.motion-frame canvas').evaluate(el=>el.getContext('2d').getImageData(0,0,el.width,el.height).data.some((v,i)=>i%4===3&&v>0)), 'Skeleton canvas must contain strokes');
   await page.evaluate(() => { const r=window.__classroomQA.reply; r.value={...r.value,phase:'generating',text:'老师，我觉得'}; });
   await page.waitForTimeout(100);
@@ -62,8 +64,8 @@ async (page) => {
     if(!stillFullscreen) await page.getByRole('button',{name:'全屏放大',exact:true}).click();
     check(await page.locator('.fullscreen-students .student-card').count()===3,`Fullscreen must include three students at ${width}`);
     await page.getByRole('button',{name:'课堂设置',exact:true}).click();
-    check(await page.getByRole('combobox',{name:'画面分辨率'}).count()===1,'Resolution selector missing');
-    check(await page.getByRole('slider',{name:'上课音量'}).count()===1,'Lesson volume missing');
+    check(await page.getByRole('combobox',{name:'设置画面分辨率',exact:true}).count()===1,'Resolution selector missing');
+    check(await page.getByRole('slider',{name:'设置上课音量',exact:true}).count()===1,'Lesson volume missing');
     await page.getByRole('checkbox',{name:'字幕',exact:true}).check();
     await page.getByRole('combobox',{name:'字幕字号'}).selectOption('36');
     check(await page.locator('.camera-captions').evaluate(el=>getComputedStyle(el).fontSize)==='36px','Large caption font not applied');
@@ -108,7 +110,7 @@ async (page) => {
   check(await page.getByRole('button',{name:'重新加载动作模型'}).isVisible(),'Face model retry missing');
   await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
   await page.emulateMedia({reducedMotion:'reduce'});
-  check(await page.locator('.student-body').first().evaluate(el=>getComputedStyle(el).animationName)==='none','Reduced motion not honored');
+  check(await page.locator('.student-sprite.visible').first().evaluate(el=>getComputedStyle(el).animationName)==='none','Reduced motion not honored');
   check(await page.evaluate(()=>window.__deviceRequests)===0,'Device access occurred');
   await page.evaluate(()=>{window.__qaVideoStream.getTracks().forEach(t=>t.stop());window.__classroomQA.cameraEnabled.value=false;window.__classroomQA.camera.value.srcObject=null;});
   await page.evaluate(()=>{
@@ -119,13 +121,10 @@ async (page) => {
         observations:[{code:'hand_open_palm',description:'手掌展开',matched_samples:4,observed_samples:6,longest_observed_span_ms:4200,suggestion:'结合对应讲解核对是否辅助示范，不按次数加分。',event_ids:[101]}],
         limitations:['样本比例不是整堂课时长占比。']}}};
   });
-  await page.getByText(/教态动作证据 · 身体/).click();
-  check(await page.getByText('样本比例不是整堂课时长占比。',{exact:true}).isVisible(),'Evidence limitations missing');
-  await page.getByRole('button',{name:'↗ 0:02',exact:true}).last().click();
-  check(await page.locator('#evidence-101').isVisible(),'Motion citation jump failed');
-  await page.getByRole('button',{name:'关闭课堂记录',exact:true}).click();
+  // Motion report visualization and citation checks moved to qa-classroom-review.js.
+  check(await page.getByRole('link',{name:'查看 AI 评课 ↗'}).getAttribute('href')==='/ai-review?classroom=900','Motion report destination missing');
   await page.setViewportSize({width:1440,height:1080});
-  await page.getByRole('heading',{name:'课堂评课',exact:true}).scrollIntoViewIfNeeded();
+  await page.getByRole('heading',{name:'课堂已保存',exact:true}).scrollIntoViewIfNeeded();
   await page.screenshot({path:'output/playwright/classroom-motion-report.png',fullPage:true});
   return {failures,layouts,result:failures.length?'FAILED':'PASSED'};
 }

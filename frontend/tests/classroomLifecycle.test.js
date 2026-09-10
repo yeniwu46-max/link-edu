@@ -22,7 +22,7 @@ function fixture(t, denied=false, cameraDenied=false) {
     createAnalyser(){return {connect(){},getByteTimeDomainData(a){a.fill(128);}};}
     createGain(){return {gain:{value:1,setTargetAtTime(){}},connect(){}};}
     createBuffer(channels,length,rate){return {duration:length/rate,getChannelData:()=>new Float32Array(length)};}
-    createBufferSource(){const node={connect(target){this.target=target;},disconnect(){},start(at){this.at=at;},stop(){}};audioNodes.push(node);return node;}
+    createBufferSource(){const node={playbackRate:{value:1},connect(target){this.target=target;},disconnect(){},start(at){this.at=at;},stop(){}};audioNodes.push(node);return node;}
   }
   class Socket {static OPEN=1; constructor(){this.readyState=1;this.bufferedAmount=0;this.sent=[];sockets.push(this);} send(m){this.sent.push(JSON.parse(m));} close(){this.readyState=3;this.onclose?.();}}
   const module={exports:{}};

@@ -109,7 +109,7 @@ async (page) => {
   check(await page.getByRole('button', { name: '打断学生' }).isVisible(), 'Interrupt control missing');
   await page.screenshot({ path: 'output/playwright/classroom-speaking.png', fullPage: true });
   await page.evaluate(() => { const live=window.__classroomQA; live.state.value='finishing'; });
-  check(await page.getByRole('button', { name: '结束处理中…' }).isDisabled(), 'Finish must not repeat');
+  check(await page.getByRole('button', { name: '结束并评课' }).isDisabled(), 'Finish must not repeat');
   await page.evaluate(() => { const live=window.__classroomQA; live.state.value='disconnected'; live.activeStudent.value=null; live.error.value='连接已断开，请重新连接。'; });
   check(await page.getByRole('button', { name: '重新连接', exact: true }).isVisible(), 'Reconnect missing');
   await page.evaluate(() => {
@@ -119,34 +119,20 @@ async (page) => {
     live.room.value={session_id:900,state:'ended',mode:'full',elapsed:600,students:{},events,report_state:'completed',report_version:1,
       report:{overall_score:86,coverage:'2/6',sources:[],dimensions:[{key:'clarity',label:'表达清晰度',score:86,reason:'能通过对比说明平均分，表达清楚。',event_ids:[1,2,3],source_ids:[]},{key:'posture',label:'教态与站位',score:null,reason:'暂无足够证据。',event_ids:[],source_ids:[]}]}};
   });
-  await page.getByRole('heading', { name: '课堂评课', exact: true }).waitFor();
-  check(!await page.locator('#evidence-2').count(), 'Technical event should start hidden');
-  await page.getByRole('button', { name: '↗ 0:05', exact: true }).click();
-  check(await page.locator('#evidence-2').isVisible(), 'Report jump must reveal technical evidence');
-  check(await page.locator('#evidence-2').evaluate(el => document.activeElement === el), 'Report jump must focus evidence');
-  await page.getByRole('button',{name:'关闭课堂记录',exact:true}).click();
-  await page.getByRole('button', { name: '↗ 0:15', exact: true }).click();
-  await page.getByRole('dialog', { name: '课堂截图证据' }).waitFor();
-  await page.keyboard.press('Tab');
-  check(await page.evaluate(() => Boolean(document.activeElement.closest('dialog'))), 'Dialog focus must stay contained');
-  await page.screenshot({ path: 'output/playwright/classroom-evidence.png', fullPage: true });
-  await page.keyboard.press('Escape');
-  check(!await page.getByRole('dialog',{name:'课堂截图证据'}).count(), 'Escape should close evidence');
-  await page.getByRole('button',{name:'关闭课堂记录',exact:true}).click();
-  await page.getByRole('heading', { name: '课堂评课', exact: true }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: 'output/playwright/classroom-report.png', fullPage: true });
+  // Report interactions, citations, images and status states now live in qa-classroom-review.js.
+  await page.getByRole('heading', { name: '课堂已保存', exact: true }).waitFor();
+  check(await page.getByRole('link',{name:'查看 AI 评课 ↗'}).getAttribute('href')==='/ai-review?classroom=900','Ended classroom must link to matching AI report');
+  check(!await page.locator('.report-dimensions').count(),'Classroom should not duplicate the full report');
   await page.evaluate(() => { window.__classroomQA.room.value.report_state='running'; });
-  check(await page.getByText('正在生成报告，可稍后在历史课堂查看。').isVisible(), 'Report loading missing');
+  check(await page.getByText('AI 正在评课，可前往报告页查看进度。').isVisible(), 'Report loading entry missing');
   await page.evaluate(() => { window.__classroomQA.room.value.report_state='failed'; window.__classroomQA.room.value.report_error='报告生成超时，请重试。'; });
-  check(await page.getByText('报告生成超时，请重试。').isVisible(), 'Report failure missing');
-  check(await page.getByRole('button', { name: '重新评课', exact: true }).isEnabled(), 'Report retry missing');
+  check(await page.getByText('评课未完成，前往报告页查看原因并重试。').isVisible(), 'Report failure entry missing');
   await page.evaluate(()=>{const r=window.__classroomQA.room;r.value={...r.value,report:null,report_state:'insufficient',report_readiness:{reasons:['最终转写不足：当前 1 段、8 字；需至少 2 段、80 字。','学生反馈不足：没有完整播放的回应。','动作捕捉不足：0 个有效样本。','未识别到足够的单人教师画面。']}};});
-  check(await page.getByText('本次课堂数据不足，未生成 AI 评课报告',{exact:true}).isVisible(),'Insufficient data heading missing');
-  check(await page.locator('.report-blocked li').count()===4,'All insufficiency reasons must display');
+  check(await page.getByText('课堂数据不足，查看具体缺项与补充建议。',{exact:true}).isVisible(),'Insufficient data entry missing');
   check(await page.locator('.correction-form').count()===0,'Insufficient data must not offer paid retry');
   await page.screenshot({path:'output/playwright/classroom-insufficient.png',fullPage:true});
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  check(await page.locator('.student-eyes').first().evaluate(el=>getComputedStyle(el).animationName) === 'none', 'Reduced motion missing');
+  check(await page.locator('.student-sprite.visible').first().evaluate(el=>getComputedStyle(el).animationName) === 'none', 'Reduced motion missing');
   check(await page.evaluate(() => window.__deviceRequests) === 0, 'No devices should be requested');
   check(!requests.some(request=>request.method!=='GET'), 'No paid or write requests should run');
   check(errors.length===0, `Browser errors: ${errors.join('; ')}`);

@@ -1,3 +1,5 @@
+export const STUDENT_PLAYBACK_RATE = 1.2;
+
 export class ClassroomAudio {
   constructor(send, onLevel, onPlayback = () => {}) {
     this.send = send;
@@ -83,6 +85,7 @@ export class ClassroomAudio {
       samples[i] = view.getInt16(i * 2, true) / 32768;
     const node = this.ctx.createBufferSource();
     node.buffer = buffer;
+    node.playbackRate.value = STUDENT_PLAYBACK_RATE;
     node.connect(this.outputGain);
     const start = Math.max(this.ctx.currentTime + 0.01, this.endAt);
     if (this.first) {
@@ -105,7 +108,8 @@ export class ClassroomAudio {
       this.first = false;
     }
     node.start(start);
-    this.endAt = start + buffer.duration;
+    // Buffers retain the provider's sample rate; only student playback runs faster.
+    this.endAt = start + buffer.duration / STUDENT_PLAYBACK_RATE;
     this.nodes.add(node);
     node.onended = () => {
       this.nodes.delete(node);

@@ -958,6 +958,55 @@
   display: inline-block;
   animation: class-thinking 1.2s ease-in-out infinite;
 }
+
+/* Player refresh: compact preparation, persistent transport, quiet neutral surfaces. */
+.app-shell:has(.classroom-page) .workspace { padding:16px 28px 24px; min-width:0; }
+.app-shell:has(.classroom-page) .topbar { height:44px; margin-bottom:8px; }
+.app-shell:has(.classroom-page) .help-fab { bottom:12px !important; top:auto !important; }
+.classroom-page.camera-first { --class-surface:#101116; --class-surface-raised:#1b1d25; --class-hover:#252832; --class-muted:#a4a6b1; --line:#ffffff14; padding-top:4px; }
+.camera-first .classroom-heading { margin-bottom:12px; }
+.camera-first .classroom-heading h1 { font-size:26px; line-height:1.25; }
+.camera-first .classroom-heading p { font-size:12px; margin-top:6px; }
+.camera-first .class-btn svg, .camera-first .text-action svg { width:18px; height:18px; flex:none; }
+.camera-first .classroom-heading .class-btn { min-height:36px; padding:6px 12px; font-size:12px; }
+.camera-first .classroom-launch { align-items:center; gap:4px 16px; padding:8px 0; margin-bottom:12px; border-top:0; }
+.camera-first .launch-permissions { flex:1 1 auto; }
+.camera-first .consent-row { gap:4px 16px; padding:0; }
+.consent-shield { width:16px; height:16px; color:var(--class-muted); flex:none; }
+.camera-first .consent-row label { font-size:11px; gap:6px; }
+.camera-first .consent-row input { accent-color:var(--orange); width:14px; height:14px; }
+.camera-first .privacy-details summary { font-size:11px; color:var(--class-muted); }
+.camera-first .privacy-details[open] { flex:1 1 100%; padding:8px 12px; border-radius:8px; background:var(--class-surface); }
+.lesson-mode select { width:160px; min-height:32px; padding:4px 8px; border:1px solid var(--line); border-radius:8px; background:var(--class-surface); color:var(--class-ink); font-size:12px; }
+.camera-first .class-start-feedback { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; font-size:11px; line-height:1.6; padding:2px 0; }
+.camera-first .class-start-feedback.blocked { padding:6px 10px; border-radius:6px; border-left:2px solid var(--class-orange-text); }
+#class-start-hint { display:flex; align-items:center; gap:6px; min-width:0; }
+#class-start-hint svg { width:14px; height:14px; flex:none; color:var(--class-orange-text); }
+.camera-first .class-start-feedback button { min-height:24px; padding:0; font-size:11px; }
+.start-reasons summary { cursor:pointer; color:var(--class-orange-text); }
+.start-reasons[open] { flex:1 1 100%; }
+.camera-first .camera-stage { padding:8px; border-radius:16px; background:#101116; border-color:#ffffff17; box-shadow:0 20px 60px #0004; }
+.camera-first .class-controls { margin:0; flex:none; display:flex; gap:4px; }
+.camera-first .class-controls > * { flex:none; }
+.camera-first .class-btn.player-start { min-height:36px; padding:6px 12px; gap:6px; border-radius:8px; font-size:12px; white-space:nowrap; }
+.camera-first .scene-label .connection-label { font-size:11px; color:var(--class-muted); }
+.camera-first .scene-topic { font-size:12px; font-weight:500; }
+.camera-first .connection-label.listening i, .camera-first .connection-label.speaking i { background:var(--class-success); box-shadow:0 0 8px #89dbb666; }
+.camera-first .classroom-services { padding:8px 4px; gap:8px 16px; }
+.camera-first .classroom-services .status-item, .camera-first .classroom-services .status-item b { font-size:10px; }
+.camera-first .classroom-services .status-item b { flex-basis:auto; padding:0; }
+@media(max-width:700px) {
+  .app-shell:has(.classroom-page) .workspace { padding:12px 10px 16px; }
+  .camera-first .classroom-heading { flex-wrap:nowrap; }
+  .camera-first .classroom-heading h1 { font-size:22px; }
+  .camera-first .consent-row { gap:2px 12px; }
+  .consent-shield { display:none; }
+  .camera-first .launch-permissions { flex:1 1 100%; }
+  .lesson-mode { order:2; }
+  .camera-first .class-start-feedback { order:3; }
+  .camera-first .camera-stage { padding:4px; border-radius:12px; }
+  .camera-first .class-controls { flex:none; }
+}
 @keyframes class-thinking {
   50% {
     opacity: 0.35;

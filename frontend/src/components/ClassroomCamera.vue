@@ -2,6 +2,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { motionLabels } from '../services/motionFeatures.js';
 import ClassroomDialog from './ClassroomDialog.vue';
+import ClassroomPlayerBar from './ClassroomPlayerBar.vue';
+import { Video } from '@vicons/tabler';
 import {
   BODY_EDGES,
   HAND_EDGES,
@@ -25,12 +27,13 @@ const props = defineProps({
   resolution: {type:Number, default:720},
   resolutionBusy: Boolean,
   cameraNote: String,
+  progress: Number,
+  timeLabel: String,
 });
 const emit = defineEmits(["video", "toggle", "retry", "volume", "resolution"]);
 const container = ref(null),
   video = ref(null),
   canvas = ref(null),
-  expandButton = ref(null),
   captionBox = ref(null);
 const expanded = ref(false),
   fallback = ref(false),
@@ -205,7 +208,7 @@ async function fullscreen() {
     document.body.style.overflow = "hidden";
   }
   await nextTick();
-  expandButton.value?.focus();
+  container.value.querySelector('[aria-label="退出全屏"]')?.focus();
   draw();
 }
 function changed() {
@@ -283,12 +286,12 @@ onUnmounted(() => {
       />
       <canvas ref="canvas" aria-hidden="true" />
       <div v-if="!enabled" class="camera-placeholder">
-        <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="5" y="12" width="27" height="24" rx="5"/><path d="m32 20 11-6v20l-11-6"/></svg>
-        <strong>{{ disabled ? '本次课堂已结束' : '准备好，开始你的课堂' }}</strong>
-        <span id="camera-preview-hint">{{ disabled ? '摄像头与麦克风已停止采集' : cameraConsent ? '先预览取景，不启动麦克风、课堂计时或 AI 评课' : '先勾选上方「同意摄像头开启」，即可单独预览' }}</span>
+        <span class="camera-lens" aria-hidden="true"><Video /></span>
+        <strong>{{ disabled ? '本次课堂已结束' : '你的课堂，即将开始' }}</strong>
+        <span id="camera-preview-hint">{{ disabled ? '设备已关闭，记录已保留' : cameraConsent ? '预览取景 · 不开启麦克风或计时' : expanded ? '退出全屏后勾选摄像头授权，即可预览' : '勾选摄像头授权，即可预览' }}</span>
         <button v-if="!disabled" type="button" class="class-btn camera-open-button"
           :disabled="!cameraConsent || cameraBusy || !previewAllowed" :aria-busy="cameraBusy"
-          aria-describedby="camera-preview-hint" @click="emit('toggle')">{{ cameraBusy ? '正在开启摄像头…' : '打开摄像头' }}</button>
+          aria-describedby="camera-preview-hint" @click="emit('toggle')"><Video aria-hidden="true" />{{ cameraBusy ? '正在开启摄像头…' : '打开摄像头' }}</button>
       </div>
       <div
         v-if="captions && enabled"
@@ -302,23 +305,15 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <ClassroomPlayerBar :volume="volume" :resolution="resolution" :resolution-busy="resolutionBusy || disabled"
+      :captions="captions" :expanded="expanded" :settings-open="settingsOpen" :progress="progress" :time-label="timeLabel"
+      @volume="emit('volume', $event)" @resolution="emit('resolution', $event)" @captions="captions=$event"
+      @settings="settingsOpen=true" @fullscreen="fullscreen">
+      <template #transport><slot name="transport" /></template>
+      <template #actions><slot name="actions" /></template>
+      <template #utilities><slot name="utilities" /></template>
+    </ClassroomPlayerBar>
     <div class="fullscreen-students" aria-label="课堂学生"><slot name="students" /></div>
-    <div class="camera-bar">
-      <button type="button" class="text-action" :aria-expanded="settingsOpen" aria-haspopup="dialog" @click="settingsOpen = true">课堂设置</button>
-      <button
-        ref="expandButton"
-        type="button"
-        class="text-action"
-        :disabled="!enabled"
-        @click="fullscreen"
-      >
-        {{ expanded ? "退出全屏" : "全屏放大" }}
-      </button>
-      <slot name="actions" />
-    </div>
-    <p class="motion-statusbar" :title="[status, observations.join(' · '), cameraNote].filter(Boolean).join(' · ')">
-      {{ status }} · 面部{{ faceState }}<span v-if="observations.length"> · {{ observations.join(' · ') }}</span>
-    </p>
     <ClassroomDialog v-model="settingsOpen" title="课堂设置">
     <h3>画面与声音</h3>
     <div class="camera-tools">
@@ -338,10 +333,10 @@ onUnmounted(() => {
           <option :value="60">窄字幕</option><option :value="80">中字幕</option><option :value="100">宽字幕</option>
         </select><button type="button" class="text-action" @click="shrinkCaptions">缩小字幕</button></template
       >
-      <label class="resolution-control">画质<select aria-label="画面分辨率" :value="resolution" :disabled="resolutionBusy || disabled" @change="emit('resolution', $event.target.value)">
+      <label class="resolution-control">画质<select aria-label="设置画面分辨率" :value="resolution" :disabled="resolutionBusy || disabled" @change="emit('resolution', $event.target.value)">
         <option :value="1020">1020p</option><option :value="720">720p</option><option :value="360">360p</option>
       </select></label>
-      <label class="volume-control">音量<input type="range" aria-label="上课音量" min="0" max="1" step="0.05" :value="volume" @input="emit('volume', $event.target.value)" /><output>{{ Math.round(volume * 100) }}%</output></label>
+      <label class="volume-control">音量<input type="range" aria-label="设置上课音量" min="0" max="1" step="0.05" :value="volume" @input="emit('volume', $event.target.value)" /><output>{{ Math.round(volume * 100) }}%</output></label>
     </div>
     <p class="pose-caption">
       {{ status
@@ -368,150 +363,55 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.classroom-camera {
-  min-width: 0;
+.classroom-camera { min-width:0; }
+.camera-scene-heading { position:absolute; top:16px; left:20px; right:20px; z-index:2; display:flex; align-items:start; justify-content:space-between; gap:16px; pointer-events:none; color:var(--class-ink); }
+.scene-label { padding:8px 12px; border:1px solid #ffffff0d; border-radius:8px; background:#08090cc4; }
+.motion-frame { position:relative; height:clamp(240px, calc(100dvh - 500px), 680px); overflow:hidden; border-radius:12px 12px 0 0; background:#090a0e; }
+.motion-frame:has(.camera-placeholder)::before { content:""; position:absolute; inset:0; opacity:.45; background:radial-gradient(ellipse at 50% 60%, #ff7a180c, transparent 65%), radial-gradient(#ffffff19 .6px, transparent .6px); background-size:100% 100%, 24px 24px; mask-image:linear-gradient(transparent, #000 35%, #000 75%, transparent); }
+.motion-frame video, .motion-frame canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+.motion-frame canvas { pointer-events:none; }
+.mirrored { transform:scaleX(-1); }
+.motion-frame .camera-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:64px 16px 16px; text-align:center; gap:12px; }
+.camera-placeholder strong { font-size:clamp(16px,2vw,22px); font-weight:550; color:var(--class-ink); letter-spacing:.04em; }
+.camera-placeholder > span:not(.camera-lens) { font-size:12px; color:var(--class-muted); }
+.camera-lens { display:grid; place-items:center; position:relative; width:64px; height:64px; margin-bottom:8px; border:1px solid #ff7a1833; border-radius:20px; background:var(--class-surface); color:var(--class-orange-text); }
+.camera-lens svg { width:28px; height:28px; }
+.camera-lens::after { content:""; position:absolute; inset:-8px; border:1px solid #ff7a181a; border-radius:28px; animation:lens-pulse 4s ease-in-out infinite; }
+.camera-open-button svg { width:18px; height:18px; }
+.camera-captions { position:absolute; display:flex; flex-direction:column; max-height:calc(100% - 16px); bottom:16px; left:50%; transform:translateX(-50%); width:min(var(--caption-width,80%),calc(100% - 24px)); padding:8px 12px; background:#090a0edc; border:1px solid #ffffff10; border-radius:8px; color:#fff; font-size:var(--subtitle-size); line-height:1.5; overflow-wrap:anywhere; }
+.caption-speaker { display:block; flex-shrink:0; font-size:11px; color:var(--class-orange-text); margin-bottom:4px; text-align:center; }
+.caption-lines { height:3em; min-height:0; text-align:center; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+.camera-captions p { margin:0; font-size:inherit; line-height:inherit; color:inherit; }
+.fullscreen-students { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; height:192px; flex-shrink:0; padding:12px 0 0; min-height:0; }
+.camera-tools { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:12px; }
+.camera-tools label { display:flex; gap:4px; align-items:center; font-size:13px; }
+.camera-tools select { max-width:100%; padding:6px; }
+.volume-control { flex:0 1 200px; }
+.volume-control input { width:90px; min-width:48px; accent-color:var(--orange); }
+.volume-control output { min-width:36px; text-align:end; font-variant-numeric:tabular-nums; }
+.pose-caption, .camera-resolution-note { font-size:12px; color:var(--class-muted); margin-top:12px !important; overflow-wrap:anywhere; }
+.motion-observations { font-size:13px; line-height:1.6; margin-top:8px !important; color:var(--class-orange-text); }
+.camera-privacy { border-top:1px solid var(--line); padding-top:12px; }
+.motion-recovery { display:flex; align-items:center; gap:16px; }
+.classroom-camera.expanded { width:100%; height:100dvh; box-sizing:border-box; padding:12px; background:var(--class-surface); display:flex; flex-direction:column; overflow:hidden; contain:layout; }
+.classroom-camera.fallback { position:fixed; inset:0; z-index:10000; }
+.expanded .motion-frame { flex:1; min-height:0; height:auto; }
+@keyframes lens-pulse { 50% { transform:scale(1.1); opacity:.4; } }
+@media(max-width:700px) {
+  .camera-scene-heading { left:12px; right:12px; top:12px; gap:8px; }
+  .scene-label { max-width:65%; font-size:11px; padding:4px 8px; }
+  .fullscreen-students { gap:6px; height:204px; padding-top:8px; }
+  .expanded { padding:8px !important; }
+  .camera-tools { gap:8px; }
+  .motion-frame { height:clamp(260px,48dvh,520px); }
 }
-.camera-scene-heading { position:absolute; top:16px; left:20px; right:20px; z-index:2; display:flex; align-items:start; justify-content:space-between; gap:16px; pointer-events:none; color:#fff; text-shadow:0 2px 8px #000; }
-.scene-label { padding:8px 12px; border-radius:8px; background:#08060ca8; }
-.camera-bar { display:flex; align-items:center; flex-wrap:nowrap; gap:20px; height:44px; margin-top:8px; flex-shrink:0; overflow-x:auto; scrollbar-width:thin; }
-.camera-bar :deep(button), .camera-bar :deep(.thinking-notice) { flex-shrink:0; white-space:nowrap; }
-.motion-statusbar { height:24px; font-size:11px; line-height:24px; color:var(--class-muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; flex-shrink:0; }
-.motion-frame .camera-placeholder { inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; text-align:center; padding:88px 20px; gap:12px; }
-.camera-placeholder strong { color:var(--class-ink); font-size:clamp(16px,2vw,24px); }
-.motion-frame .camera-placeholder svg { width:48px; height:48px; margin-bottom:8px; }
-.motion-observations { font-size: .875rem; line-height: 22px; height: 44px; overflow: hidden; overflow-wrap: anywhere; flex-shrink: 0; }
-.camera-resolution-note { height: 20px; line-height: 20px; font-size: 12px; color: var(--class-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
-.motion-frame {
-  position: relative;
-  height: clamp(320px, 60dvh, 840px);
-  overflow: hidden;
-  border-radius: 12px;
-  background: #08060c;
+@media(max-height:600px) {
+  .expanded { padding:8px; }
+  .expanded .fullscreen-students { height:140px; }
+  .expanded .camera-captions { bottom:4px; padding:4px; line-height:1.2; }
+  .expanded .caption-speaker { display:none; }
+  .expanded .camera-placeholder { padding-top:40px; gap:4px; }
+  .expanded .camera-lens { display:none; }
 }
-.motion-frame video,
-.motion-frame canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.motion-frame canvas {
-  pointer-events: none;
-}
-.mirrored {
-  transform: scaleX(-1);
-}
-.camera-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-  flex-shrink: 0;
-}
-.volume-control { flex: 0 1 200px; }
-.volume-control input { width: 90px; min-width: 48px; accent-color: var(--orange); }
-.volume-control output { min-width: 36px; text-align: end; font-variant-numeric: tabular-nums; }
-.camera-tools label {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  font-size: 13px;
-}
-.camera-tools select {
-  max-width: 100%;
-  padding: 6px;
-}
-.camera-captions {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100% - 16px);
-  bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(var(--caption-width, 80%), calc(100% - 24px));
-  padding: 8px;
-  background: rgba(8, 6, 12, 0.88);
-  border-radius: 8px;
-  color: #fff;
-  font-size: var(--subtitle-size);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.caption-speaker {
-  display: block;
-  flex-shrink: 0;
-  font-size: 14px;
-  color: var(--class-violet-text, #d5a5ff);
-  margin-bottom: 4px;
-}
-.caption-lines {
-  height: 3em;
-  min-height: 0;
-  text-align: center;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-}
-.camera-captions p {
-  margin: 0;
-  font-size: inherit;
-  line-height: inherit;
-  color: inherit;
-}
-.classroom-camera.expanded {
-  width: 100%;
-  height: 100dvh;
-  box-sizing: border-box;
-  padding: 16px;
-  background: var(--class-raised, #1b1524);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  contain: layout;
-}
-.expanded .camera-privacy { display: none; }
-.expanded .pose-caption { height: 20px; line-height: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex-shrink: 0; }
-.expanded .motion-recovery { height: 36px; flex-shrink: 0; }
-.motion-recovery { display: flex; align-items: center; gap: 16px; }
-.fullscreen-students { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; height: 188px; flex-shrink: 0; margin-top: 8px; min-height: 0; }
-.caption-speaker { text-align: center; }
-.classroom-camera.fallback {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-}
-.expanded .motion-frame {
-  flex: 1;
-  min-height: 0;
-  height: auto;
-}
-.expanded .section-title {
-  flex-shrink: 0;
-}
-.expanded .pose-caption {
-  margin-bottom: 0;
-}
-@media (max-width: 480px) {
-  .camera-scene-heading {left:12px;right:12px;top:12px;gap:8px;}
-  .scene-label {max-width:65%;font-size:11px;padding:4px 8px;}
-  .fullscreen-students {gap:6px;}
-  .expanded {
-    padding: 8px !important;
-  }
-  .camera-tools {
-    gap: 8px;
-  }
-}
-@media (max-height: 600px) {
-  .expanded { padding: 8px; }
-  .expanded .motion-observations, .expanded .camera-resolution-note, .expanded .pose-caption { display: none; }
-  .expanded .fullscreen-students { height: 132px; }
-  .expanded .motion-statusbar { display:none; }
-  .expanded .camera-tools { gap: 8px; margin-top: 4px; }
-  .expanded .camera-captions { bottom: 4px; max-height: calc(100% - 8px); padding: 4px; line-height: 1.2; }
-  .expanded .caption-speaker { display: none; }
-}
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
 </style>

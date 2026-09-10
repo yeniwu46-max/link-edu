@@ -44,7 +44,7 @@ async page => {
   await page.getByRole('checkbox',{name:'同意摄像头开启'}).check();
   // Explicitly mute before testing real PCM scheduling; no sound sent to the user.
   await page.getByRole('button',{name:'课堂设置',exact:true}).click();
-  await page.getByRole('slider',{name:'上课音量'}).fill('0');
+  await page.getByRole('slider',{name:'设置上课音量',exact:true}).fill('0');
   await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
   await page.getByRole('button',{name:'开始授课',exact:true}).click();
   await page.waitForFunction(()=>window.__classroomQA?.state.value==='listening');
@@ -74,7 +74,7 @@ async page => {
   check(await page.getByRole('combobox',{name:'字幕字号'}).inputValue()==='20','Shrink did not reduce font');
   check(await page.getByRole('combobox',{name:'字幕宽度'}).inputValue()==='60','Shrink did not narrow captions');
   for(const value of ['1020','720','360']) {
-    await page.getByRole('combobox',{name:'画面分辨率'}).selectOption(value);
+    await page.getByRole('combobox',{name:'设置画面分辨率',exact:true}).selectOption(value);
     await page.waitForFunction(v=>window.__classroomQA.cameraResolution.value===Number(v),value);
   }
   await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
@@ -91,7 +91,7 @@ async page => {
   check(await page.evaluate(()=>window.__classroomQA.state.value)==='listening','Playback completion did not restore listening');
   check(await page.evaluate(()=>window.__syntheticMessages.some(m=>m.type==='playback_started')),'Playback start acknowledgment missing');
   await page.getByRole('button',{name:'课堂设置',exact:true}).click();
-  await page.getByRole('slider',{name:'上课音量'}).fill('0.35');
+  await page.getByRole('slider',{name:'设置上课音量',exact:true}).fill('0.35');
   await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
   check(await page.evaluate(()=>window.__classroomQA.volume.value)===.35,'Volume control not connected');
   await page.setViewportSize({width:844,height:390});
@@ -107,6 +107,7 @@ async page => {
   await page.clock.fastForward(14000);
   check(await bubble.isVisible(),'Question must remain for at least 10 seconds');
   await page.clock.fastForward(1500);
+  await bubble.waitFor({state:'detached'}); // Vue's short leave transition follows the 15s retention timer.
   check(await bubble.count()===0,'Question bubble must disappear after 15 seconds');
   check(await page.getByRole('button',{name:'结束并评课',exact:true}).isEnabled(),'Finish must unlock after 10 seconds');
   await page.getByRole('button',{name:'暂停设备采集',exact:true}).click();

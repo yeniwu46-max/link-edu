@@ -17,12 +17,14 @@ async page => {
   await page.waitForFunction(()=>Boolean(window.__classroomQA?.capabilitiesError.value));
   const feedback=page.locator('#class-start-hint');
   const start=page.getByRole('button',{name:'开始授课',exact:true});
-  const refresh=page.getByRole('button',{name:'重新读取状态',exact:true});
+  const refresh=page.getByRole('button',{name:'刷新状态',exact:true});
   check(await start.isDisabled(),'Backend failure must disable start');
   check((await feedback.innerText()).includes('HTTP 500'),'HTTP failure reason missing beside start');
   check(!(await feedback.innerText()).includes('正在读取'),'Failed read must not remain loading');
   check(!(await page.locator('.classroom-services').innerText()).includes('读取中'),'Service summary must not show perpetual loading after failure');
-  check((await feedback.innerText()).includes('同意语音识别') && (await feedback.innerText()).includes('同意摄像头'),'Both missing consents should be listed');
+  await page.locator('.start-reasons summary').click();
+  const allReasons=page.locator('.start-reasons');
+  check((await allReasons.innerText()).includes('同意语音识别') && (await allReasons.innerText()).includes('同意摄像头'),'Both missing consents should be listed in expanded details');
   await page.getByRole('checkbox',{name:'同意语音识别与 AI 评课',exact:true}).check();
   await page.getByRole('checkbox',{name:'同意摄像头开启',exact:true}).check();
   check(await start.isDisabled(),'Consents cannot bypass backend failure');
@@ -43,11 +45,12 @@ async page => {
   data.services.dialogue.configured=false; data.services.asr.pricing_confirmed=false; data.budget.stopped=true;
   await refresh.click();
   await page.waitForFunction(()=>!window.__classroomQA.capabilitiesLoading.value);
-  const blockedText=await feedback.innerText();
+  await page.locator('.start-reasons').evaluate(el=>el.open=true);
+  const blockedText=await page.locator('.class-start-feedback').innerText();
   check(/对话与评课.*未配置/.test(blockedText),'Missing service config reason missing');
   check(/语音识别.*单价/.test(blockedText),'Unconfirmed price reason missing');
   check(blockedText.includes('授课额度已达到停止线'),'Budget stop reason missing');
-  await page.getByRole('button',{name:'查看配置与额度',exact:true}).click();
+  await page.getByRole('button',{name:'查看配置',exact:true}).click();
   check(await page.getByRole('dialog',{name:'课堂设置',exact:true}).isVisible(),'Settings action must open dialog');
   await page.getByRole('button',{name:'关闭课堂设置',exact:true}).click();
   for(const width of [1440,1024,768,320]) {
@@ -65,7 +68,7 @@ async page => {
   await page.evaluate(()=>{const live=window.__classroomQA;live.busy.value=false;
     live.room.value={session_id:901,state:'active',mode:'full'};live.state.value='disconnected';live.capabilities.value.budget.stopped=true;});
   check(await page.getByRole('button',{name:'重新连接',exact:true}).isDisabled(),'Reconnect must share the same gate');
-  check((await feedback.innerText()).includes('暂不可重新连接'),'Reconnect explanation missing');
+  check((await feedback.innerText()).includes('授课额度已达到停止线'),'Reconnect explanation missing');
   check(await page.evaluate(()=>window.__deviceRequests)===0,'Start hints must not request devices');
   check(writes.length===0,'Refresh must never invoke paid probes or create classroom');
   check(errors.length===0,`Browser errors: ${errors.join('; ')}`);
