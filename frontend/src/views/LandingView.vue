@@ -23,6 +23,14 @@
           preload="auto"
         ></video>
       </div>
+      <LiquidEther
+        :mouse-force="11"
+        :cursor-size="58"
+        :resolution="0.42"
+        :auto-speed="0.32"
+        :auto-intensity="1.2"
+      />
+      <div class="hero-foreground">
       <header class="hero-nav">
         <div class="hero-nav-left">
           <BrandMark />
@@ -97,6 +105,7 @@
       <button class="scroll-cue motion-control" @click="goLogin" aria-label="向下滚动进入登录">
         <span>SCROLL TO LOGIN</span><i></i>
       </button>
+      </div>
     </section>
 
     <section ref="loginSection" class="login" id="login">
@@ -207,6 +216,7 @@ import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import BrandMark from '../components/BrandMark.vue'
 import DepthText from '../components/DepthText.vue'
+import LiquidEther from '../components/fx/LiquidEther.vue'
 import { useAuthStore } from '../stores/auth'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -371,7 +381,10 @@ const buttonLabel = computed(() =>
       : '创建并登录'
 )
 
-const scrollTo = (target) => target.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+const scrollTo = (target) => target.value?.scrollIntoView({
+  behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+  block: 'start'
+})
 const goLogin = () => {
   menuOpen.value = false
   scrollTo(loginSection)
@@ -466,7 +479,7 @@ onMounted(async () => {
     hairKeepAlive = keepHairAlive
 
     media = gsap.matchMedia()
-    media.add({ desktop: '(min-width: 901px)', reduceMotion: '(prefers-reduced-motion: reduce)' }, ({ conditions }) => {
+    media.add({ all: 'all', reduceMotion: '(prefers-reduced-motion: reduce)' }, ({ conditions }) => {
       const scope = landing.value
       if (!scope) return () => {}
 
@@ -481,14 +494,15 @@ onMounted(async () => {
         if (right) intro.from(right, { autoAlpha: 0, x: 24, duration: 0.45 }, '-=.35')
         if (cue) intro.from(cue, { autoAlpha: 0, y: 8, duration: 0.3 }, '-=.2')
         const scrollConfig = { scroller: landing.value }
-        gsap.to(scope.querySelectorAll('.hero-copy'), {
-          autoAlpha: 0, y: -20, ease: 'none',
-          scrollTrigger: { ...scrollConfig, trigger: hero.value, start: '60% top', end: '95% top', scrub: 1 }
+        // Keep the scroll exit separate from the children's initial entrance.
+        gsap.fromTo(scope.querySelector('.hero-foreground'), { autoAlpha: 1, scale: 1 }, {
+          autoAlpha: 0, scale: 0.98, ease: 'none',
+          scrollTrigger: { ...scrollConfig, trigger: hero.value, start: 'top top', end: '55% top', scrub: 0.15 }
         })
         if (loginCard.value) {
-          gsap.from(loginCard.value, {
-            autoAlpha: 0, y: 28, duration: 0.55, ease: 'power2.out',
-            scrollTrigger: { ...scrollConfig, trigger: loginSection.value, start: 'top 70%', toggleActions: 'play none none reverse' }
+          gsap.fromTo(loginCard.value, { autoAlpha: 0, scale: 0.96, y: 12 }, {
+            autoAlpha: 1, scale: 1, y: 0, duration: 0.25, ease: 'power2.out',
+            scrollTrigger: { ...scrollConfig, trigger: loginSection.value, start: 'top 55%', toggleActions: 'play none none reverse' }
           })
         }
       }
@@ -541,3 +555,21 @@ async function submit(event) {
   }
 }
 </script>
+
+<style scoped>
+.hero-foreground {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  transform-origin: center;
+}
+
+/* GSAP owns the card transform; a CSS transition would delay every frame. */
+.login-card {
+  transition: max-height .42s cubic-bezier(.16, 1, .3, 1), padding .3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card { transition: none; }
+}
+</style>

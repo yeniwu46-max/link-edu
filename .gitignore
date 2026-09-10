@@ -25,3 +25,6 @@ artifacts/private/
 frontend/public/models/
 .playwright-cli/
 output/playwright/
+artifacts/library-pdf-review/
+artifacts/resource-review/
+output/pixel-characters/

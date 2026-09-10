@@ -1,5 +1,5 @@
 <template>
-  <div class="sparse-page">
+  <div class="sparse-page page-courses">
     <header class="page-head">
       <p class="shiny-kicker">COURSE DECK</p>
       <SplitTitle text="课程中心" />
@@ -7,7 +7,7 @@
     </header>
 
     <div class="course-layout">
-      <aside class="filter-rail" aria-label="课程分类">
+      <aside class="filter-rail glass" aria-label="课程分类">
         <button
           v-for="item in filters"
           :key="item.id"
@@ -19,7 +19,7 @@
 
       <div class="course-main">
         <div class="featured-row">
-          <SpotlightPane v-for="course in featured" :key="course.id" class="course-slab">
+          <SpotlightPane v-for="course in featured" :key="course.id" class="course-slab glass">
             <small>{{ course.stage || course.category }}</small>
             <h2>{{ course.title }}</h2>
             <p>{{ course.description }}</p>
@@ -38,7 +38,7 @@
         </div>
 
         <ul class="course-strip">
-          <li v-for="course in rest" :key="course.id" class="glare-row">
+          <li v-for="course in rest" :key="course.id" class="glare-row course-tile glass">
             <div>
               <strong>{{ course.title }}</strong>
               <span>{{ course.stage || course.category }}</span>
@@ -49,7 +49,7 @@
       </div>
     </div>
 
-    <aside v-if="detail" class="detail-drawer" role="dialog">
+    <aside v-if="detail" class="detail-drawer glass" role="dialog">
       <button type="button" class="close-x" aria-label="关闭" @click="detail = null">×</button>
       <p>{{ detail.stage || detail.category }}</p>
       <h2>{{ detail.title }}</h2>

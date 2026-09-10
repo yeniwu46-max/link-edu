@@ -1,6 +1,6 @@
 <template>
-  <n-config-provider :theme="darkTheme">
-    <n-message-provider>
+  <NConfigProvider :theme="darkTheme">
+    <NMessageProvider>
       <ClickSpark
         spark-color="#ffffff"
         :spark-size="10"
@@ -19,8 +19,8 @@
       >
         <NewtonsCradle />
       </div>
-    </n-message-provider>
-  </n-config-provider>
+    </NMessageProvider>
+  </NConfigProvider>
 </template>
 
 <script setup>

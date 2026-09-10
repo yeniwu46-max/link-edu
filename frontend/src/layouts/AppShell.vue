@@ -1,5 +1,18 @@
 <template>
-  <main class="dashboard app-shell" :class="{ immersive: immersive }">
+  <main class="dashboard app-shell" :class="{ immersive: immersive, 'protected-shell': protectedShell }">
+    <video
+      v-if="!immersive && !protectedShell"
+      class="app-shell-bg-video"
+      src="/assets/login-bg.mp4"
+      poster="/assets/login-bg.png"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      aria-hidden="true"
+    ></video>
+    <div v-if="!immersive && !protectedShell" class="app-shell-bg-shade" aria-hidden="true"></div>
     <Aurora />
     <aside class="sidebar">
       <BrandMark />
@@ -103,6 +116,8 @@ const crumb = computed(() => {
   return route.meta.crumb || '工作台  /  总览'
 })
 const immersive = computed(() => Boolean(route.meta.immersive))
+// Keep the camera/player and evidence report outside the new console shell.
+const protectedShell = computed(() => ['/classroom', '/ai-review'].includes(route.path))
 const displayName = computed(() => auth.user?.name || '临客')
 const roleLabel = computed(() => auth.user?.role_label || '师范生')
 const profileInitial = computed(() => displayName.value.slice(0, 1))
