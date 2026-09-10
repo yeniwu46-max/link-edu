@@ -1,5 +1,18 @@
 <template>
   <main class="dashboard app-shell" :class="{ immersive: immersive }">
+    <video
+      v-if="!immersive"
+      class="app-shell-bg-video"
+      src="/assets/login-bg.mp4"
+      poster="/assets/login-bg.png"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      aria-hidden="true"
+    ></video>
+    <div v-if="!immersive" class="app-shell-bg-shade" aria-hidden="true"></div>
     <Aurora />
     <aside class="sidebar">
       <BrandMark />

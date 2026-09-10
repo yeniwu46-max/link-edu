@@ -269,14 +269,6 @@ async function loadCourses() {
 
 onMounted(async () => {
   await loadCourses()
-  const prefs = loadSettings()
-  if (prefs.cameraDefault) {
-    try {
-      await startCam()
-    } catch {
-      cameraOn.value = false
-    }
-  }
 })
 
 async function toggleCamera() {
@@ -295,6 +287,14 @@ async function begin() {
   if (running.value || finishing.value) return
   if (!courseId.value && mode.value === 'full') pickFullCourse()
   if (!courseId.value) pickSkill(skillCourses.value[0]?.id)
+  const prefs = loadSettings()
+  if (prefs.cameraDefault && !cameraOn.value) {
+    try {
+      await startCam()
+    } catch {
+      cameraOn.value = false
+    }
+  }
   running.value = true
   remain.value = totalSeconds.value
   startedAt = Date.now()

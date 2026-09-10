@@ -21,8 +21,20 @@
       </section>
 
       <section class="glass continue" v-if="continueTraining">
+        <video
+          ref="continueVideo"
+          class="continue-media"
+          src="/assets/hero-hair.mp4"
+          poster="/assets/hero-clean.png"
+          autoplay
+          muted
+          loop
+          playsinline
+          preload="auto"
+          aria-hidden="true"
+          @canplay="playContinueVideo"
+        ></video>
         <h3>继续训练</h3>
-        <div class="wave">▮▮▮▮▮</div>
         <div class="course">
           <small>{{ continueTraining.category }}</small>
           <h2>{{ continueTraining.course_title }}</h2>
@@ -155,10 +167,17 @@
         </div>
         <div v-if="showCorrect" class="correct-box">
           <p>勾选你认为评课误判的点，可多选，再生成一版。</p>
-          <label v-for="item in corrections" :key="item.id">
-            <input v-model="pickedNotes" type="checkbox" :value="item.id" />
-            {{ item.label }}
-          </label>
+          <div class="correction-options">
+            <div v-for="item in corrections" :key="item.id" class="correction-option">
+              <input
+                :id="`correction-${item.id}`"
+                v-model="pickedNotes"
+                type="checkbox"
+                :value="item.id"
+              />
+              <label :for="`correction-${item.id}`">{{ item.label }}</label>
+            </div>
+          </div>
           <button class="primary" type="button" @click="doRegenerate">按校正点重写</button>
         </div>
       </div>
@@ -225,6 +244,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const firstGreet = formatGreeting()
 const panel = ref(null)
+const continueVideo = ref(null)
 const heatRange = ref('week')
 const pickedDay = ref('')
 const journalBody = ref('')
@@ -426,6 +446,14 @@ function resumeTraining() {
   router.push(courseId ? { path: '/training', query: { courseId } } : '/training')
 }
 
+function playContinueVideo() {
+  const video = continueVideo.value
+  if (!video || document.visibilityState !== 'visible') return
+  video.muted = true
+  const playback = video.play()
+  if (playback && typeof playback.catch === 'function') playback.catch(() => {})
+}
+
 function openPanel(name) {
   panel.value = name
   showCorrect.value = false
@@ -554,9 +582,13 @@ async function loadDashboard() {
 
 onMounted(() => {
   loadDashboard()
+  playContinueVideo()
+  document.addEventListener('visibilitychange', playContinueVideo)
   window.addEventListener('link-settings', refreshGreeting)
 })
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', playContinueVideo)
+  continueVideo.value?.pause()
   window.removeEventListener('link-settings', refreshGreeting)
 })
 

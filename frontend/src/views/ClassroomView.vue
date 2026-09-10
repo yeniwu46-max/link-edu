@@ -14,6 +14,7 @@ import ClassroomCamera from "../components/ClassroomCamera.vue";
 import ClassroomReport from "../components/ClassroomReport.vue";
 import ClassroomSettings from "../components/ClassroomSettings.vue";
 import ClassroomTimeline from "../components/ClassroomTimeline.vue";
+import SpecularButton from "../components/fx/SpecularButton.vue";
 import "../classroom.css";
 const route = useRoute(),
   router = useRouter(),
@@ -392,7 +393,7 @@ onBeforeRouteLeave(
             ><select id="class-mode" v-model="mode">
               <option value="full">10 分钟完整课堂</option>
               <option value="fragment">8 分钟专项训练</option></select
-            ><button
+            ><SpecularButton
               class="class-btn"
               :disabled="!consent || !ready || busy"
               aria-describedby="class-start-hint"
@@ -400,7 +401,7 @@ onBeforeRouteLeave(
             >
               {{ busy ? "准备中…" : "开始课堂" }}
               <span aria-hidden="true">→</span>
-            </button></template
+            </SpecularButton></template
           >
           <template v-else-if="state !== 'ended'"
             ><button

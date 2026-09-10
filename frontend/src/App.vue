@@ -1,6 +1,6 @@
 <template>
-  <n-config-provider :theme="darkTheme">
-    <n-message-provider>
+  <NConfigProvider :theme="darkTheme">
+    <NMessageProvider>
       <ClickSpark
         spark-color="#ffffff"
         :spark-size="10"
@@ -19,12 +19,12 @@
       >
         <NewtonsCradle />
       </div>
-    </n-message-provider>
-  </n-config-provider>
+    </NMessageProvider>
+  </NConfigProvider>
 </template>
 
 <script setup>
-import { darkTheme } from 'naive-ui'
+import { darkTheme, NConfigProvider, NMessageProvider } from 'naive-ui'
 import ClickSpark from './components/ClickSpark.vue'
 import NewtonsCradle from './components/NewtonsCradle.vue'
 import { useBusyStore } from './stores/busy'
