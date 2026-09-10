@@ -2,10 +2,12 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import DraggableResourceCard from "../components/DraggableResourceCard.vue";
 import MarkdownReader from "../components/MarkdownReader.vue";
+import CourseResourceCatalog from "../components/CourseResourceCatalog.vue";
 import SplitTitle from "../components/fx/SplitTitle.vue";
 import { libraryResources, libraryTabs } from "../data/libraryResources";
 
 const tab = ref("全部");
+const collection = ref('library');
 const activeCard = ref(libraryResources[0].id);
 const selected = ref(null);
 const markdown = ref("");
@@ -92,7 +94,7 @@ onUnmounted(() => {
       <div>
         <p class="shiny-kicker">LIBRARY</p>
         <SplitTitle text="资源库" />
-        <p class="page-lead">拖动卡片整理你的资料桌，点击卡片进入阅读。</p>
+        <p class="page-lead">教学大纲、试讲案例与课堂素材。</p>
       </div>
       <div class="resource-summary" aria-label="资源数量">
         <strong>{{ libraryResources.length }}</strong>
@@ -100,7 +102,12 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <div class="resource-toolbar">
+    <div class="collection-switch" aria-label="资料来源">
+      <button type="button" :aria-pressed="collection === 'library'" @click="collection = 'library'">精选资料</button>
+      <button type="button" :aria-pressed="collection === 'courses'" @click="collection = 'courses'">课程资源</button>
+    </div>
+    <CourseResourceCatalog v-if="collection === 'courses'" />
+    <div v-if="collection === 'library'" class="resource-toolbar">
       <div class="resource-tabs" role="tablist" aria-label="资源分类">
         <button
           v-for="item in libraryTabs"
@@ -117,10 +124,9 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <section class="resource-deck" aria-label="可拖动资源卡片墙">
+    <section v-if="collection === 'library'" class="resource-deck" aria-label="可拖动资源卡片墙">
       <div class="deck-instruction" aria-hidden="true">
         <span>RESOURCE DESK</span>
-        <strong>资料卡片墙</strong>
         <p>拖动调整位置 · 点击查看内容</p>
       </div>
 
@@ -134,7 +140,7 @@ onUnmounted(() => {
       />
     </section>
 
-    <p class="resource-note">官方大纲按原 Word 文件生成 PDF 预览，内容未作改写。</p>
+    <p v-if="collection === 'library'" class="resource-note">官方大纲提供 PDF 预览与原始 Word 文件。</p>
 
     <Transition name="reader-fade">
       <div v-if="selected" class="reader-mask" role="presentation" @mousedown.self="closeReader">
@@ -181,10 +187,9 @@ onUnmounted(() => {
 
 <style scoped>
 .resource-page {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  height: calc(100dvh - 160px);
-  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 160px);
   max-width: none;
   padding-bottom: 0;
 }
@@ -286,8 +291,8 @@ onUnmounted(() => {
 
 .resource-deck {
   position: relative;
-  min-height: 0;
-  height: 100%;
+  min-height: 540px;
+  flex: 1;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 20px;
@@ -333,6 +338,10 @@ onUnmounted(() => {
   color: #716b76;
   font-size: 11px;
 }
+
+.collection-switch { display:flex; gap:8px; margin:0 0 18px; }
+.collection-switch button { border:1px solid #ffffff20; border-radius:99px; padding:10px 20px; background:transparent; color:#aaa2af; }
+.collection-switch button[aria-pressed="true"] { color:#fff; background:#b65cff22; border-color:#c984ff88; }
 
 .reader-mask {
   position: fixed;

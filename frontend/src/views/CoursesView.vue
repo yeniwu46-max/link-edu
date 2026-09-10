@@ -4,6 +4,9 @@
       <p class="shiny-kicker">COURSE DECK</p>
       <SplitTitle text="课程中心" />
       <p class="page-lead">依据《教师职业技能训练大纲（试行）》九项课堂教学技能，先分项 8 分钟，再综合 10 分钟模拟授课。</p>
+      <p v-if="query && !loading" class="course-search-status" role="status">
+        搜索“{{ query }}” · {{ filtered.length }} 个结果
+      </p>
     </header>
 
     <div class="course-layout">
@@ -18,7 +21,17 @@
       </aside>
 
       <div class="course-main">
-        <div class="featured-row">
+        <p v-if="loading" class="course-search-feedback" role="status">正在加载课程…</p>
+        <div v-else-if="courseError" class="course-search-feedback" role="alert">
+          <span>{{ courseError }}</span>
+          <button type="button" class="text-action" @click="loadCourses">重新加载课程</button>
+        </div>
+        <div v-else-if="!filtered.length" class="course-search-feedback" role="status">
+          <span>{{ query ? `没有找到“${query}”相关课程，请换个关键词。` : '当前分类暂无课程。' }}</span>
+          <button v-if="query" type="button" class="text-action" @click="clearSearch">清除搜索</button>
+        </div>
+
+        <div v-if="filtered.length" class="featured-row">
           <SpotlightPane v-for="course in featured" :key="course.id" class="course-slab glass">
             <small>{{ course.stage || course.category }}</small>
             <h2>{{ course.title }}</h2>
@@ -37,7 +50,7 @@
           </SpotlightPane>
         </div>
 
-        <ul class="course-strip">
+        <ul v-if="filtered.length" class="course-strip">
           <li v-for="course in rest" :key="course.id" class="glare-row course-tile glass">
             <div>
               <strong>{{ course.title }}</strong>
@@ -86,6 +99,7 @@ import Magnet from '../components/fx/Magnet.vue'
 import SplitTitle from '../components/fx/SplitTitle.vue'
 import SpotlightPane from '../components/fx/SpotlightPane.vue'
 import { fetchCourses } from '../services/dashboard'
+import { filterCourses, normalizeSearchQuery } from '../utils/navigation'
 
 const SMART_EDU = 'https://higher.smartedu.cn/course/671ad61416d8a05eedca49d6'
 
@@ -94,7 +108,9 @@ const router = useRouter()
 const courses = ref([])
 const filter = ref('all')
 const detail = ref(null)
-const query = computed(() => String(route.query.q || '').trim())
+const loading = ref(true)
+const courseError = ref('')
+const query = computed(() => normalizeSearchQuery(route.query.q))
 
 const filters = [
   { id: 'all', label: '全部' },
@@ -111,13 +127,7 @@ const filters = [
 ]
 
 const filtered = computed(() => {
-  return courses.value.filter((course) => {
-    const stage = course.stage || ''
-    const hay = `${course.title}${course.category}${course.description}${stage}`
-    const byFilter = filter.value === 'all' || stage.includes(filter.value)
-    const byQuery = !query.value || hay.includes(query.value)
-    return byFilter && byQuery
-  })
+  return filterCourses(courses.value, query.value, filter.value)
 })
 
 const featured = computed(() => {
@@ -145,20 +155,27 @@ function open(course) {
   detail.value = course
 }
 
+function clearSearch() {
+  router.replace({ path: '/courses' })
+}
+
+async function loadCourses() {
+  loading.value = true
+  courseError.value = ''
+  detail.value = null
+  try {
+    courses.value = await fetchCourses()
+  } catch (error) {
+    courses.value = []
+    courseError.value = error?.response?.data?.message || '课程加载失败，请检查服务后重试。'
+  } finally {
+    loading.value = false
+  }
+}
+
 watch(() => route.query.q, () => {
   if (query.value) filter.value = 'all'
 })
 
-onMounted(async () => {
-  try {
-    courses.value = await fetchCourses()
-  } catch (error) {
-    console.warn('[Courses] fallback', error)
-    courses.value = [
-      { id: 1, title: '导入技能', category: '微格教学 · 专项', stage: '专项01 · 导入', description: '新课开始时把学生带进课题。', lesson_count: 6, progress_percent: 68, status: 'in_progress', status_label: '进行中' },
-      { id: 2, title: '板书板画技能', category: '微格教学 · 专项', stage: '专项02 · 板书', description: '用精炼文字和图表把教学信息留在黑板上。', lesson_count: 6, progress_percent: 100, status: 'completed', status_label: '已完成' },
-      { id: 3, title: '综合模拟授课（10 分钟）', category: '微格教学 · 综合', stage: '综合10 · 模拟授课', description: '把导入到结束串成一节完整微格课。', lesson_count: 10, progress_percent: 0, status: 'idle', status_label: '未开始' },
-    ]
-  }
-})
+onMounted(loadCourses)
 </script>

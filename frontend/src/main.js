@@ -12,6 +12,7 @@ import AiReviewView from './views/AiReviewHub.vue'
 import GrowthView from './views/GrowthView.vue'
 import ResourcesView from './views/ResourcesView.vue'
 import ProfileView from './views/ProfileView.vue'
+import { useAuthStore } from './stores/auth'
 import './styles.css'
 
 const router = createRouter({
@@ -33,15 +34,27 @@ const router = createRouter({
         { path: 'profile', component: ProfileView, meta: { crumb: '个人中心' } },
       ],
     },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 
-router.beforeEach((to) => {
-  const authed = Boolean(localStorage.getItem('link_token'))
-  if (to.matched.some((record) => record.meta.auth) && !authed) {
-    return '/'
+const pinia = createPinia()
+const auth = useAuthStore(pinia)
+
+router.beforeEach(async (to) => {
+  const requiresAuth = to.matched.some((record) => record.meta.auth)
+  if (!requiresAuth) return true
+  if (!auth.token) return '/'
+  if (!auth.user || auth.sessionStatus === 'checking' || auth.sessionStatus === 'offline') {
+    const result = await auth.hydrate()
+    if (result.status !== 'authenticated') return '/'
   }
   return true
 })
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+window.addEventListener('link:auth-expired', (event) => {
+  auth.expire(event.detail?.message || '登录状态已失效，请重新登录')
+  if (router.currentRoute.value.path !== '/') router.replace('/')
+})
+
+createApp(App).use(pinia).use(router).mount('#app')

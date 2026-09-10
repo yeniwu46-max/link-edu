@@ -10,6 +10,20 @@
       <span v-if="showDemoBadge" class="review-badge">演示评分</span>
     </header>
 
+    <section v-if="items.length" class="review-history">
+      <label for="review-history-select">历史评课</label>
+      <select
+        id="review-history-select"
+        aria-label="选择评课报告"
+        :value="current?.id || ''"
+        @change="selectFeedbackById"
+      >
+        <option v-for="item in items" :key="item.id" :value="item.id">
+          {{ item.course_title || '未命名课程' }} · {{ formatFeedbackDate(item.created_at) }} · {{ feedbackStatusLabel(item) }}
+        </option>
+      </select>
+    </section>
+
     <div v-if="loadError || aiError" class="review-alert" role="alert">
       <p>{{ loadError || aiErrorMessage }}</p>
       <button v-if="loginExpired" type="button" class="ghost-link" @click="goToLogin">返回登录</button>
@@ -27,8 +41,31 @@
       <p v-else-if="generationStatus === 'failed'" class="review-generator__status is-failed">
         上一次生成没有完成，课堂材料已保留，可以直接重试。
       </p>
+      <p v-if="generationTimedOut" class="review-generator__status is-failed">
+        生成超时，服务端状态仍在核对，可稍后重试。
+      </p>
+      <div class="review-materials">
+        <label>
+          课堂转写
+          <textarea
+            v-model="materialDraft.transcript"
+            rows="5"
+            placeholder="记录教师动作、学生回应、等待时间和课堂原话"
+            @input="saveMaterials"
+          ></textarea>
+        </label>
+        <label>
+          教师备注
+          <textarea
+            v-model="materialDraft.teacherNotes"
+            rows="3"
+            placeholder="补充你希望 AI 重点核对的课堂证据"
+            @input="saveMaterials"
+          ></textarea>
+        </label>
+      </div>
       <div class="review-generator__actions">
-        <span>此按钮只负责生成本次评课报告</span>
+        <span>材料按训练记录保存在本机，生成时只提交当前记录</span>
         <button
           type="button"
           class="primary"
@@ -168,9 +205,16 @@ import {
   fetchFeedbacks,
   generateAiReview,
 } from '../services/dashboard'
-import { aiReviewErrorMessage, isUnauthorizedError } from '../utils/aiReviewErrors'
 import {
+  aiReviewErrorMessage,
+  aiReviewQuestionErrorMessage,
+  isUnauthorizedError,
+} from '../utils/aiReviewErrors'
+import {
+  isGenerationTimedOut,
   isInsufficientReport,
+  loadAiReviewMaterials,
+  saveAiReviewMaterials,
   selectFeedbackForRoute,
 } from '../utils/aiReviewState'
 
@@ -199,7 +243,10 @@ const questionAnswer = ref('')
 const questionScope = ref('current')
 const questionLoading = ref(false)
 const questionError = ref('')
+const materialDraft = ref({ transcript: '', teacherNotes: '' })
+const currentTime = ref(Date.now())
 let questionRequestId = 0
+let generationRequestId = 0
 let statusPollTimer = null
 let refreshPromise = null
 
@@ -209,11 +256,12 @@ const insufficientEvidence = computed(() => isInsufficientReport(report.value))
 const generationStatus = computed(() => (
   aiGenerating.value ? 'generating' : report.value.generation_status || 'idle'
 ))
+const generationTimedOut = computed(() => isGenerationTimedOut(report.value, currentTime.value))
 const isRealReport = computed(() => report.value.source === 'deepseek' && report.value.demo !== true)
 const showAiReviewGenerator = computed(() => Boolean(current.value))
 const canGenerateAiReview = computed(() => (
   !aiGenerating.value
-  && generationStatus.value !== 'generating'
+  && (generationStatus.value !== 'generating' || generationTimedOut.value)
 ))
 const generatorTitle = computed(() => {
   if (generationStatus.value === 'generating') return 'DeepSeek 正在评课'
@@ -345,6 +393,31 @@ function activeSessionId() {
   return current.value?.session_id || Number(route.query.sessionId) || null
 }
 
+function formatFeedbackDate(value) {
+  if (!value) return '未记录日期'
+  return String(value).slice(0, 10)
+}
+
+function feedbackStatusLabel(item) {
+  const itemReport = item?.report || {}
+  if (itemReport.generation_status === 'generating') return '生成中'
+  if (itemReport.generation_status === 'failed') return '失败可重试'
+  if (isInsufficientReport(itemReport)) return '证据不足'
+  if (itemReport.source === 'deepseek' && itemReport.demo !== true) return '真实报告'
+  if (itemReport.demo === true) return '演示'
+  return '待生成'
+}
+
+function restoreMaterials(sessionId) {
+  materialDraft.value = loadAiReviewMaterials(localStorage, sessionId)
+}
+
+function saveMaterials() {
+  const sessionId = activeSessionId()
+  if (!sessionId) return
+  saveAiReviewMaterials(localStorage, sessionId, materialDraft.value)
+}
+
 function goToLogin() {
   router.push('/')
 }
@@ -359,11 +432,13 @@ function clearFollowupState() {
   questionError.value = ''
 }
 
+function invalidateGenerationRequest() {
+  generationRequestId += 1
+  aiGenerating.value = false
+}
+
 function questionErrorMessage(error) {
-  if (isUnauthorizedError(error)) return '登录状态已失效，请重新登录后再追问。'
-  if (error?.response?.status === 409) return '请先生成成功的 DeepSeek 评课报告后再追问。'
-  if (error?.response?.status === 502) return 'DeepSeek 暂时没有回答，请稍后再试。'
-  return error?.response?.data?.message || 'AI 追问失败，请稍后再试。'
+  return aiReviewQuestionErrorMessage(error)
 }
 
 function syncReviewRoute(item) {
@@ -384,6 +459,7 @@ function clearInvalidReviewRoute() {
 
 function applyFeedbackItems(nextItems, { syncRoute = false } = {}) {
   const previousId = current.value?.id
+  const previousSessionId = current.value?.session_id
   items.value = nextItems
   const nextCurrent = selectFeedbackForRoute(
     nextItems,
@@ -391,7 +467,13 @@ function applyFeedbackItems(nextItems, { syncRoute = false } = {}) {
     route.query.sessionId,
   )
   current.value = nextCurrent
-  if (previousId && previousId !== nextCurrent?.id) clearFollowupState()
+  if (previousId && previousId !== nextCurrent?.id) {
+    invalidateGenerationRequest()
+    clearFollowupState()
+  }
+  if (nextCurrent && previousSessionId !== nextCurrent.session_id) {
+    restoreMaterials(nextCurrent.session_id)
+  }
   if (current.value) {
     if (syncRoute) syncReviewRoute(current.value)
   } else {
@@ -422,11 +504,13 @@ async function loadReviewData() {
 
 function setCurrentFeedback(item) {
   if (!item) return
+  const previousSessionId = current.value?.session_id
   current.value = item
   const exists = items.value.some((feedback) => feedback.id === item.id)
   items.value = exists
     ? items.value.map((feedback) => (feedback.id === item.id ? item : feedback))
     : [item, ...items.value]
+  if (previousSessionId !== item.session_id) restoreMaterials(item.session_id)
 }
 
 async function refreshCurrentFeedback() {
@@ -438,7 +522,11 @@ async function refreshCurrentFeedback() {
       items.value = nextItems
       const next = selectFeedbackForRoute(nextItems, feedbackId, sessionId)
       if (next) {
-        if (current.value?.id && current.value.id !== next.id) clearFollowupState()
+        if (current.value?.id && current.value.id !== next.id) {
+          invalidateGenerationRequest()
+          clearFollowupState()
+        }
+        if (current.value?.session_id !== next.session_id) restoreMaterials(next.session_id)
         current.value = next
       }
       return next
@@ -451,6 +539,7 @@ async function refreshCurrentFeedback() {
 
 async function handleResume() {
   if (document.visibilityState === 'hidden') return
+  currentTime.value = Date.now()
   try {
     await refreshCurrentFeedback()
   } catch {
@@ -460,6 +549,7 @@ async function handleResume() {
 
 function startStatusPolling() {
   if (statusPollTimer) return
+  currentTime.value = Date.now()
   statusPollTimer = window.setInterval(handleResume, 4000)
 }
 
@@ -477,18 +567,26 @@ async function runAiReview() {
   }
   if (!canGenerateAiReview.value) return
   aiGenerating.value = true
+  const requestId = ++generationRequestId
   aiGenerateError.value = ''
   clearFollowupState()
+  saveMaterials()
   try {
     const next = await generateAiReview(sessionId, {
+      transcript_text: materialDraft.value.transcript.trim(),
+      teacher_notes: materialDraft.value.teacherNotes.trim(),
       regenerate: isRealReport.value,
     })
+    if (requestId !== generationRequestId || activeSessionId() !== sessionId) return
     setCurrentFeedback(next)
+    saveAiReviewMaterials(localStorage, sessionId, { transcript: '', teacherNotes: '' })
+    materialDraft.value = { transcript: '', teacherNotes: '' }
     await router.replace({
       path: '/ai-review',
       query: { sessionId, feedbackId: next.id },
     })
   } catch (error) {
+    if (requestId !== generationRequestId) return
     try {
       await refreshCurrentFeedback()
     } catch {
@@ -500,14 +598,16 @@ async function runAiReview() {
       loadError.value = aiReviewErrorMessage(error)
     } else {
       const recoveredStatus = report.value.generation_status
-      if (!['succeeded', 'generating'].includes(recoveredStatus)) {
+      if (['ECONNABORTED', 'ETIMEDOUT'].includes(error?.code) && recoveredStatus !== 'succeeded') {
+        aiGenerateError.value = '请求超时，正在核对服务端状态，请稍后刷新。'
+      } else if (!['succeeded', 'generating'].includes(recoveredStatus)) {
         aiGenerateError.value = report.value.generation_error
           || aiReviewErrorMessage(error)
           || 'AI 评课生成失败，请稍后重试。'
       }
     }
   } finally {
-    aiGenerating.value = false
+    if (requestId === generationRequestId) aiGenerating.value = false
   }
 }
 
@@ -552,15 +652,21 @@ async function askQuestion() {
 }
 
 function selectFeedback(item) {
+  invalidateGenerationRequest()
   current.value = item
   const nextSessionId = item?.session_id
   aiGenerateError.value = ''
-  showCorrect.value = false
+  restoreMaterials(nextSessionId)
   clearFollowupState()
   router.replace({
     path: '/ai-review',
     query: { sessionId: nextSessionId, feedbackId: item.id },
   })
+}
+
+function selectFeedbackById(event) {
+  const item = items.value.find((feedback) => feedback.id === Number(event.target.value))
+  if (item) selectFeedback(item)
 }
 
 watch(generationStatus, (status) => {
@@ -578,6 +684,8 @@ onMounted(async () => {
   await loadReviewData()
 })
 onUnmounted(() => {
+  invalidateGenerationRequest()
+  clearFollowupState()
   stopStatusPolling()
   window.removeEventListener('link-settings', syncDemoBadge)
   window.removeEventListener('online', handleResume)

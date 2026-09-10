@@ -19,15 +19,20 @@ test('AI 评课页面不显示底部历史评分条', () => {
   assert.match(source, /class="review-report"/)
 })
 
-function createReview() {
-  const ask = mock.fn(async (feedbackId) => ({
+function createReview({ ask: askOverride, generate: generateOverride } = {}) {
+  const ask = askOverride || mock.fn(async (feedbackId) => ({
     feedback_id: feedbackId,
     scope: 'current',
     answer: 'Add classroom observations before requesting a score.',
   }))
+  globalThis.localStorage = {
+    getItem() { return null },
+    setItem() {},
+    removeItem() {},
+  }
   const imports = {
     vue: { ...vue, onMounted() {}, onUnmounted() {}, watch() {} },
-    'vue-router': { useRoute: () => ({ query: {} }), useRouter: () => ({}) },
+    'vue-router': { useRoute: () => ({ query: {} }), useRouter: () => ({ replace() {}, push() {} }) },
     '@number-flow/vue': {},
     'echarts/core': { use() {} },
     'echarts/renderers': {},
@@ -35,7 +40,15 @@ function createReview() {
     'echarts/components': {},
     'vue-echarts': {},
     '../components/fx/SplitTitle.vue': {},
-    '../services/dashboard': { askAiReviewQuestion: ask },
+    '../services/dashboard': {
+      askAiReviewQuestion: ask,
+      fetchFeedbacks: async () => [],
+      generateAiReview: generateOverride || mock.fn(async (sessionId) => ({
+        id: 7,
+        session_id: sessionId,
+        report: completedReport(),
+      })),
+    },
     '../utils/aiReviewErrors': reviewErrors,
     '../utils/aiReviewState': reviewState,
     '../utils/settings': { loadSettings: () => ({ showDemoBadge: true }) },
@@ -136,4 +149,45 @@ test('an empty question is still rejected for an insufficient-evidence report', 
   await state.askQuestion()
   assert.equal(ask.mock.callCount(), 0)
   assert.notEqual(state.questionError.value, '')
+})
+
+test('a delayed answer from the previous report cannot overwrite the selected report', async () => {
+  let resolveAnswer
+  const ask = mock.fn(() => new Promise((resolve) => {
+    resolveAnswer = resolve
+  }))
+  const { state } = createReview({ ask })
+  state.current.value = { id: 7, session_id: 3, report: completedReport() }
+  state.questionDraft.value = 'How should I improve?'
+
+  const pending = state.askQuestion()
+  state.selectFeedback({ id: 8, session_id: 4, report: completedReport() })
+  resolveAnswer({ feedback_id: 7, scope: 'current', answer: 'Answer for report 7.' })
+  await pending
+
+  assert.equal(state.current.value.id, 8)
+  assert.equal(state.questionAnswer.value, '')
+  assert.equal(state.questionLoading.value, false)
+})
+
+test('a delayed generation response cannot overwrite a newly selected report', async () => {
+  let resolveGeneration
+  const generate = mock.fn(() => new Promise((resolve) => {
+    resolveGeneration = resolve
+  }))
+  const { state } = createReview({ generate })
+  state.items.value = [
+    { id: 7, session_id: 3, report: completedReport() },
+    { id: 8, session_id: 4, report: completedReport() },
+  ]
+  state.current.value = state.items.value[0]
+  state.materialDraft.value = { transcript: '旧报告材料', teacherNotes: '' }
+
+  const pending = state.runAiReview()
+  state.selectFeedback(state.items.value[1])
+  resolveGeneration({ id: 7, session_id: 3, report: completedReport({ overall_score: 99 }) })
+  await pending
+
+  assert.equal(state.current.value.id, 8)
+  assert.equal(state.aiGenerating.value, false)
 })

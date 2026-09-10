@@ -70,7 +70,8 @@ def build_dashboard_overview(user: User):
     resource_count = Resource.query.filter_by(is_active=True).count()
     training_count = TrainingSession.query.filter_by(user_id=user.id).count()
 
-    sparkline = [12, 18, 15, 22, 19, 24, max(weekly_count, 1)]
+    weekly_heatmap = build_heatmap(user, 7)
+    sparkline = [min(72, cell['count'] * 12) for cell in weekly_heatmap]
 
     greet = greeting_period()
     return {
@@ -90,7 +91,7 @@ def build_dashboard_overview(user: User):
             'total_minutes': weekly_minutes,
             'trend_percent': trend_percent,
             'sparkline': sparkline,
-            'heatmap': build_heatmap(user, 7),
+            'heatmap': weekly_heatmap,
             'month_heatmap': build_heatmap(user, 30),
             'summaries': build_ai_summaries(user),
             'journals': list_journals(user),
@@ -124,7 +125,7 @@ def build_dashboard_overview(user: User):
                 'route': '/resources',
             },
         ],
-        'growth_trajectory': growth_scores or [72, 76, 79, 81, 80, 84, 86],
+        'growth_trajectory': growth_scores,
         'stats': {
             'course_count': course_count,
             'training_count': training_count,

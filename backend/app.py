@@ -16,6 +16,18 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
 
+    @jwt.expired_token_loader
+    def expired_token(_jwt_header, _jwt_payload):
+        return jsonify(message='登录状态已失效，请重新登录', code='token_expired'), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token(_reason):
+        return jsonify(message='登录状态无效，请重新登录', code='token_invalid'), 401
+
+    @jwt.unauthorized_loader
+    def missing_token(_reason):
+        return jsonify(message='请先登录', code='token_missing'), 401
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(content_bp)

@@ -63,6 +63,9 @@ def login():
     password = data.get('password') or ''
     role = data.get('role') or 'student'
 
+    if not account or not password:
+        return jsonify(message='请填写账号和密码', code='invalid_credentials'), 400
+
     user = User.query.filter_by(account=account).first()
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify(message='账号或密码错误'), 401
@@ -116,9 +119,15 @@ def create_training_session():
         return jsonify(message='用户不存在'), 404
     data = request.get_json(silent=True) or {}
     course_id = data.get('course_id')
-    if not course_id:
+    if course_id is None or (isinstance(course_id, str) and not course_id.strip()):
         return jsonify(message='请选择课程'), 400
-    session, error = start_session(user, int(course_id))
+    try:
+        course_id = int(course_id)
+    except (TypeError, ValueError):
+        return jsonify(message='课程参数无效'), 400
+    if course_id <= 0:
+        return jsonify(message='课程参数无效'), 400
+    session, error = start_session(user, course_id)
     if error:
         return jsonify(message=error), 404
     return jsonify(session=session.to_dict()), 201

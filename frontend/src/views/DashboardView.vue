@@ -11,6 +11,23 @@
         </div>
       </section>
 
+      <section
+        v-if="dashboardStatus !== 'ready'"
+        class="dashboard-status"
+        :class="{ 'is-loading': dashboardStatus === 'loading' }"
+        :role="dashboardStatus === 'error' ? 'alert' : 'status'"
+      >
+        <template v-if="dashboardStatus === 'loading'">
+          <strong>正在加载工作台</strong>
+          <p>正在读取你的训练数据。</p>
+        </template>
+        <template v-else>
+          <strong>工作台数据未加载</strong>
+          <p>{{ dashboardError }}</p>
+          <button type="button" @click="loadDashboard">重新加载</button>
+        </template>
+      </section>
+
       <section class="glass weekly" role="button" @click="openPanel('weekly')">
         <h3>本周训练</h3>
         <strong>{{ weekly.sessions }}<small> 次</small></strong>
@@ -65,6 +82,7 @@
             <p>{{ entry.description }}</p>
             <button type="button" @click="router.push(entry.route || '/courses')">›</button>
           </article>
+          <p v-if="!quickEntries.length" class="dashboard-empty">暂无可用入口。</p>
         </div>
       </section>
 
@@ -103,20 +121,24 @@
             <em>{{ cell.label }}</em>
           </button>
         </div>
+        <p v-if="!heatCells.length" class="dashboard-empty">暂无训练记录。</p>
         <p class="dock-hint">{{ dayHint }}</p>
         <form class="journal-form" @submit.prevent="submitJournal">
           <textarea v-model="journalBody" rows="3" placeholder="手动写一条训练日志，比如今天候答停够了。"></textarea>
-          <button class="primary" type="submit">写下日志</button>
+          <button class="primary" type="submit" :disabled="journalSaving">写下日志</button>
         </form>
+        <p v-if="journalError" class="dashboard-inline-error" role="alert">{{ journalError }}</p>
         <ul class="journal-list">
           <li v-for="item in weekly.journals || []" :key="item.id">
             <em>{{ item.entry_date }}</em>
             <span>{{ item.body }}</span>
           </li>
         </ul>
+        <p v-if="!(weekly.journals || []).length" class="dashboard-empty">暂无训练日志。</p>
         <div class="summary-cards">
           <SummaryCard v-for="item in weekly.summaries || []" :key="item.id" :item="item" />
         </div>
+        <p v-if="!(weekly.summaries || []).length" class="dashboard-empty">暂无训练摘要。</p>
       </div>
 
       <div v-else-if="panel === 'feedback' && aiFeedback" class="feedback-sheet">
@@ -129,6 +151,7 @@
           </div>
         </div>
         <p v-if="regenOk" class="dock-hint">已按勾选重写本份报告。</p>
+        <p v-if="regenError" class="dashboard-inline-error" role="alert">{{ regenError }}</p>
 
         <h3>六个维度</h3>
         <ul class="dim-list dim-list--brief">
@@ -178,7 +201,7 @@
               <label :for="`correction-${item.id}`">{{ item.label }}</label>
             </div>
           </div>
-          <button class="primary" type="button" @click="doRegenerate">按校正点重写</button>
+          <button class="primary" type="button" :disabled="regenSaving" @click="doRegenerate">按校正点重写</button>
         </div>
       </div>
     </aside>
@@ -199,6 +222,7 @@
         autoresize
         @click="onGrowthChartClick"
       />
+      <p v-else class="dashboard-empty">暂无成长轨迹。</p>
       <div class="range-switch growth-dates">
         <button type="button" :class="{ active: !growthDay }" @click="growthDay = ''">全部</button>
         <button
@@ -235,6 +259,11 @@ import VChart from 'vue-echarts'
 import { addJournal, fetchDashboardOverview, regenerateFeedback } from '../services/dashboard'
 import { useAuthStore } from '../stores/auth'
 import { formatGreeting } from '../utils/greeting'
+import {
+  dashboardLoadErrorMessage,
+  journalSubmitErrorMessage,
+  regenerateErrorMessage,
+} from '../utils/dashboardState'
 import LearnMoreButton from '../components/LearnMoreButton.vue'
 import SummaryCard from '../components/SummaryCard.vue'
 
@@ -250,10 +279,16 @@ const pickedDay = ref('')
 const journalBody = ref('')
 const showCorrect = ref(false)
 const regenOk = ref(false)
+const regenError = ref('')
+const regenSaving = ref(false)
 const pickedNotes = ref([])
 const growthRecords = ref([])
 const growthDay = ref('')
 const growthFocus = ref(null)
+const dashboardStatus = ref('loading')
+const dashboardError = ref('')
+const journalSaving = ref(false)
+const journalError = ref('')
 
 const greeting = ref({
   kicker: firstGreet.kicker,
@@ -265,78 +300,26 @@ const greeting = ref({
   role_label: '师范生',
 })
 const weekly = ref({
-  sessions: 3,
-  total_minutes: 86,
-  sparkline: [12, 18, 15, 22, 19, 24, 3],
+  sessions: 0,
+  total_minutes: 0,
+  sparkline: [],
   heatmap: [],
   month_heatmap: [],
   journals: [],
-  summaries: [
-    {
-      id: 'sum-demo',
-      range: '08/26 – 08/28',
-      title: '提问与候答',
-      caption: '停 8 秒再叫人',
-      accent: 'violet',
-      image: 'ask',
-      tag: '近 3 练战报',
-      highlight: '高光 86',
-      mood: '高光',
-      body: '这 3 次里打出了 86 分高光。提问质量最亮。把「停 8 秒再叫人」再练成肌肉记忆。',
-    },
-  ],
+  summaries: [],
 })
-const continueTraining = ref({
-  course_id: 1,
-  course_title: '课堂导入与提问设计',
-  category: '教育学 · 微格教学',
-  status_label: '进行中',
-  progress_percent: 68,
-  last_trained_at: null,
-})
-const aiFeedback = ref({
-  id: 1,
-  overall_score: 86,
-  course_title: '课堂导入与提问设计',
-  suggestion: '减少连续讲述，增加等待时间',
-  dimensions: [
-    { key: 'clarity', label: '表达清晰度', score: 90, brief: '指令和概念是否能被学生一次听懂。' },
-    { key: 'pace', label: '教学节奏', score: 82, brief: '开场、等待、推进有没有挤在一起。' },
-    { key: 'interaction', label: '互动设计', score: 85, brief: '提问、讨论之后有没有全班回收。' },
-    { key: 'posture', label: '教态与站位', score: 80, brief: '面向学生、板书与巡视是否分开。' },
-    { key: 'questioning', label: '提问质量', score: 84, brief: '问题是否具体，有没有追问。' },
-    { key: 'structure', label: '课堂结构', score: 81, brief: '目标、过程、小结是否看得见。' },
-  ],
-  report: {
-    mode_label: '片段练习',
-    next_action: '减少连续讲述，增加等待时间',
-    sections: [
-      { title: '综合判断', body: '本次片段练习综合分 86。相对最稳的是表达清晰度，最该补的是教学节奏：提问后把等待做满。' },
-      { title: '表达与语言', body: '开场请先给出本节课要解决的问题，再展开概念。关键指令只说一遍，说完停 1 秒。' },
-      { title: '节奏与时间', body: '导入控制在总时长的前 1/4，提问后至少等待 8 秒。片段练习不必求全，把这一个技能做满即可。' },
-      { title: '互动与提问', body: '问题要能指向黑板结构。学生回答后追问一次「为什么」，小组活动结束必须做 10 秒全班回收。' },
-      { title: '教态与板书', body: '讲解时肩线对学生。板书左栏目标/过程/结论，右栏放例子。巡视时走下讲台一次。' },
-    ],
-    strengths: ['表达清晰度这一项最高，下次训练可以把它当稳定盘。', '能够按选定模式把训练走完，主路径没有断。'],
-    fixes: ['优先改教学节奏：开场、等待、推进有没有挤在一起。', '减少连续讲述，增加等待时间', '结束前用一句话重述学习目标。'],
-  },
-})
-const quickEntries = ref([
-  { title: '我的课程', description: '11 门课程', icon: '▤', route: '/courses' },
-  { title: '模拟课堂', description: '创建训练场景', icon: '◈', route: '/training' },
-  { title: 'AI 评课', description: '查看分析报告', icon: '◔', route: '/ai-review' },
-  { title: '资源中心', description: '教案与素材', icon: '▣', route: '/resources' },
-])
-const growthTrajectory = ref([72, 76, 79, 81, 80, 84, 86])
+const continueTraining = ref(null)
+const aiFeedback = ref(null)
+const quickEntries = ref([])
+const growthTrajectory = ref([])
 const corrections = [
-  { id: 'pace_ok', label: '节奏其实正常，没有赶课', key: 'pace', delta: 6 },
-  { id: 'waited', label: '提问后已经等够了', key: 'questioning', delta: 7 },
-  { id: 'had_interaction', label: '互动其实发生了', key: 'interaction', delta: 7 },
-  { id: 'board_clear', label: '板书分区是清楚的', key: 'structure', delta: 6 },
-  { id: 'intro_enough', label: '导入并不短', key: 'clarity', delta: 5 },
-  { id: 'posture_ok', label: '教态没有背对学生', key: 'posture', delta: 6 },
+  { id: 'pace_ok', label: '节奏其实正常，没有赶课' },
+  { id: 'waited', label: '提问后已经等够了' },
+  { id: 'had_interaction', label: '互动其实发生了' },
+  { id: 'board_clear', label: '板书分区是清楚的' },
+  { id: 'intro_enough', label: '导入并不短' },
+  { id: 'posture_ok', label: '教态没有背对学生' },
 ]
-
 const feedbackReport = computed(() => aiFeedback.value?.report || {})
 const feedbackDims = computed(() => {
   const fromCard = aiFeedback.value?.dimensions || []
@@ -406,6 +389,18 @@ const growthLineOption = computed(() => {
   }
 })
 
+function emptyWeekly() {
+  return {
+    sessions: 0,
+    total_minutes: 0,
+    sparkline: [],
+    heatmap: [],
+    month_heatmap: [],
+    journals: [],
+    summaries: [],
+  }
+}
+
 const heatCells = computed(() => (
   heatRange.value === 'month' ? (weekly.value.month_heatmap || []) : (weekly.value.heatmap || [])
 ))
@@ -458,6 +453,7 @@ function openPanel(name) {
   panel.value = name
   showCorrect.value = false
   regenOk.value = false
+  regenError.value = ''
   if (name === 'growth') {
     growthDay.value = ''
     growthFocus.value = visibleGrowth.value[0]?.id || null
@@ -471,112 +467,73 @@ function openGrowthReplay(item) {
 
 function onGrowthChartClick(params) {
   const item = growthLineRows.value[params.dataIndex]
-  if (item) growthFocus.value = item.id
+  if (!item) return
+  growthFocus.value = item.id
+  router.push({ path: '/ai-review', query: { feedbackId: item.id } })
 }
 
 async function submitJournal() {
   const body = journalBody.value.trim()
-  if (!body) return
+  journalError.value = ''
+  if (!body) {
+    journalError.value = '请先写一句训练日志'
+    return
+  }
+  if (journalSaving.value) return
+  journalSaving.value = true
   try {
     const item = await addJournal({ entry_date: pickedDay.value || new Date().toISOString().slice(0, 10), body })
     weekly.value.journals = [item, ...(weekly.value.journals || [])]
     journalBody.value = ''
-  } catch {
-    weekly.value.journals = [{ id: Date.now(), entry_date: pickedDay.value || '今天', body }, ...(weekly.value.journals || [])]
-    journalBody.value = ''
-  }
-}
-
-function applyLocalCorrection(feedback, noteIds) {
-  const report = { ...(feedback.report || {}) }
-  const dims = (feedback.dimensions || report.dimensions || []).map((item) => ({ ...item }))
-  const applied = []
-  for (const id of noteIds) {
-    const option = corrections.find((item) => item.id === id)
-    if (!option) continue
-    applied.push(option.label)
-    const dim = dims.find((item) => item.key === option.key)
-    if (dim) dim.score = Math.max(62, Math.min(98, Number(dim.score || 70) + option.delta))
-  }
-  const overall = dims.length
-    ? Math.max(68, Math.min(96, Math.round(dims.reduce((sum, item) => sum + Number(item.score || 0), 0) / dims.length)))
-    : feedback.overall_score
-  const weak = [...dims].sort((a, b) => a.score - b.score)[0]
-  const strong = [...dims].sort((a, b) => b.score - a.score)[0]
-  const noteText = applied.join('、') || '你标记了校对不准，但没有勾选具体校正点'
-  const nextAction = applied.length && weak
-    ? `已吸收校正：${applied[0]}。优先改${weak.label}：${weak.brief || ''}`
-    : (weak ? `优先改${weak.label}：${weak.brief || ''}` : '已按勾选重写演示评分。')
-  const previous = (report.sections || []).filter((item) => item.title !== '校正说明')
-  return {
-    ...feedback,
-    overall_score: overall,
-    suggestion: nextAction,
-    dimensions: dims,
-    report: {
-      ...report,
-      overall_score: overall,
-      dimensions: dims,
-      corrected: true,
-      corrections: applied,
-      next_action: nextAction,
-      suggestion: nextAction,
-      sections: [
-        {
-          title: '校正说明',
-          body: `已按你的勾选重写本份报告：${noteText}。分数仍是可解释的演示评分，不是外部大模型。`,
-        },
-        ...previous,
-      ],
-      strengths: strong
-        ? [
-          `${strong.label}这一项最高，下次训练可以把它当稳定盘。`,
-          applied.length ? '已按你勾选的校正点调整了演示评分。' : '能够按选定模式把训练走完，主路径没有断。',
-        ]
-        : (report.strengths || []),
-      fixes: weak
-        ? [
-          `优先改${weak.label}：${weak.brief || ''}`,
-          nextAction,
-          '结束前用一句话重述学习目标，让这节课有收口。',
-        ]
-        : (report.fixes || []),
-    },
+  } catch (error) {
+    journalError.value = journalSubmitErrorMessage(error)
+  } finally {
+    journalSaving.value = false
   }
 }
 
 async function doRegenerate() {
   if (!aiFeedback.value?.id) return
+  if (regenSaving.value) return
+  regenError.value = ''
+  regenOk.value = false
+  regenSaving.value = true
   try {
     aiFeedback.value = await regenerateFeedback(aiFeedback.value.id, pickedNotes.value)
-  } catch {
-    aiFeedback.value = applyLocalCorrection(aiFeedback.value, pickedNotes.value)
+  } catch (error) {
+    regenError.value = regenerateErrorMessage(error)
+    return
+  } finally {
+    regenSaving.value = false
   }
   showCorrect.value = false
   regenOk.value = true
 }
 
 async function loadDashboard() {
+  dashboardStatus.value = 'loading'
+  dashboardError.value = ''
   applyGreeting()
   try {
     const data = await fetchDashboardOverview()
     applyGreeting(data.greeting)
-    weekly.value = { ...weekly.value, ...(data.weekly_training || {}) }
-    continueTraining.value = data.continue_training || continueTraining.value
-    aiFeedback.value = data.ai_feedback || aiFeedback.value
-    quickEntries.value = data.quick_entries || quickEntries.value
-    growthTrajectory.value = data.growth_trajectory || growthTrajectory.value
+    weekly.value = { ...emptyWeekly(), ...(data.weekly_training || {}) }
+    continueTraining.value = data.continue_training ?? null
+    aiFeedback.value = data.ai_feedback ?? null
+    quickEntries.value = data.quick_entries ?? []
+    growthTrajectory.value = data.growth_trajectory ?? []
     growthRecords.value = data.growth_records || []
     if (data.greeting) auth.user = { ...auth.user, ...data.greeting }
+    dashboardStatus.value = 'ready'
   } catch (error) {
-    console.warn('[Dashboard] 使用本地演示数据', error)
-    if (!growthRecords.value.length) {
-      growthRecords.value = [
-        { id: 1, date: '08月28日', time: '14:20', course_title: '课堂导入与提问设计', overall_score: 86, suggestion: '减少连续讲述，增加等待时间', mode_label: '片段练习' },
-        { id: 2, date: '08月27日', time: '09:10', course_title: '提问候答', overall_score: 82, suggestion: '追问一次为什么', mode_label: '片段练习' },
-        { id: 3, date: '08月26日', time: '16:40', course_title: '板书结构', overall_score: 79, suggestion: '左栏写结构，右栏放例子', mode_label: '完整课' },
-      ]
-    }
+    dashboardStatus.value = 'error'
+    dashboardError.value = dashboardLoadErrorMessage(error)
+    weekly.value = emptyWeekly()
+    continueTraining.value = null
+    aiFeedback.value = null
+    quickEntries.value = []
+    growthTrajectory.value = []
+    growthRecords.value = []
   }
 }
 

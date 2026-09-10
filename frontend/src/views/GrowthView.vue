@@ -14,14 +14,33 @@
       </div>
     </header>
 
-    <VChart class="growth-line" :option="lineOption" autoresize />
+    <p v-if="loadError" class="dock-hint" role="alert">{{ loadError }}</p>
+    <p v-else-if="!points.length" class="dock-hint">当前范围暂无真实评课数据。</p>
+    <VChart v-else class="growth-line" :option="lineOption" autoresize />
 
     <div class="heat-grid month growth-heat">
-      <button v-for="cell in heatmap" :key="cell.date" type="button" :class="{ on: cell.count }">
+      <button
+        v-for="cell in heatmap"
+        :key="cell.date"
+        type="button"
+        :class="{ on: cell.count, selected: selectedDate === cell.date }"
+        :aria-pressed="selectedDate === cell.date"
+        @click="selectedDate = cell.date"
+      >
         <i :data-level="cell.level"></i>
         <em>{{ cell.label }}</em>
       </button>
     </div>
+
+    <section v-if="selectedCell" class="growth-day-detail" aria-live="polite">
+      <h3>{{ selectedCell.label }} · {{ selectedCell.count }} 次训练 · {{ selectedCell.minutes }} 分钟</h3>
+      <ul v-if="selectedCell.sessions.length">
+        <li v-for="session in selectedCell.sessions" :key="session.id">
+          {{ session.course_title || '未命名课程' }} · {{ session.status_label }} · {{ session.progress_percent }}%
+        </li>
+      </ul>
+      <p v-else class="dock-hint">当天没有训练记录。</p>
+    </section>
 
     <div class="summary-cards">
       <SummaryCard v-for="item in summaries" :key="item.id" :item="item" />
@@ -32,8 +51,10 @@
         <strong>{{ item.date }} {{ item.time }}</strong>
         <span>{{ item.course_title }} · {{ item.overall_score }} 分</span>
         <em>{{ item.suggestion }}</em>
+        <button type="button" @click="openRecord(item)">查看评课</button>
       </li>
     </ol>
+    <p v-if="!loadError && !records.length" class="dock-hint">当前范围暂无可回放的真实评课记录。</p>
 
     <div class="milestones">
       <article v-for="item in milestones" :key="item.label">
@@ -47,6 +68,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
@@ -58,12 +80,17 @@ import { fetchGrowth } from '../services/dashboard'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
+const router = useRouter()
 const range = ref('30d')
 const points = ref([])
 const milestones = ref([])
 const heatmap = ref([])
 const records = ref([])
 const summaries = ref([])
+const loadError = ref('')
+const selectedDate = ref('')
+
+const selectedCell = computed(() => heatmap.value.find((item) => item.date === selectedDate.value) || null)
 
 const lineOption = computed(() => ({
   animationDuration: 800,
@@ -106,38 +133,31 @@ const lineOption = computed(() => ({
 async function load() {
   try {
     const data = await fetchGrowth(range.value)
+    loadError.value = ''
     points.value = data.points || []
     milestones.value = data.milestones || []
     heatmap.value = data.heatmap || []
     records.value = data.records || []
     summaries.value = data.summaries || []
-  } catch {
-    points.value = [
-      { date: '08/22', score: 72 },
-      { date: '08/24', score: 79 },
-      { date: '08/26', score: 84 },
-      { date: '08/28', score: 86 },
-    ]
-    milestones.value = [
-      { label: '首次训练', value: '08/22', hint: '从第一次模拟课堂算起' },
-      { label: '最高分', value: 86, hint: 'AI 评课综合分' },
-      { label: '本周次数', value: 3, hint: '近 7 日训练场次' },
-    ]
-    summaries.value = [
-      {
-        id: 'sum-demo',
-        range: '08/26 – 08/28',
-        title: '提问与候答',
-        caption: '停 8 秒再叫人',
-        accent: 'violet',
-        image: 'ask',
-        tag: '近 3 练战报',
-        highlight: '高光 86',
-        mood: '高光',
-        body: '这 3 次里打出了 86 分高光。提问质量最亮。把「停 8 秒再叫人」再练成肌肉记忆。',
-      },
-    ]
+    if (!selectedDate.value || !heatmap.value.some((item) => item.date === selectedDate.value)) {
+      selectedDate.value = heatmap.value.at(-1)?.date || ''
+    }
+  } catch (error) {
+    points.value = []
+    milestones.value = []
+    heatmap.value = []
+    records.value = []
+    summaries.value = []
+    selectedDate.value = ''
+    loadError.value = error?.response?.data?.message || '成长档案加载失败，请检查后端服务后重试。'
   }
+}
+
+function openRecord(item) {
+  router.push({
+    path: '/ai-review',
+    query: { sessionId: item.session_id, feedbackId: item.id },
+  })
 }
 
 watch(range, load)

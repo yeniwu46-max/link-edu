@@ -5,6 +5,7 @@
         <p class="shiny-kicker">{{ kicker }}</p>
         <SplitTitle :text="pageTitle" />
         <p class="page-lead">{{ pageLead }}</p>
+        <p v-if="profileError" class="dock-hint" role="alert">{{ profileError }}</p>
       </div>
     </header>
 
@@ -33,6 +34,7 @@
           <label class="span-2">自我介绍<textarea v-model="form.bio" rows="4"></textarea></label>
           <button class="primary" type="button" @click="save">保存档案</button>
           <p v-if="saved" class="dock-hint">档案已保存。</p>
+          <p v-if="saveError" class="dock-hint" role="alert">{{ saveError }}</p>
         </div>
       </section>
 
@@ -141,6 +143,7 @@
         <p>训练镜头仅用于本机观察教态，不会上传到服务器。偏好保存在这台浏览器的 localStorage。</p>
         <button type="button" @click="clearPrefs">清除本机偏好，恢复默认</button>
         <p v-if="prefsCleared" class="dock-hint">已恢复默认训练项与显示选项。</p>
+        <p v-if="settingsError" class="dock-hint" role="alert">{{ settingsError }}</p>
       </section>
     </div>
 
@@ -173,6 +176,7 @@
           </li>
         </ul>
         <p v-if="copied" class="dock-hint">邮箱已复制。</p>
+        <p v-if="copyError" class="dock-hint" role="alert">{{ copyError }}</p>
       </section>
 
       <section class="contact-card">
@@ -199,6 +203,7 @@
           <label class="span-2">内容<textarea v-model="message.body" rows="5" placeholder="写清发生了什么、哪一次训练或哪份评课。"></textarea></label>
           <button class="primary" type="submit">提交留言</button>
           <p v-if="messageOk" class="dock-hint">已收到。演示环境会记入你的训练日志，不会开通独立工单后台。</p>
+          <p v-if="messageError" class="dock-hint" role="alert">{{ messageError }}</p>
         </form>
       </section>
     </div>
@@ -212,14 +217,20 @@ import SplitTitle from '../components/fx/SplitTitle.vue'
 import { addJournal, fetchFeedbacks, fetchProfile, saveProfile } from '../services/dashboard'
 import { useAuthStore } from '../stores/auth'
 import { loadSettings, openHelpChat, resetSettings, saveSettings } from '../utils/settings'
+import { journalSubmitErrorMessage } from '../utils/dashboardState'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const saved = ref(false)
+const saveError = ref('')
+const profileError = ref('')
 const prefsCleared = ref(false)
+const settingsError = ref('')
 const copied = ref(false)
+const copyError = ref('')
 const messageOk = ref(false)
+const messageError = ref('')
 const supportEmail = 'link-support@normal.edu'
 const scenes = ['导入', '提问', '板书', '互动']
 const profile = ref({
@@ -268,9 +279,14 @@ const recent = computed(() => profile.value.recent_feedbacks || [])
 
 watch(() => route.query.tab, () => {
   saved.value = false
+  saveError.value = ''
+  profileError.value = ''
   prefsCleared.value = false
+  settingsError.value = ''
   messageOk.value = false
   copied.value = false
+  copyError.value = ''
+  messageError.value = ''
 })
 
 onMounted(load)
@@ -278,31 +294,26 @@ onMounted(load)
 async function load() {
   try {
     profile.value = await fetchProfile()
-  } catch {
+    profileError.value = ''
+  } catch (error) {
     profile.value = {
-      name: auth.user?.name || '林晓',
+      name: auth.user?.name || '',
       role: auth.user?.role || 'student',
-      school: '师范学院（演示）',
-      major: '小学教育',
-      grade: '本科三年级',
-      bio: '关注课堂导入、提问候答与板书结构。',
-      level_label: 'Lv.3 微格学员',
-      xp: 120,
-      xp_percent: 50,
-      session_count: 3,
-      next_hint: '再完成 1 次训练可提升等级',
+      school: '',
+      major: '',
+      grade: '',
+      bio: '',
+      level_label: '',
+      xp: 0,
+      xp_percent: 0,
+      session_count: 0,
+      next_hint: '',
       recent_feedbacks: [],
-      badges: [
-        { id: 'first', name: '初次上台', earned: true, hint: '完成第一次微格训练' },
-        { id: 'habit', name: '勤练不辍', earned: false, hint: '累计 5 次训练' },
-        { id: 'closer', name: '完整收束', earned: false, hint: '跑完一次 10 分钟课' },
-        { id: 'ask', name: '提问达人', earned: false, hint: '在提问技能上留下评课' },
-        { id: 'high', name: '高分片段', earned: false, hint: '单次综合分达到 86' },
-        { id: 'archive', name: '有迹可循', earned: false, hint: '完成 3 次评课归档' },
-      ],
+      badges: [],
     }
+    profileError.value = error?.response?.data?.message || '个人资料加载失败，请检查服务后重试。'
   }
-  if (!profile.value.grade) profile.value.grade = '本科三年级'
+  if (!profileError.value && !profile.value.grade) profile.value.grade = '本科三年级'
   form.name = profile.value.name || ''
   form.school = profile.value.school || ''
   form.major = profile.value.major || ''
@@ -327,6 +338,8 @@ async function load() {
 }
 
 async function save() {
+  saved.value = false
+  saveError.value = ''
   try {
     profile.value = await saveProfile({ ...form })
     auth.user = {
@@ -338,8 +351,8 @@ async function save() {
       major: form.major,
     }
     saved.value = true
-  } catch {
-    saved.value = true
+  } catch (error) {
+    saveError.value = error?.response?.data?.message || '档案保存失败，请检查后端连接后重试。'
   }
 }
 
@@ -349,13 +362,23 @@ function setSetting(key, value) {
 }
 
 function persistSettings() {
-  saveSettings({ ...settings })
+  settingsError.value = ''
+  try {
+    saveSettings({ ...settings })
+  } catch {
+    settingsError.value = '设置保存失败，请检查浏览器存储权限后重试。'
+  }
   prefsCleared.value = false
 }
 
 function clearPrefs() {
-  Object.assign(settings, resetSettings())
-  prefsCleared.value = true
+  settingsError.value = ''
+  try {
+    Object.assign(settings, resetSettings())
+    prefsCleared.value = true
+  } catch {
+    settingsError.value = '设置清除失败，请检查浏览器存储权限后重试。'
+  }
 }
 
 function logout() {
@@ -372,24 +395,32 @@ function openHelp(mode) {
 }
 
 async function copyEmail() {
+  copied.value = false
+  copyError.value = ''
   try {
+    if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
     await navigator.clipboard.writeText(supportEmail)
+    copied.value = true
   } catch {
-    /* 演示环境允许复制失败时仍提示 */
+    copyError.value = '邮箱复制失败，请手动选择邮箱地址。'
   }
-  copied.value = true
 }
 
 async function submitMessage() {
+  messageOk.value = false
+  messageError.value = ''
   const body = message.body.trim()
-  if (!body) return
+  if (!body) {
+    messageError.value = '请填写留言内容。'
+    return
+  }
   const text = `[留言/${message.topic}] ${message.name || form.name || '匿名'}：${body}`
   try {
     await addJournal({ entry_date: new Date().toISOString().slice(0, 10), body: text })
-  } catch {
-    /* 纯前端成功态也算完成演示 */
+    message.body = ''
+    messageOk.value = true
+  } catch (error) {
+    messageError.value = journalSubmitErrorMessage(error)
   }
-  message.body = ''
-  messageOk.value = true
 }
 </script>

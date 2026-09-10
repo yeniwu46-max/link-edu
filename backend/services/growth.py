@@ -73,8 +73,8 @@ def build_growth(user: User, range_key: str = 'all'):
     return {
         'range': range_key,
         'points': points,
-        'heatmap': build_heatmap(user, days or 30),
-        'records': build_replay(user, days or 30),
+        'heatmap': build_heatmap(user, days),
+        'records': build_replay(user, days),
         'summaries': build_ai_summaries(user),
         'journals': list_journals(user),
         'milestones': [

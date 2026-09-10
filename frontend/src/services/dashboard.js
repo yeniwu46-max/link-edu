@@ -31,7 +31,11 @@ export async function completeTraining(sessionId, payload) {
 }
 
 export async function generateAiReview(sessionId, payload) {
-  const { data } = await api.post(`/training/sessions/${sessionId}/ai-review`, payload, { skipBusy: true })
+  const { data } = await api.post(
+    `/training/sessions/${sessionId}/ai-review`,
+    payload,
+    { skipBusy: true, timeout: 75_000 },
+  )
   return data.feedback
 }
 
@@ -39,7 +43,7 @@ export async function askAiReviewQuestion(feedbackId, question) {
   const { data } = await api.post(
     `/feedbacks/${feedbackId}/ask`,
     { question },
-    { skipBusy: true },
+    { skipBusy: true, timeout: 45_000 },
   )
   return data
 }

@@ -428,6 +428,49 @@ class AiReviewRouteTests(unittest.TestCase):
         self.assertEqual(report['generation_status'], 'failed')
         self.assertEqual(report['generation_error'], 'AI 评课生成失败，请稍后重试')
 
+    def test_failed_retry_preserves_previous_report_and_records_new_material_length(self):
+        feedback = self._save_real_report()
+        original_report = json.loads(feedback.report_json)
+        transcript = '补充课堂证据'
+        teacher_notes = '关注等待时间'
+        with patch(
+            'services.training.generate_review_report',
+            side_effect=DeepSeekReviewError('provider unavailable'),
+        ):
+            response = self.client.post(
+                f'/api/training/sessions/{self.session.id}/ai-review',
+                headers=self._auth_headers(),
+                json={
+                    'transcript_text': transcript,
+                    'teacher_notes': teacher_notes,
+                    'regenerate': True,
+                },
+            )
+
+        self.assertEqual(response.status_code, 502)
+        saved = AiFeedback.query.filter_by(session_id=self.session.id).first()
+        report = json.loads(saved.report_json)
+        self.assertEqual(report['generation_status'], 'failed')
+        self.assertEqual(report['generation_error'], 'AI 评课生成失败，请稍后重试')
+        self.assertEqual(report['material_length'], len(transcript) + len(teacher_notes))
+        self.assertEqual(report['overall_score'], original_report['overall_score'])
+
+    def test_followup_does_not_write_report_or_create_feedback(self):
+        feedback = self._save_real_report()
+        before_count = AiFeedback.query.count()
+        before_report = feedback.report_json
+        with patch('services.training.answer_review_question', return_value='只读回答'):
+            response = self.client.post(
+                f'/api/feedbacks/{feedback.id}/ask',
+                headers=self._auth_headers(),
+                json={'question': '为什么这次提问质量较低？'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(AiFeedback.query.count(), before_count)
+        db.session.refresh(feedback)
+        self.assertEqual(feedback.report_json, before_report)
+
     def test_insufficient_report_does_not_replace_saved_score_with_zero(self):
         insufficient_report = {
             **fake_report({'mode': 'fragment'}),
