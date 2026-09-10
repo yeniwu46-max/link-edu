@@ -122,6 +122,17 @@ class DeepSeekReviewContractTests(unittest.TestCase):
         self.assertIn('课堂提问技能', messages[1]['content'])
         self.assertIn('教师先提出问题', messages[1]['content'])
 
+    def test_truncates_teacher_notes_before_sending_provider_prompt(self):
+        notes = ('备注' * 7000) + 'UNIQUE-SUFFIX'
+        messages = build_review_messages({
+            'course_title': '课堂提问技能',
+            'teacher_notes': notes,
+        })
+
+        user_content = messages[1]['content']
+        self.assertIn('[教师备注已截断]', user_content)
+        self.assertNotIn(notes[-20:], user_content)
+
     def test_generates_report_with_flask_style_mapping_config(self):
         payload = {
             'summary': '课堂主线清楚。',
@@ -158,6 +169,7 @@ class DeepSeekReviewContractTests(unittest.TestCase):
         self.assertEqual(report['overall_score'], 82)
         self.assertEqual(report['source'], 'deepseek')
         self.assertEqual(calls[0]['reasoning_effort'], 'high')
+        self.assertEqual(calls[0]['timeout'], 1.0)
         self.assertNotIn('extra_body', calls[0])
 
     def test_retries_once_when_deepseek_returns_empty_content(self):
@@ -257,6 +269,7 @@ class DeepSeekReviewContractTests(unittest.TestCase):
         self.assertEqual(answer, '本次提问质量主要受追问不足影响。')
         self.assertEqual(calls[0]['temperature'], 0.3)
         self.assertEqual(calls[0]['reasoning_effort'], 'high')
+        self.assertEqual(calls[0]['timeout'], 60.0)
         self.assertNotIn('response_format', calls[0])
         self.assertIn('当前评课报告', calls[0]['messages'][0]['content'])
         self.assertIn('主要依据', calls[0]['messages'][0]['content'])
@@ -324,13 +337,28 @@ class DeepSeekReviewContractTests(unittest.TestCase):
             raise RuntimeError('connection failed')
 
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-        with self.assertRaisesRegex(DeepSeekReviewError, 'DeepSeek 追问失败: connection failed'):
+        with self.assertRaisesRegex(DeepSeekReviewError, 'DeepSeek 追问失败，请稍后重试'):
             answer_review_question(
                 '请解释评分。',
                 {'report': {}},
                 config={'DEEPSEEK_API_KEY': 'test-key'},
                 client=client,
             )
+
+    def test_answer_question_wraps_provider_error_without_leaking_details(self):
+        class BrokenCompletions:
+            def create(self, **_kwargs):
+                raise RuntimeError('secret-provider-url-and-key')
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=BrokenCompletions()))
+        with self.assertRaises(DeepSeekReviewError) as captured:
+            answer_review_question(
+                '为什么评分较低？',
+                {'scope': 'current', 'current': {'overall_score': 70}},
+                config={'DEEPSEEK_API_KEY': 'test', 'DEEPSEEK_TIMEOUT_SECONDS': '17'},
+                client=client,
+            )
+        self.assertNotIn('secret-provider-url-and-key', str(captured.exception))
 
 
 if __name__ == '__main__':

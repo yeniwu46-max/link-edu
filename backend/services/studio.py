@@ -36,6 +36,13 @@ def _day_key(stamp):
 
 
 def build_heatmap(user: User, days=30):
+    if days is None:
+        stamps = [
+            session.last_trained_at or session.created_at
+            for session in TrainingSession.query.filter_by(user_id=user.id).all()
+        ]
+        dated = [stamp.date() for stamp in stamps if stamp]
+        days = max(30, (datetime.utcnow().date() - min(dated)).days + 1) if dated else 30
     start = datetime.utcnow() - timedelta(days=days - 1)
     sessions = TrainingSession.query.filter(
         TrainingSession.user_id == user.id,
@@ -69,15 +76,10 @@ def build_heatmap(user: User, days=30):
 
 
 def build_replay(user: User, days=30):
-    start = datetime.utcnow() - timedelta(days=days)
-    rows = (
-        AiFeedback.query.filter(
-            AiFeedback.user_id == user.id,
-            AiFeedback.created_at >= start,
-        )
-        .order_by(AiFeedback.created_at.desc())
-        .all()
-    )
+    query = AiFeedback.query.filter_by(user_id=user.id)
+    if days is not None:
+        query = query.filter(AiFeedback.created_at >= datetime.utcnow() - timedelta(days=days))
+    rows = query.order_by(AiFeedback.created_at.desc()).all()
     items = []
     for row in rows:
         if not feedback_is_scorable(row):
@@ -86,6 +88,7 @@ def build_replay(user: User, days=30):
         stamp = row.created_at
         items.append({
             'id': row.id,
+            'session_id': row.session_id,
             'when': stamp.isoformat() if stamp else None,
             'date': stamp.strftime('%m月%d日') if stamp else '',
             'time': stamp.strftime('%H:%M') if stamp else '',

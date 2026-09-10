@@ -2,8 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
+  isGenerationTimedOut,
   isInsufficientReport,
+  loadAiReviewMaterials,
   loadAiReviewDraft,
+  saveAiReviewMaterials,
   saveAiReviewDraft,
   selectFeedbackForRoute,
 } from '../src/utils/aiReviewState.js'
@@ -75,4 +78,45 @@ test('recognizes a legacy all-zero DeepSeek report as insufficient evidence', ()
 
   assert.equal(isInsufficientReport(report), true)
   assert.equal(isInsufficientReport({ source: 'deepseek', dimensions: [{ score: 80, evidence: '课堂提问记录' }] }), false)
+})
+
+test('saves and restores transcript and teacher notes per session', () => {
+  const storage = createStorage()
+  saveAiReviewMaterials(storage, 11, {
+    transcript: '课堂转写',
+    teacherNotes: '关注等待时间',
+  }, Date.UTC(2026, 8, 2))
+
+  assert.deepEqual(loadAiReviewMaterials(storage, 11, Date.UTC(2026, 8, 2) + 1000), {
+    transcript: '课堂转写',
+    teacherNotes: '关注等待时间',
+  })
+  assert.deepEqual(loadAiReviewMaterials(storage, 12), {
+    transcript: '',
+    teacherNotes: '',
+  })
+})
+
+test('marks only stale generating reports as timed out', () => {
+  const started = '2026-09-10T10:00:00.000Z'
+  assert.equal(isGenerationTimedOut(
+    { generation_status: 'generating', generation_started_at: started },
+    Date.parse(started) + 59_000,
+  ), false)
+  assert.equal(isGenerationTimedOut(
+    { generation_status: 'generating', generation_started_at: started },
+    Date.parse(started) + 91_000,
+  ), true)
+})
+
+test('treats backend naive generation timestamps as UTC', () => {
+  const started = '2026-09-10T10:00:00.000'
+  assert.equal(isGenerationTimedOut(
+    { generation_status: 'generating', generation_started_at: started },
+    Date.parse(`${started}Z`) + 89_000,
+  ), false)
+  assert.equal(isGenerationTimedOut(
+    { generation_status: 'generating', generation_started_at: started },
+    Date.parse(`${started}Z`) + 91_000,
+  ), true)
 })

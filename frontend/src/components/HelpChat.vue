@@ -24,8 +24,8 @@
     </header>
     <div class="help-chat__tools">
       <input v-model="query" type="search" placeholder="搜索训练、评课、资源…" />
-      <button type="button" :class="{ active: mode === 'bot' }" @click="mode = 'bot'">智能</button>
-      <button type="button" :class="{ active: mode === 'human' }" @click="mode = 'human'">人工</button>
+      <button type="button" :class="{ active: mode === 'bot' }" @click="switchMode('bot')">智能</button>
+      <button type="button" :class="{ active: mode === 'human' }" @click="switchMode('human')">人工</button>
     </div>
     <div class="help-chat__log" ref="logRef">
       <article v-for="(item, index) in messages" :key="index" :class="item.role">
@@ -34,13 +34,15 @@
     </div>
     <form class="help-chat__form" @submit.prevent="send">
       <input v-model="draft" type="text" :placeholder="mode === 'human' ? '给指导教师留言' : '问一句，比如如何开始训练'" />
-      <button class="primary" type="submit">发送</button>
+      <button class="primary" type="submit" :disabled="sending">{{ sending ? '提交中…' : '发送' }}</button>
     </form>
   </section>
 </template>
 
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { addJournal } from '../services/dashboard'
+import { journalSubmitErrorMessage } from '../utils/dashboardState'
 
 const faqs = [
   { q: '如何开始一次微格训练？', a: '课程中心按大纲九项技能分项选课，再进入综合模拟或教资试讲。专项 8 分钟，综合 10 分钟。' },
@@ -55,6 +57,7 @@ const open = ref(false)
 const mode = ref('bot')
 const query = ref('')
 const draft = ref('')
+const sending = ref(false)
 const messages = ref([{ role: 'bot', text: '你好，我是临客帮助。可以搜 FAQ，或切到人工客服留言。' }])
 const logRef = ref(null)
 const pos = ref({ x: null, y: null, chatX: null, chatY: null })
@@ -83,18 +86,42 @@ function matchFaq(text) {
   return faqs.filter((item) => `${item.q}${item.a}`.includes(key))
 }
 
+function switchMode(nextMode) {
+  if (mode.value === nextMode) return
+  mode.value = nextMode
+  messages.value.push({
+    role: 'bot',
+    text: nextMode === 'human'
+      ? '人工模式：留言会提交到当前账号的训练日志，不会直接连接外部坐席。'
+      : '智能模式：只根据帮助中心 FAQ 回复，不会提交人工留言。',
+  })
+}
+
 async function send() {
   const text = draft.value.trim() || query.value.trim()
-  if (!text) return
+  if (!text || sending.value) return
   messages.value.push({ role: 'user', text })
   draft.value = ''
   if (mode.value === 'human') {
-    messages.value.push({ role: 'bot', text: '已记下。演示环境不会真正转接坐席，试点时由指导教师在后台查看留言。' })
+    sending.value = true
+    try {
+      await addJournal({
+        entry_date: new Date().toISOString().slice(0, 10),
+        body: `[帮助/人工留言] ${text}`,
+      })
+      messages.value.push({ role: 'bot', text: '人工留言已保存到当前账号的训练日志；此入口不连接外部坐席。' })
+    } catch (error) {
+      messages.value.push({ role: 'bot', text: `人工留言保存失败：${journalSubmitErrorMessage(error)}` })
+    } finally {
+      sending.value = false
+    }
   } else {
     const hits = matchFaq(text)
     messages.value.push({
       role: 'bot',
-      text: hits[0] ? `${hits[0].q} ${hits[0].a}` : '我先按主路径回答：选课 → 上台训练 → 结束评课 → 成长档案回看。也可以改搜「评课」或「资源」。',
+      text: hits[0]
+        ? `${hits[0].q} ${hits[0].a}`
+        : '没有找到匹配的帮助内容。请换个关键词，例如“训练”“评课”或“资源”，也可以切换到人工客服留言。',
     })
   }
   await nextTick()

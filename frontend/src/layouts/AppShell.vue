@@ -3,13 +3,14 @@
     <Aurora />
     <aside class="sidebar">
       <BrandMark />
-      <nav>
+      <nav aria-label="主导航">
         <router-link
           v-for="item in nav"
           :key="item.to"
           :to="item.to"
           class="nav-link"
           :class="{ active: isActive(item.to) }"
+          :aria-current="isActive(item.to) ? 'page' : undefined"
         >{{ item.label }}</router-link>
       </nav>
       <div class="side-bottom">
@@ -20,7 +21,7 @@
     <section class="workspace" :class="{ 'workspace--immersive': immersive }">
       <header v-if="!immersive" class="topbar">
         <span>{{ crumb }}</span>
-        <label class="cir-search">
+        <form class="cir-search" role="search" @submit.prevent="goSearch">
           <svg class="cir-search__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/>
             <path d="M16.2 16.2L20 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -31,17 +32,23 @@
             type="search"
             placeholder="搜索课程、训练或资源"
             aria-label="搜索课程、训练或资源"
-            @keydown.enter="goSearch"
           />
           <kbd class="cir-search__kbd">Enter</kbd>
-        </label>
+        </form>
         <div class="profile">
-          <button class="profile-btn" type="button" :aria-expanded="menuOpen" @click.stop="menuOpen = !menuOpen">
+          <button
+            class="profile-btn"
+            type="button"
+            aria-haspopup="menu"
+            aria-controls="profile-menu"
+            :aria-expanded="menuOpen"
+            @click.stop="menuOpen = !menuOpen"
+          >
             <b>{{ profileInitial }}</b>
             <span>{{ displayName }} · {{ roleLabel }}</span>
             <em :class="{ open: menuOpen }">▾</em>
           </button>
-          <div v-if="menuOpen" class="profile-menu" role="menu" @click.stop>
+          <div v-if="menuOpen" id="profile-menu" class="profile-menu" role="menu" @click.stop>
             <button type="button" role="menuitem" @click="goProfile('archive')">个人中心</button>
             <button type="button" role="menuitem" @click="goProfile('settings')">设置</button>
             <button type="button" role="menuitem" @click="goProfile('contact')">联系我们</button>
@@ -71,13 +78,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { motion } from 'motion-v'
 import BrandMark from '../components/BrandMark.vue'
 import HelpChat from '../components/HelpChat.vue'
 import Aurora from '../components/fx/Aurora.vue'
 import { useAuthStore } from '../stores/auth'
+import { buildSearchLocation } from '../utils/navigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,8 +120,7 @@ function isActive(path) {
 }
 
 function goSearch() {
-  const q = search.value.trim()
-  router.push(q ? { path: '/courses', query: { q } } : '/courses')
+  router.push(buildSearchLocation(search.value))
 }
 
 function goProfile(tab) {
@@ -126,8 +133,20 @@ function logout() {
   router.push('/')
 }
 
+function closeMenu() {
+  menuOpen.value = false
+}
+
+watch(() => route.query.q, (value) => {
+  search.value = String(value || '')
+}, { immediate: true })
+
 onMounted(() => {
   auth.hydrate()
-  window.addEventListener('click', () => { menuOpen.value = false })
+  window.addEventListener('click', closeMenu)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('click', closeMenu)
 })
 </script>

@@ -166,7 +166,7 @@
 
           <div v-if="authMode === 'login'" class="form-row">
             <n-checkbox v-model:checked="remember">记住我</n-checkbox>
-            <a href="#" @click.prevent>忘记密码？</a>
+            <a href="#" @click.prevent="showForgotPassword">忘记密码？</a>
           </div>
 
           <button class="login-submit motion-control" type="button" :disabled="loading" @click="submit">
@@ -208,6 +208,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import BrandMark from '../components/BrandMark.vue'
 import DepthText from '../components/DepthText.vue'
 import { useAuthStore } from '../stores/auth'
+import { authErrorMessage, validateAuthForm } from '../utils/authValidation'
 
 gsap.registerPlugin(ScrollTrigger)
 const router = useRouter()
@@ -417,6 +418,10 @@ function playLoginVideo() {
 }
 
 onMounted(async () => {
+  if (auth.sessionNotice) {
+    error.value = auth.sessionNotice
+    auth.sessionNotice = ''
+  }
   await nextTick()
   if (!landing.value) return
   try {
@@ -519,25 +524,40 @@ onUnmounted(() => {
 })
 
 async function submit(event) {
+  if (loading.value) return
   feedback(event?.currentTarget)
-  loading.value = true
   error.value = ''
   success.value = ''
+  const formError = validateAuthForm({
+    mode: authMode.value,
+    name: name.value,
+    account: account.value,
+    password: password.value,
+    confirmPassword: confirmPassword.value,
+  })
+  if (formError) {
+    error.value = formError
+    return
+  }
+
+  loading.value = true
+  const isRegister = authMode.value === 'register'
   try {
-    if (!account.value.trim() || !password.value) throw new Error('请完整填写账号和密码')
-    if (authMode.value === 'register') {
-      if (!name.value.trim()) throw new Error('请输入姓名')
-      if (password.value.length < 6) throw new Error('密码至少需要 6 位')
-      if (password.value !== confirmPassword.value) throw new Error('两次输入的密码不一致')
+    if (isRegister) {
       await auth.register({ name:name.value.trim(), account:account.value.trim(), password:password.value, role:role.value })
-      success.value = '账号创建成功，正在进入工作台…'
     }
-    await auth.login({ account: account.value, password: password.value, role: role.value })
+    await auth.login({ account: account.value.trim(), password: password.value, role: role.value })
+    success.value = isRegister ? '账号创建成功，正在进入工作台…' : ''
     router.push('/dashboard')
   } catch (e) {
-    error.value = e.response?.data?.message || e.message || '操作失败，请稍后重试'
+    error.value = authErrorMessage(e)
   } finally {
     loading.value = false
   }
+}
+
+function showForgotPassword() {
+  error.value = ''
+  success.value = '当前版本暂未接入短信/邮箱找回，请联系管理员重置密码。'
 }
 </script>

@@ -18,16 +18,42 @@
       >{{ item }}</button>
     </div>
 
-    <ul class="resource-list">
+    <p v-if="loading" class="course-search-feedback" role="status">正在加载资源…</p>
+    <div v-else-if="resourceError" class="course-search-feedback" role="alert">
+      <span>{{ resourceError }}</span>
+      <button type="button" class="text-action" @click="loadResources">重新加载资源</button>
+    </div>
+    <p v-else-if="!visible.length" class="course-search-feedback" role="status">当前分类暂无资源。</p>
+
+    <ul v-else class="resource-list">
       <li v-for="item in visible" :key="item.id" class="glare-row">
         <div>
           <em>{{ item.category }}</em>
           <strong>{{ item.title }}</strong>
           <span>{{ item.description }}</span>
         </div>
-        <button type="button" @click="open(item)">打开</button>
+        <button type="button" @click="detail = item">查看详情</button>
       </li>
     </ul>
+
+    <aside v-if="detail" class="detail-drawer" role="dialog" aria-label="资源详情">
+      <button type="button" class="close-x" aria-label="关闭" @click="detail = null">×</button>
+      <p>{{ detail.category }}</p>
+      <h2>{{ detail.title }}</h2>
+      <p>{{ detail.description || '暂无详细说明。' }}</p>
+      <p v-if="resourceUrl(detail) === ''" class="review-alert" role="status">
+        当前资源没有可用文件链接，不能伪装成已打开或已下载。
+      </p>
+      <p v-else-if="linkError(detail)" class="review-alert" role="alert">
+        当前资源链接无效，请联系管理员更新资源地址。
+      </p>
+      <div v-else class="resource-actions">
+        <button class="primary" type="button" @click="open(detail)">打开链接</button>
+        <button type="button" @click="download(detail)">下载文件</button>
+        <a v-if="isExternal(detail)" :href="resourceUrl(detail)" target="_blank" rel="noopener noreferrer">打开外部链接</a>
+      </div>
+    </aside>
+    <div v-if="detail" class="help-mask" @click="detail = null"></div>
   </div>
 </template>
 
@@ -40,6 +66,9 @@ import { fetchResources } from '../services/dashboard'
 const message = useMessage()
 const items = ref([])
 const tab = ref('全部')
+const detail = ref(null)
+const loading = ref(true)
+const resourceError = ref('')
 const tabs = ['全部', '教案', '素材', '报告', '档案']
 
 const visible = computed(() => {
@@ -47,24 +76,70 @@ const visible = computed(() => {
   return items.value.filter((item) => item.category === tab.value)
 })
 
-function open(item) {
-  if (item.file_url) {
-    window.open(item.file_url, '_blank', 'noopener')
-    return
+function resourceUrl(item) {
+  const raw = String(item?.file_url || '').trim()
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, window.location.origin)
+    if (!['http:', 'https:'].includes(url.protocol)) return null
+    return url.href
+  } catch {
+    return null
   }
-  message.info(`${item.title}：演示包暂无文件，可先对照说明使用。`)
 }
 
-onMounted(async () => {
+function linkError(item) {
+  return resourceUrl(item) === null
+}
+
+function isExternal(item) {
+  const url = resourceUrl(item)
+  return Boolean(url && new URL(url).origin !== window.location.origin)
+}
+
+function open(item) {
+  const url = resourceUrl(item)
+  if (!url) {
+    message.error(url === '' ? `${item.title}：当前没有可用文件链接。` : `${item.title}：文件链接无效。`)
+    return
+  }
+  const popup = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!popup) message.error('浏览器阻止了打开资源，请允许弹出窗口后重试。')
+}
+
+function download(item) {
+  const url = resourceUrl(item)
+  if (!url) {
+    message.error(url === '' ? `${item.title}：当前没有可用文件链接。` : `${item.title}：文件链接无效。`)
+    return
+  }
+  if (isExternal(item)) {
+    open(item)
+    return
+  }
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = ''
+  anchor.rel = 'noopener noreferrer'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  message.info(`${item.title}：已发起下载。`)
+}
+
+async function loadResources() {
+  loading.value = true
+  resourceError.value = ''
+  detail.value = null
   try {
     items.value = await fetchResources()
-  } catch {
-    items.value = [
-      { id: 1, title: '微格教案模板', category: '教案', description: '适用于 10 分钟片段教学' },
-      { id: 2, title: '课堂提问设计素材包', category: '素材', description: '导入、提问、总结三类场景' },
-      { id: 3, title: 'AI 评课示例报告', category: '报告', description: '查看完整评课维度拆解' },
-      { id: 4, title: '师范生成长档案样例', category: '档案', description: '训练记录与成长轨迹示例' },
-    ]
+  } catch (error) {
+    items.value = []
+    resourceError.value = error?.response?.data?.message || '资源加载失败，请检查服务后重试。'
+  } finally {
+    loading.value = false
   }
-})
+}
+
+onMounted(loadResources)
 </script>

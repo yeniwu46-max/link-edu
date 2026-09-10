@@ -17,6 +17,7 @@ DIMENSION_DEFINITIONS = (
 )
 DIMENSION_KEYS = tuple(item[0] for item in DIMENSION_DEFINITIONS)
 MAX_TRANSCRIPT_CHARS = 12_000
+MAX_TEACHER_NOTES_CHARS = 6_000
 
 
 class DeepSeekReviewError(RuntimeError):
@@ -65,6 +66,9 @@ def build_review_messages(review_input):
     transcript = str(review_input.get('transcript_text') or '').strip()
     if len(transcript) > MAX_TRANSCRIPT_CHARS:
         transcript = transcript[:MAX_TRANSCRIPT_CHARS] + '\n[教学材料已截断]'
+    teacher_notes = str(review_input.get('teacher_notes') or '').strip()
+    if len(teacher_notes) > MAX_TEACHER_NOTES_CHARS:
+        teacher_notes = teacher_notes[:MAX_TEACHER_NOTES_CHARS] + '\n[教师备注已截断]'
 
     context = {
         'course_title': str(review_input.get('course_title') or '未提供课程名称'),
@@ -76,7 +80,7 @@ def build_review_messages(review_input):
         'started_at': review_input.get('started_at'),
         'last_trained_at': review_input.get('last_trained_at'),
         'transcript_text': transcript or '未提供课堂文字材料，只能依据课程元数据给出有限建议。',
-        'teacher_notes': str(review_input.get('teacher_notes') or '').strip(),
+        'teacher_notes': teacher_notes,
     }
     system = (
         '你是临客 LINK 的专业微格教学评课助手。请根据课程信息、训练状态和教学材料生成评课报告。'
@@ -246,6 +250,7 @@ def generate_review_report(review_input, *, config=None, client=None):
                 max_tokens=3000,
                 response_format={'type': 'json_object'},
                 reasoning_effort=reasoning_effort or 'high',
+                timeout=timeout,
             )
             content = response.choices[0].message.content if response.choices else None
             if not content:
@@ -272,8 +277,7 @@ def generate_review_report(review_input, *, config=None, client=None):
 
     if isinstance(last_error, DeepSeekReviewError):
         raise last_error
-    message = str(last_error) if last_error else 'DeepSeek 调用失败'
-    raise DeepSeekReviewError(f'DeepSeek 评课生成失败: {message}') from last_error
+    raise DeepSeekReviewError('DeepSeek 评课生成失败，请稍后重试') from last_error
 
 
 def answer_review_question(question, context, *, config=None, client=None):
@@ -329,6 +333,7 @@ def answer_review_question(question, context, *, config=None, client=None):
                 temperature=0.3,
                 max_tokens=2000,
                 reasoning_effort=reasoning_effort or 'high',
+                timeout=timeout,
             )
             content = response.choices[0].message.content if response.choices else None
             if not isinstance(content, str) or not content.strip():
@@ -349,5 +354,4 @@ def answer_review_question(question, context, *, config=None, client=None):
 
     if isinstance(last_error, DeepSeekReviewError):
         raise last_error
-    message = str(last_error) if last_error else 'DeepSeek 调用失败'
-    raise DeepSeekReviewError(f'DeepSeek 追问失败: {message}') from last_error
+    raise DeepSeekReviewError('DeepSeek 追问失败，请稍后重试') from last_error

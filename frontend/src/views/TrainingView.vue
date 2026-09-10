@@ -58,6 +58,17 @@
         </GlassSurface>
       </div>
 
+      <div v-else-if="courseError" class="train-setup">
+        <GlassSurface class="train-setup__card" :radius="32">
+          <p class="train-setup__kicker">课程不可用</p>
+          <p class="dock-hint" role="alert">{{ courseError }}</p>
+          <div class="setup-actions">
+            <router-link class="ghost-link" to="/courses">返回课程中心</router-link>
+            <button type="button" class="primary train-cta" @click="loadCourses">重新加载课程</button>
+          </div>
+        </GlassSurface>
+      </div>
+
       <div v-else class="train-setup">
         <GlassSurface class="train-setup__card" :radius="32">
           <p class="train-setup__kicker">开始上台</p>
@@ -99,6 +110,7 @@ import SkillPills from '../components/fx/SkillPills.vue'
 import StageWave from '../components/fx/StageWave.vue'
 import { completeTraining, fetchCourses, patchTraining, startTraining } from '../services/dashboard'
 import { loadSettings } from '../utils/settings'
+import { parseCourseId } from '../utils/navigation'
 
 const FRAGMENT = 8 * 60
 const FULL = 10 * 60
@@ -131,9 +143,10 @@ const mode = ref('fragment')
 const running = ref(false)
 const remain = ref(FRAGMENT)
 const sessionId = ref(null)
-const courseId = ref(Number(route.query.courseId) || 0)
+const courseId = ref(parseCourseId(route.query.courseId) || 0)
 const courseTitle = ref('导入技能')
 const courses = ref([])
+const courseError = ref('')
 let tick = null
 let startedAt = 0
 let sessionPromise = null
@@ -235,9 +248,23 @@ function applyCourse(course) {
 }
 
 function applyCourseFromQuery() {
-  const id = Number(route.query.courseId)
+  const rawId = route.query.courseId
+  if (rawId === undefined || rawId === null || String(rawId).trim() === '') return false
+  const id = parseCourseId(rawId)
+  if (id === null) {
+    courseError.value = '课程参数无效，请返回课程中心重新选择。'
+    courseTitle.value = '课程不可用'
+    return false
+  }
   const match = courses.value.find((item) => item.id === id)
-  if (match) applyCourse(match)
+  if (!match) {
+    courseError.value = '课程不存在或已下线，请返回课程中心重新选择。'
+    courseTitle.value = '课程不可用'
+    return false
+  }
+  courseError.value = ''
+  applyCourse(match)
+  return true
 }
 
 function pickSkill(id) {
@@ -251,15 +278,20 @@ function pickFullCourse() {
 }
 
 async function loadCourses() {
+  courseError.value = ''
   try {
     courses.value = await fetchCourses()
-  } catch {
-    courses.value = [
-      { id: 1, title: '导入技能', stage: '专项01 · 导入' },
-      { id: 10, title: '综合模拟授课（10 分钟）', stage: '综合10 · 模拟授课' },
-    ]
+  } catch (error) {
+    courses.value = []
+    courseError.value = error?.response?.data?.message || '课程加载失败，请返回课程中心重试。'
+    return
   }
-  applyCourseFromQuery()
+  const hasQuery = route.query.courseId !== undefined
+    && route.query.courseId !== null
+    && String(route.query.courseId).trim() !== ''
+  const appliedQuery = applyCourseFromQuery()
+  if (hasQuery) return
+  if (appliedQuery) return
   if (!currentCourse.value) {
     const prefs = loadSettings()
     if (prefs.mode === 'full') pickFullCourse()
@@ -293,6 +325,7 @@ async function toggleCamera() {
 
 async function begin() {
   if (running.value || finishing.value) return
+  if (courseError.value || !currentCourse.value) return
   if (!courseId.value && mode.value === 'full') pickFullCourse()
   if (!courseId.value) pickSkill(skillCourses.value[0]?.id)
   running.value = true

@@ -52,6 +52,13 @@ AI_PRICING_CONFIRMED=true
 # 一键启动：隐藏窗口，不自动停止占用端口的程序
 ./scripts/start-classroom.ps1
 
+# 没有 backend/.env 时，脚本会为本机回归使用 loopback SQLite 和种子账号；
+# 这不是生产配置。需要强制要求真实配置时使用：
+./scripts/start-classroom.ps1 -RequireEnv
+
+# 隔离验证可指定临时数据库目录和端口：
+./scripts/start-classroom.ps1 -BackendPort 5011 -FrontendPort 5199 -RuntimeDataDirectory "$env:TEMP/link-classroom-runtime"
+
 # 或在两个终端手动运行（方便停机/重启）
 python scripts/run_classroom_backend.py --port 5001
 # 另一个终端：
