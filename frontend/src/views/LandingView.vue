@@ -42,7 +42,6 @@
               <nav v-if="menuOpen" class="nav-popover" aria-label="首屏导航">
                 <button @click="goHome">首页</button>
                 <button @click="goLogin">登录训练</button>
-                <button @click="goLogin">平台介绍</button>
               </nav>
             </Transition>
           </div>
@@ -143,8 +142,8 @@
             <p class="login-desc">
               {{
                 authMode === 'login'
-                  ? '继续你的 AI 微格教学训练，先临课，再上课。'
-                  : '建立属于你的临课训练档案，开启师范生成长路径。'
+                  ? '继续你的教学练习。'
+                  : '创建你的教学成长档案。'
               }}
             </p>
           </div>
@@ -174,7 +173,6 @@
           </form>
 
           <div v-if="authMode === 'login'" class="form-row">
-            <n-checkbox v-model:checked="remember">记住我</n-checkbox>
             <a href="#" @click.prevent="showForgotPassword">忘记密码？</a>
           </div>
 
@@ -182,19 +180,6 @@
             {{ buttonLabel }}
           </button>
 
-          <div class="login-divider" aria-hidden="true"><span>或</span></div>
-
-          <div class="social-row">
-            <button type="button" class="social-btn motion-control" aria-label="使用 Google 登录" @click="socialComingSoon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#EA4335" d="M12 10.2v3.6h5.1c-.2 1.2-1.6 3.5-5.1 3.5-3.1 0-5.6-2.6-5.6-5.8S8.9 5.7 12 5.7c1.8 0 3 .8 3.7 1.4l2.5-2.4C16.8 3.3 14.6 2.4 12 2.4 6.9 2.4 2.8 6.5 2.8 11.6S6.9 20.8 12 20.8c6.9 0 8.6-4.8 8.6-7.3 0-.5 0-.9-.1-1.3H12z"/><path fill="#34A853" d="M3.4 7.5l3 2.2c.8-2.5 3-4.3 5.6-4.3 1.8 0 3 .8 3.7 1.4l2.5-2.4C16.8 3.3 14.6 2.4 12 2.4 8.5 2.4 5.5 6.3 4.3 7.5z"/><path fill="#4A90E2" d="M12 20.8c2.4 0 4.4-.8 5.9-2.1l-2.7-2.2c-.8.5-1.8.9-3.2.9-2.5 0-4.6-1.7-5.3-4l-3 2.3C5.5 18.9 8.5 20.8 12 20.8z"/><path fill="#FBBC05" d="M20.5 12.3c0-.5 0-.9-.1-1.3H12v3.6h5.1c-.2 1.2-1.6 3.5-5.1 3.5v0c0 0 0 0 0 0l0 0 0 0v0H12c0 0 0 0 0 0v0c6.9 0 8.6-4.8 8.6-7.3z"/></svg>
-            </button>
-            <button type="button" class="social-btn motion-control" aria-label="使用 Facebook 登录" @click="socialComingSoon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.9 11.8v-8.4H7.9V12h2.2V9.8c0-2.2 1.3-3.4 3.3-3.4.9 0 1.9.2 1.9.2v2.1h-1.1c-1.1 0-1.4.7-1.4 1.4V12h2.4l-.4 2.4h-2v8.4A12 12 0 0 0 24 12z"/></svg>
-            </button>
-            <button type="button" class="social-btn motion-control" aria-label="使用 Apple 登录" @click="socialComingSoon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M16.7 12.6c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 6.9 1.2 9.2.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.8 3-.8 1.4 0 1.8.8 3 .8 1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.6 1.2-2.7-.1 0-2.3-.9-2.3-3.5zm-2.2-6.4c.7-.8 1.1-1.9 1-3-.9 0-2 .6-2.7 1.4-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.7-1.4z"/></svg>
-            </button>
-          </div>
 
           <p class="register">
             {{ authMode === 'login' ? '还没有账号？' : '已经有账号了？' }}
@@ -234,10 +219,9 @@ const menuOpen = ref(false)
 const authMode = ref('login')
 const role = ref('student')
 const name = ref('')
-const account = ref('demo')
-const password = ref('link123')
+const account = ref('')
+const password = ref('')
 const confirmPassword = ref('')
-const remember = ref(true)
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
@@ -415,11 +399,6 @@ function switchMode(event) {
   nextTick(() => ScrollTrigger.refresh())
 }
 
-function socialComingSoon() {
-  error.value = ''
-  success.value = '第三方登录即将开放，请先使用账号密码登录。'
-}
-
 function playLoginVideo() {
   const video = loginVideo.value
   if (!video) return
@@ -572,7 +551,7 @@ async function submit(event) {
 
 function showForgotPassword() {
   error.value = ''
-  success.value = '当前版本暂未接入短信/邮箱找回，请联系管理员重置密码。'
+  success.value = '请联系管理员重置密码。'
 }
 </script>
 

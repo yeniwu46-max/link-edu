@@ -1,11 +1,11 @@
 <template>
   <div class="sparse-page">
-    <p style="padding:14px;background:#edf3fc;border-radius:12px;color:#405b7f">以下轨迹保留旧演示 / 规则评分。真实 AI 课堂按证据覆盖评价，不与此分数直接比较。<router-link to="/classroom">查看真实课堂记录 →</router-link></p>
+    <p class="archive-scope">历史训练与模拟课堂采用不同评课口径，不直接比较分数。<router-link to="/ai-review">查看模拟课堂评课 →</router-link></p>
     <header class="page-head growth-head">
       <div>
         <p class="shiny-kicker">TRAJECTORY</p>
         <SplitTitle text="成长档案" />
-        <p class="page-lead">工作台里点开的热力图和回放，完整版在这里。</p>
+        <p class="page-lead">回顾每次练习，发现教学进步。</p>
       </div>
       <div class="range-switch">
         <button type="button" :class="{ active: range === '7d' }" @click="range = '7d'">7 日</button>
@@ -15,7 +15,7 @@
     </header>
 
     <p v-if="loadError" class="dock-hint" role="alert">{{ loadError }}</p>
-    <p v-else-if="!points.length" class="dock-hint">当前范围暂无真实评课数据。</p>
+    <p v-else-if="!points.length" class="dock-hint">当前范围暂无训练评分。</p>
     <VChart v-else class="growth-line" :option="lineOption" autoresize />
 
     <div class="heat-grid month growth-heat">
@@ -54,7 +54,7 @@
         <button type="button" @click="openRecord(item)">查看评课</button>
       </li>
     </ol>
-    <p v-if="!loadError && !records.length" class="dock-hint">当前范围暂无可回放的真实评课记录。</p>
+    <p v-if="!loadError && !records.length" class="dock-hint">当前范围暂无训练报告。</p>
 
     <div class="milestones">
       <article v-for="item in milestones" :key="item.label">
@@ -111,7 +111,7 @@ const lineOption = computed(() => ({
   },
   yAxis: {
     type: 'value',
-    min: 60,
+    min: 0,
     max: 100,
     splitLine: { lineStyle: { color: 'rgba(255,255,255,.08)' } },
     axisLabel: { color: '#9d97a3' },

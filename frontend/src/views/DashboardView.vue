@@ -19,7 +19,6 @@
       >
         <template v-if="dashboardStatus === 'loading'">
           <strong>正在加载工作台</strong>
-          <p>正在读取你的训练数据。</p>
         </template>
         <template v-else>
           <strong>工作台数据未加载</strong>
@@ -28,10 +27,10 @@
         </template>
       </section>
 
-      <section class="glass weekly" role="button" @click="openPanel('weekly')">
+      <section class="glass weekly" role="button" tabindex="0" @click="openPanel('weekly')" @keydown.enter="openPanel('weekly')" @keydown.space.prevent="openPanel('weekly')">
         <h3>本周训练</h3>
         <strong>{{ weekly.sessions }}<small> 次</small></strong>
-        <span>累计 {{ weekly.total_minutes }} 分钟 · 点开看热力图</span>
+        <span>累计 {{ weekly.total_minutes }} 分钟</span>
         <div class="spark">
           <i v-for="(height, index) in weekly.sparkline" :key="index" :style="{ height: `${height}px` }"></i>
         </div>
@@ -61,9 +60,19 @@
         </div>
         <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
       </section>
+      <section v-else class="glass continue continue-empty">
+        <img class="continue-media" src="/assets/hero-clean.png" alt="" aria-hidden="true" />
+        <h3>下一堂，从这里开始</h3>
+        <div class="course">
+          <small>AI 微格教学</small>
+          <h2>先临课，再上课。</h2>
+          <p>与虚拟学生互动，回看有据可查的课堂反馈。</p>
+        </div>
+        <LearnMoreButton @click="router.push('/classroom')">进入模拟课堂</LearnMoreButton>
+      </section>
 
-      <section class="glass feedback" v-if="aiFeedback" role="button" @click="openPanel('feedback')">
-        <h3>反馈摘要 · 演示 / 规则评分</h3>
+      <section class="glass feedback" v-if="aiFeedback" role="button" tabindex="0" @click="openPanel('feedback')" @keydown.enter="openPanel('feedback')" @keydown.space.prevent="openPanel('feedback')">
+        <h3>反馈摘要 · {{ feedbackReport.mode_label || '历史训练' }}</h3>
         <div class="score">{{ aiFeedback.overall_score }}</div>
         <ul>
           <li v-for="item in (aiFeedback.dimensions || []).slice(0, 3)" :key="item.key">
@@ -72,23 +81,31 @@
         </ul>
         <p>{{ aiFeedback.suggestion }}</p>
       </section>
+      <section v-else class="glass feedback feedback-empty">
+        <h3>课堂反馈</h3>
+        <span class="feedback-empty-mark" aria-hidden="true">↗</span>
+        <strong>让每次练习<br>都有回响。</strong>
+        <p>从课堂证据出发，发现优势与下一步。</p>
+        <router-link to="/ai-review">查看 AI 评课 →</router-link>
+      </section>
 
       <section class="glass entries">
-        <h3>课程与训练入口</h3>
+        <h3>快捷入口</h3>
         <div>
           <article v-for="entry in quickEntries" :key="entry.title">
             <i>{{ entry.icon }}</i>
             <h3>{{ entry.title }}</h3>
             <p>{{ entry.description }}</p>
-            <button type="button" @click="router.push(entry.route || '/courses')">›</button>
+            <button type="button" :aria-label="`进入${entry.title}`" @click="router.push(entry.route || '/courses')">›</button>
           </article>
           <p v-if="!quickEntries.length" class="dashboard-empty">暂无可用入口。</p>
         </div>
       </section>
 
-      <section class="glass growth" role="button" @click="openPanel('growth')">
-        <h3>成长轨迹 · 历史演示</h3>
-        <div class="chart">
+      <section class="glass growth" role="button" tabindex="0" @click="openPanel('growth')" @keydown.enter="openPanel('growth')" @keydown.space.prevent="openPanel('growth')">
+        <h3>成长轨迹 · 历史训练</h3>
+        <p v-if="!growthTrajectory.length" class="dashboard-empty">暂无历史训练评分</p>
+        <div v-else class="chart">
           <i v-for="(score, index) in growthTrajectory" :key="index" :style="{ height: `${score}%` }">
             <b>{{ score }}</b>
           </i>
@@ -124,7 +141,7 @@
         <p v-if="!heatCells.length" class="dashboard-empty">暂无训练记录。</p>
         <p class="dock-hint">{{ dayHint }}</p>
         <form class="journal-form" @submit.prevent="submitJournal">
-          <textarea v-model="journalBody" rows="3" placeholder="手动写一条训练日志，比如今天候答停够了。"></textarea>
+          <textarea v-model="journalBody" rows="3" placeholder="记录本次练习的发现…" aria-label="训练日志"></textarea>
           <button class="primary" type="submit" :disabled="journalSaving">写下日志</button>
         </form>
         <p v-if="journalError" class="dashboard-inline-error" role="alert">{{ journalError }}</p>
@@ -186,7 +203,7 @@
 
         <div class="sheet-actions">
           <button type="button" @click="showCorrect = !showCorrect">校对不准，重新生成</button>
-          <button type="button" class="ghost-link" @click="router.push({ path: '/ai-review', query: { feedbackId: aiFeedback.id } })">去 AI 评课看图表</button>
+          <button type="button" class="ghost-link" @click="router.push({ path: '/ai-review', query: { feedbackId: aiFeedback.id } })">查看完整报告 →</button>
         </div>
         <div v-if="showCorrect" class="correct-box">
           <p>勾选你认为评课误判的点，可多选，再生成一版。</p>
@@ -214,7 +231,7 @@
         </div>
         <button type="button" class="close-x" aria-label="关闭" @click="panel = null">×</button>
       </header>
-      <p class="page-lead">按日期或时间点查看每一次模拟课堂。点折线上的节点或下方列表，即可回放当时的评课。</p>
+      <p class="page-lead">选择节点查看对应训练报告。</p>
       <VChart
         v-if="growthLineRows.length"
         class="growth-modal-line"
@@ -242,8 +259,7 @@
           </button>
         </li>
       </ol>
-      <p v-if="!visibleGrowth.length" class="dock-hint">这 30 天还没有评课记录。完成一次训练后会出现在这里。</p>
-      <p v-else class="dock-hint">最多保留近 30 天。点一条打开当时的 AI 评课。</p>
+      <p v-if="!visibleGrowth.length" class="dock-hint">近 30 天暂无历史训练报告。</p>
     </section>
   </div>
 </template>

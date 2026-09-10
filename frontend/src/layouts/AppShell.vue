@@ -43,8 +43,8 @@
             v-model="search"
             class="cir-search__field"
             type="search"
-            placeholder="搜索课程、训练或资源"
-            aria-label="搜索课程、训练或资源"
+            placeholder="搜索课程"
+            aria-label="搜索课程"
           />
           <kbd class="cir-search__kbd">Enter</kbd>
         </form>

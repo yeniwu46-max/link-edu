@@ -42,6 +42,12 @@ class ProfilePersistenceTests(unittest.TestCase):
         db.drop_all()
         self.ctx.pop()
 
+    def test_empty_profile_does_not_invent_school_grade_or_biography(self):
+        response = self.app.test_client().get('/api/profile', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        for key in ('school', 'major', 'grade', 'bio'):
+            self.assertFalse(response.get_json().get(key), key)
+
     def test_profile_update_survives_a_fresh_read(self):
         payload = {
             'name': '已保存姓名',

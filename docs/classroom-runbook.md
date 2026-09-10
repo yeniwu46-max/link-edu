@@ -54,12 +54,13 @@ AI_PRICING_CONFIRMED=true
 # 一键启动：隐藏窗口，不自动停止占用端口的程序
 ./scripts/start-classroom.ps1
 
-# 没有 backend/.env 时，脚本会为本机回归使用 loopback SQLite 和种子账号；
-# 这不是生产配置。需要强制要求真实配置时使用：
+# 默认要求已有配置，不会静默创建演示库；-RequireEnv 可继续使用。
 ./scripts/start-classroom.ps1 -RequireEnv
 
-# 隔离验证可指定临时数据库目录和端口：
-./scripts/start-classroom.ps1 -BackendPort 5011 -FrontendPort 5199 -RuntimeDataDirectory "$env:TEMP/link-classroom-runtime"
+# 仅在没有 .env / DATABASE_URL 时，显式允许本地冒烟库；生产环境不要使用。
+# 若已有配置，请先指定独立 -DatabaseUrl，不能把 RuntimeDataDirectory 当作数据库隔离。
+./scripts/start-classroom.ps1 -LocalSmokeTest -BackendPort 5011 -FrontendPort 5199 -RuntimeDataDirectory "$env:TEMP/link-classroom-runtime"
+# 演示账号登录检查也必须显式启用：-CheckDemoLogin
 
 # 或在两个终端手动运行（方便停机/重启）
 python scripts/run_classroom_backend.py --port 5001
@@ -73,10 +74,10 @@ npm run dev --prefix frontend
 ## 课堂操作
 
 1. Chrome / Edge、耳机、单摄像头。打开真实课堂页，四项分别点“验证接口”；ASR 验证只包含握手，识别内容需实机测试。
-2. 阅读并勾选语音用途，再开始。摄像头可选；“云端截图”默认关闭，需要单独勾选。关闭摄像头仍能继续语音。
+2. 阅读并勾选语音与摄像头两项授权，再开始授课；也可先单独打开摄像头预览。“云端画面分析”默认关闭，需要另行同意。摄像头断开时课堂暂停并提示重新连接。
 3. 先完整讲解平均分，积累至少 20 秒有效语音。明确点名或提问可以触发回答；主动问题先举手，安静 2 秒后发言。点举手学生或语音短句点名可邀请发言。
 4. 教师讲话会通过 ASR VAD 打断学生；按钮也可打断。学生声音若被外放回收，可能影响 VAD，必须单独验证回声，首发使用耳机。
-5. 结束时先提交末段音频，等待识别收尾与最后一个已发出的视觉请求，再请求报告。报告生成失败可以重试；刷新后在“历史课堂”继续查看。结束请求幂等，已完成报告不重复生成。
+5. 至少授课 10 秒才能结束。结束时提交末段音频并等待识别收尾；课堂证据不足时不生成报告，具体缺项见 AI 评课。已结束的历史课堂直达对应 AI 评课页面，报告失败可按提示重试。结束请求幂等。
 6. 报告点击时间戳跳转到证据；视觉证据可打开私有截图。教师异议会保存并重新请求模型，不固定加分。没有证据的维度为“暂不评分”。
 
 ## 数据与资料

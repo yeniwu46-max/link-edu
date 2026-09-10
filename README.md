@@ -1,40 +1,53 @@
 # 临客 LINK
 
-## 最新技术交接（2026-09-10）
+面向师范生与职前教师的 AI 微格教学训练平台。通过虚拟学生互动、语音转写与本地动作观察，形成可回溯课堂证据的教学反馈。
 
-评课更新：[统一 AI 评课与证据可视化](docs/classroom-ai-review-20260910.md)。历史课堂直达对应 AI 报告；六维剖面、事件时间线、可搜索证据与动作采样质量，支持打印 / PDF，明确区分 AI 判断、可观察数据和固定复盘提示。
+## 核心体验
 
-上午更新：[课堂播放器与学生形象改版](docs/classroom-player-refresh-20260910.md)。训练入口直达模拟课堂，精简授权提示，播放器式图标控制栏，三组透明像素学生与轻动效，学生语音 1.2 倍速。
+- **模拟课堂**：摄像主画面、三名虚拟学生、流式气泡、语音回应与课堂控制栏。
+- **AI 评课**：六维分析、证据时间线、教态观察与改进建议；数据不足时明确说明，不补造分数。
+- **课程与资源**：九项教学技能研习、可拖动资料卡、PDF/Markdown 阅读与课程资源入口。
+- **成长档案**：历史训练、热力图、日志与个人资料；不同评课口径分开呈现。
 
-[本轮技术更新与收工交接](docs/classroom-handoff-20260910.md)：离线评测、动作与教态、课堂布局与互动、摄像头预览、启动禁用原因、后端 500 恢复及课堂保存核验。前端 78 项、后端及离线评测 208 项通过；完整录像、课后视频预览和保存选择仍待实现，当前保存的是课堂事件与报告。
+当前模拟授课支持小学数学“分数的初步认识”。课程中心的其他技能资料不代表已接入对应的实时课堂情境。
 
-## 2026-09-07 真实 AI 课堂开发版
+## 本机启动
 
-2026-09-09：本机已接入 OpenAI Next 三用途额度（授课 $30 / 视觉 $40 / 测试 $30），讯飞语音独立计费。配置和美元预算说明见 [活动额度接入](docs/classroom-openai-next.md)。
+需要 Python 3.10+、Node.js 20+。使用 npm 锁文件，不混用旧 pnpm 锁文件。
 
-先读 [技术交接与架构/接口](docs/技术沉淀.md)，再按 [新版启动说明](docs/classroom-runbook.md) 配置；真实入口为 `http://127.0.0.1:5188/classroom`，本机新版后端为 5001。
+```powershell
+python -m pip install -r backend/requirements.txt
+npm ci --prefix frontend
+node scripts/prepare-pose.mjs
+# 先配置 backend/.env，保留已有数据库和密钥，不要整文件覆盖。
+./scripts/start-classroom.ps1 -PythonPath C:/Python314/python.exe
+```
 
-9月8日已接入讯飞识别/合成，真实语音探针有返回，完整真人课堂仍待验收。最新状态见 [讯飞联调记录](docs/classroom-xfyun.md)，另有 [历史验收记录](docs/classroom-validation.md)、[资料索引](docs/classroom-sources.md) 与 [架构决策](docs/decisions/002-xfyun-streaming-speech.md)。仓库已设私有，密钥仍只放本地忽略文件，不随仓库分享。
+前端：`http://127.0.0.1:5188`；后端：`http://127.0.0.1:5001`。
 
-后续音频/设备回归、证据校验及隔离合成课堂结果见 [独立验收记录](docs/classroom-independent-validation.md)。这不替代真人课堂验收。
+启动脚本不会结束已有服务，也不会默认创建演示数据库或登录演示账号。首次准备动作模型需联网；真实授课与生成报告会产生供应商费用，须先确认配置和预算。详细步骤见 [运行说明](docs/classroom-runbook.md)。
 
-2026-09-09：模拟课堂新增本地身体、手势与面部几何检测，动作摘要接入最终评课的“教态与站位”维度，支持证据回溯；安装、评价边界及真人验收清单见 [动作捕捉与教态评价](docs/classroom-motion-evaluation.md)。
+## 验证
 
-教师提问响应、全屏底部学生与流式气泡、居中字幕、画质和音量控制的修复说明见 [课堂互动与全屏](docs/classroom-interaction-fullscreen.md)。
+```powershell
+./scripts/run-regression.ps1 -PythonPath C:/Python314/python.exe
+python scripts/evaluate_classroom.py check
+```
 
-最新布局：摄像主画面＋下方三位学生、双授权一键开始、设置与记录弹窗、NumberFlow 倒计时；授课至少 10 秒且证据足够才生成报告。门槛、隐私与验收说明见 [摄像课堂与报告数据检查](docs/classroom-camera-first.md)。
+第一条运行前后端测试与生产构建，结果默认保存到 `artifacts/private/`；第二条离线检查课堂用例与规则，默认不调用模型。DeepEval 单测使用独立评测环境，见 [离线评测说明](docs/classroom-offline-evaluation.md)。
 
-## 原版演示启动
+## 本次交付 · 2026-09-10
 
-请优先阅读 **交接说明.txt**，按步骤安装依赖并启动前后端。
+[两路合并与上线前整理](docs/integration-delivery-20260910.md)：已整合 `gao/dev` 和提供的 ZIP 更新，保留本机模拟授课及新版 AI 报告，精简无效入口和重复提示，记录冲突取舍与回归结果。
 
-- 演示账号：`demo` / `link123`
-- 前端地址：http://127.0.0.1:5188
-- 后端地址：http://127.0.0.1:5000
-- 数据库：MySQL 8（见 `backend/.env.example`）
+- [课堂播放器与学生形象](docs/classroom-player-refresh-20260910.md)
+- [统一 AI 评课与证据可视化](docs/classroom-ai-review-20260910.md)
+- [摄像课堂与报告证据门槛](docs/classroom-camera-first.md)
+- [动作捕捉与教态评价](docs/classroom-motion-evaluation.md)
+- [历史技术交接](docs/classroom-handoff-20260910.md)
 
-快捷启动：双击 `启动后端.bat` 和 `启动前端.bat`
+## 部署边界
 
-AI 评课：在 `backend/.env` 填写 `DEEPSEEK_API_KEY`。在 AI 评课页主动点击生成后，系统把课堂文字材料发送到后端的 DeepSeek 接口，生成六维评分、总结、问题和改进建议；密钥不会进入前端。此入口使用独立 DeepSeek 配置，不走模拟课堂的三用途美元额度账本。
+本仓库目前使用单进程课堂服务。本次完成本地集成和构建，未执行生产部署或远程推送。
 
-首次配置可直接复制 `backend/.env.example` 中的 DeepSeek 配置项到现有 `.env`，然后重启后端。
+公开部署前仍须核对 JWT 强随机密钥、关闭演示账号和启动种子、限制 CORS、配置 HTTPS 与登录限流，并完成真机语音/摄像头和资料许可验收。不要提交 `.env`、真实课堂记录或私有截图。AI 反馈是教学反思辅助，不替代教师专业判断。

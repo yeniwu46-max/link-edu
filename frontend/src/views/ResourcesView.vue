@@ -15,6 +15,7 @@ const loading = ref(false);
 const loadError = ref("");
 const layoutKey = ref(0);
 const readerRef = ref(null);
+let readerTrigger = null;
 let requestId = 0;
 
 const visible = computed(() => {
@@ -38,10 +39,14 @@ const visible = computed(() => {
 });
 
 async function open(item) {
+  readerTrigger = document.activeElement;
   selected.value = item;
   markdown.value = "";
   loadError.value = "";
   const currentRequest = ++requestId;
+  await nextTick();
+  if (currentRequest !== requestId) return;
+  readerRef.value?.showModal();
 
   if (item.readType === "markdown") {
     loading.value = true;
@@ -61,16 +66,16 @@ async function open(item) {
     loading.value = false;
   }
 
-  await nextTick();
-  readerRef.value?.focus();
 }
 
 function closeReader() {
+  readerRef.value?.close();
   requestId += 1;
   selected.value = null;
   markdown.value = "";
   loadError.value = "";
   loading.value = false;
+  readerTrigger?.focus();
 }
 
 function handleKeydown(event) {
@@ -142,14 +147,10 @@ onUnmounted(() => {
 
     <p v-if="collection === 'library'" class="resource-note">官方大纲提供 PDF 预览与原始 Word 文件。</p>
 
-    <Transition name="reader-fade">
-      <div v-if="selected" class="reader-mask" role="presentation" @mousedown.self="closeReader">
+    <Teleport to="body">
+      <dialog v-if="selected" ref="readerRef" class="reader-mask" :aria-labelledby="`reader-title-${selected.id}`" @cancel.prevent="closeReader" @mousedown.self="closeReader">
         <section
-          ref="readerRef"
           class="reader-dialog"
-          role="dialog"
-          aria-modal="true"
-          :aria-labelledby="`reader-title-${selected.id}`"
           tabindex="-1"
         >
           <header class="reader-head">
@@ -158,7 +159,7 @@ onUnmounted(() => {
               <h2 :id="`reader-title-${selected.id}`">{{ selected.title }}</h2>
               <p>{{ selected.description }}</p>
             </div>
-            <button type="button" aria-label="关闭阅读器" @click="closeReader">×</button>
+            <button type="button" aria-label="关闭阅读器" autofocus @click="closeReader">×</button>
           </header>
 
           <div class="reader-body">
@@ -180,8 +181,8 @@ onUnmounted(() => {
             <a :href="selected.downloadUrl" :download="selected.downloadName">下载原文件</a>
           </footer>
         </section>
-      </div>
-    </Transition>
+      </dialog>
+    </Teleport>
   </div>
 </template>
 
@@ -350,9 +351,16 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(6, 4, 9, 0.8);
-  backdrop-filter: blur(12px);
+  width:100vw;
+  height:100dvh;
+  max-width:none;
+  max-height:none;
+  margin:0;
+  border:0;
+  background:transparent;
+  color:#f4f2f6;
 }
+.reader-mask::backdrop { background:rgba(6,4,9,.86); backdrop-filter:blur(12px); }
 
 .reader-dialog {
   display: grid;

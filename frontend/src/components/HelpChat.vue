@@ -18,14 +18,14 @@
     <header class="help-chat__bar" @pointerdown="onChatDown">
       <div>
         <p>HELP</p>
-        <strong>{{ mode === 'human' ? '人工客服' : '智能客服' }}</strong>
+        <strong>{{ mode === 'human' ? '问题记录' : '常见问题' }}</strong>
       </div>
       <button type="button" class="close-x" aria-label="关闭" @click="open = false">×</button>
     </header>
     <div class="help-chat__tools">
       <input v-model="query" type="search" placeholder="搜索训练、评课、资源…" />
-      <button type="button" :class="{ active: mode === 'bot' }" @click="switchMode('bot')">智能</button>
-      <button type="button" :class="{ active: mode === 'human' }" @click="switchMode('human')">人工</button>
+      <button type="button" :class="{ active: mode === 'bot' }" @click="switchMode('bot')">帮助</button>
+      <button type="button" :class="{ active: mode === 'human' }" @click="switchMode('human')">记录问题</button>
     </div>
     <div class="help-chat__log" ref="logRef">
       <article v-for="(item, index) in messages" :key="index" :class="item.role">
@@ -33,7 +33,7 @@
       </article>
     </div>
     <form class="help-chat__form" @submit.prevent="send">
-      <input v-model="draft" type="text" :placeholder="mode === 'human' ? '给指导教师留言' : '问一句，比如如何开始训练'" />
+      <input v-model="draft" type="text" aria-label="问题内容" :placeholder="mode === 'human' ? '记录到我的训练日志' : '搜索常见问题'" />
       <button class="primary" type="submit" :disabled="sending">{{ sending ? '提交中…' : '发送' }}</button>
     </form>
   </section>
@@ -45,12 +45,12 @@ import { addJournal } from '../services/dashboard'
 import { journalSubmitErrorMessage } from '../utils/dashboardState'
 
 const faqs = [
-  { q: '如何开始一次微格训练？', a: '课程中心按大纲九项技能分项选课，再进入综合模拟或教资试讲。专项 8 分钟，综合 10 分钟。' },
-  { q: 'AI 评课看哪些维度？', a: '表达、节奏、互动、教态、提问、结构六项，结束训练后生成书面报告。觉得不准可以勾选校正点让系统重写。' },
-  { q: '一次训练要多久？', a: '片段练习 8 分钟，完整课 10 分钟。演示时可随时结束并生成评课。' },
+  { q: '如何开始一次微格训练？', a: '进入模拟课堂，确认语音与摄像头授权后开始授课。当前支持小学数学“分数的初步认识”。' },
+  { q: 'AI 评课看哪些维度？', a: '表达、节奏、互动、教态、提问、结构六项。报告展示引用证据；证据不足的维度不评分。' },
+  { q: '一次训练要多久？', a: '片段练习 8 分钟，完整课 10 分钟。至少授课 10 秒才能结束；课堂证据不足时不会生成报告，并显示缺项。' },
   { q: '资源如何使用？', a: '资源库按教案、素材、报告、档案分类。点开即可对照说明使用。' },
-  { q: '成长档案看什么？', a: '近 30 天回放、热力图和训练日志。工作台的本周训练、成长轨迹点开就是它的缩略版。' },
-  { q: '个人中心有什么？', a: '个人中心改身份和徽章；设置只改训练默认项和显示；联系我们找指导教师或留言。都从右上角头像进。' },
+  { q: '成长档案看什么？', a: '按 7 日、30 日或全部查看历史训练。模拟课堂的证据报告请在 AI 评课中查看。' },
+  { q: '个人中心有什么？', a: '管理个人资料、显示偏好与问题记录，从右上角头像进入。' },
 ]
 
 const open = ref(false)
@@ -58,7 +58,7 @@ const mode = ref('bot')
 const query = ref('')
 const draft = ref('')
 const sending = ref(false)
-const messages = ref([{ role: 'bot', text: '你好，我是临客帮助。可以搜 FAQ，或切到人工客服留言。' }])
+const messages = ref([{ role: 'bot', text: '搜索使用帮助，或把问题保存到训练日志。' }])
 const logRef = ref(null)
 const pos = ref({ x: null, y: null, chatX: null, chatY: null })
 let drag = null
@@ -75,8 +75,8 @@ function openFromEvent(event) {
   mode.value = event.detail?.mode === 'human' ? 'human' : 'bot'
   open.value = true
   const intro = mode.value === 'human'
-    ? '已切到人工留言。写下训练故障、评课异议或课程资源问题，演示环境会记一条本地留言。'
-    : '已打开智能客服。可以搜「训练」「评课」或「资源」。'
+    ? '问题会保存到你的训练日志，不会发送给外部客服。'
+    : '搜索「训练」「评课」或「资源」。'
   messages.value.push({ role: 'bot', text: intro })
 }
 
@@ -92,8 +92,8 @@ function switchMode(nextMode) {
   messages.value.push({
     role: 'bot',
     text: nextMode === 'human'
-      ? '人工模式：留言会提交到当前账号的训练日志，不会直接连接外部坐席。'
-      : '智能模式：只根据帮助中心 FAQ 回复，不会提交人工留言。',
+      ? '问题会保存到你的训练日志，不会发送给外部客服。'
+      : '帮助内容来自常见问题库。',
   })
 }
 
@@ -109,9 +109,10 @@ async function send() {
         entry_date: new Date().toISOString().slice(0, 10),
         body: `[帮助/人工留言] ${text}`,
       })
-      messages.value.push({ role: 'bot', text: '人工留言已保存到当前账号的训练日志；此入口不连接外部坐席。' })
+      messages.value.push({ role: 'bot', text: '问题已保存到你的训练日志。' })
     } catch (error) {
-      messages.value.push({ role: 'bot', text: `人工留言保存失败：${journalSubmitErrorMessage(error)}` })
+      draft.value = text
+      messages.value.push({ role: 'bot', text: `问题保存失败：${journalSubmitErrorMessage(error)}` })
     } finally {
       sending.value = false
     }
@@ -121,7 +122,7 @@ async function send() {
       role: 'bot',
       text: hits[0]
         ? `${hits[0].q} ${hits[0].a}`
-        : '没有找到匹配的帮助内容。请换个关键词，例如“训练”“评课”或“资源”，也可以切换到人工客服留言。',
+        : '没有找到匹配的帮助内容，请换个关键词，也可以切换到问题记录。',
     })
   }
   await nextTick()

@@ -311,7 +311,7 @@ def build_profile(user: User):
     )
     payload['session_count'] = session_count
     payload['xp_percent'] = 100 if level >= 9 else round(((session_count % 4) / 4) * 100)
-    payload['next_hint'] = '已达演示等级上限' if level >= 9 else f'再完成 {remain} 次训练可提升等级'
+    payload['next_hint'] = '已达当前等级上限' if level >= 9 else f'再完成 {remain} 次训练可提升等级'
     payload['recent_feedbacks'] = [
         {
             'id': row.id,
@@ -322,14 +322,6 @@ def build_profile(user: User):
         }
         for row in recent
     ]
-    if not payload.get('school'):
-        payload['school'] = '师范学院（演示）'
-    if not payload.get('major'):
-        payload['major'] = '小学教育'
-    if not payload.get('grade'):
-        payload['grade'] = '本科三年级'
-    if not payload.get('bio'):
-        payload['bio'] = '关注课堂导入、提问候答与板书结构。目标是把 8 分钟片段练成可迁移的教学习惯。'
     return payload
 
 

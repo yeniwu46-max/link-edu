@@ -3,7 +3,7 @@
     <header class="page-head">
       <p class="shiny-kicker">COURSE DECK</p>
       <SplitTitle text="课程中心" />
-      <p class="page-lead">依据《教师职业技能训练大纲（试行）》九项课堂教学技能，先分项 8 分钟，再综合 10 分钟模拟授课。</p>
+      <p class="page-lead">九项教学技能，从专项研习到课堂实践。</p>
       <p v-if="query && !loading" class="course-search-status" role="status">
         搜索“{{ query }}” · {{ filtered.length }} 个结果
       </p>

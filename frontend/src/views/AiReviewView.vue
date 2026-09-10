@@ -1,6 +1,6 @@
 <template>
   <div class="sparse-page review-page">
-    <p v-if="report.demo" class="review-alert">此份为历史演示 / 规则评分，不与真实课堂分数比较。<router-link to="/classroom">查看模拟课堂与证据报告 →</router-link></p>
+    <p v-if="report.demo" class="review-alert">历史演示 / 规则评分，不与模拟课堂评课直接比较。<router-link to="/ai-review">查看模拟课堂评课 →</router-link></p>
     <header class="page-head growth-head">
       <div>
         <p class="shiny-kicker">AI REVIEW</p>
@@ -33,7 +33,7 @@
     <section v-if="showAiReviewGenerator && current" class="review-generator">
       <div>
         <h3>{{ generatorTitle }}</h3>
-        <p>点击生成后，系统会自动读取本次训练数据并交给 DeepSeek，生成本次课程的结构化评课报告。</p>
+        <p>本次材料将发送至 DeepSeek 生成评课，并产生模型调用费用。</p>
       </div>
       <p v-if="generationStatus === 'generating'" class="review-generator__status">
         DeepSeek 正在生成。可以暂时离开此页，恢复后系统会自动核对结果。
@@ -81,7 +81,6 @@
     <section v-if="current" class="review-generator review-followup">
       <div>
         <h3>继续追问本次评课</h3>
-        <p>报告生成成功后，可以针对评分、问题和改进建议继续提问。</p>
       </div>
       <p v-if="!followupReady" class="review-generator__status">
         {{ followupDisabledMessage }}
@@ -141,8 +140,7 @@
           </li>
         </ul>
         <blockquote>{{ report.next_action || current.suggestion }}</blockquote>
-        <p v-if="report.demo">旧演示报告仅供查看，不再通过勾选固定加分。</p>
-        <router-link class="ghost-link" to="/classroom">前往真实课堂，基于证据提交评课异议 →</router-link>
+        <router-link class="ghost-link" to="/ai-review">查看模拟课堂证据报告 →</router-link>
 
       </section>
     </div>
