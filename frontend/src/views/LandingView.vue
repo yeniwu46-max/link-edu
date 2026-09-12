@@ -1,7 +1,7 @@
 <template>
   <main ref="landing" class="landing">
     <section ref="hero" class="hero" id="hero">
-      <div class="hero-media" aria-hidden="true">
+      <div ref="heroMedia" class="hero-media" aria-hidden="true">
         <video
           ref="heroGreet"
           class="hero-bg-video hero-bg-greet is-active"
@@ -109,7 +109,7 @@
     </section>
 
     <section ref="loginSection" class="login" id="login">
-      <div class="login-bg" aria-hidden="true">
+      <div ref="loginBg" class="login-bg" aria-hidden="true">
         <video
           ref="loginVideo"
           class="login-bg-video"
@@ -119,11 +119,11 @@
           muted
           loop
           playsinline
-          preload="metadata"
+          preload="auto"
         ></video>
       </div>
-      <div class="login-haze" aria-hidden="true"></div>
-      <header class="login-nav">
+      <div ref="loginHaze" class="login-haze" aria-hidden="true"></div>
+      <header ref="loginNav" class="login-nav">
         <div class="hero-nav-left">
           <BrandMark />
         </div>
@@ -224,9 +224,13 @@ const router = useRouter()
 const auth = useAuthStore()
 const landing = ref(null)
 const hero = ref(null)
+const heroMedia = ref(null)
 const loginSection = ref(null)
 const loginCard = ref(null)
 const loginVideo = ref(null)
+const loginBg = ref(null)
+const loginHaze = ref(null)
+const loginNav = ref(null)
 const heroGreet = ref(null)
 const heroHair = ref(null)
 const menuOpen = ref(false)
@@ -245,6 +249,8 @@ let loginObserver
 let onHeroGreetEnded = null
 let hairKeepAlive = null
 let greetWatchTimer = 0
+let landingScrollHandler = null
+let scrollTween = null
 const HERO_GREET_RATE = 0.9
 const HERO_HAIR_RATE = 0.48
 
@@ -381,14 +387,41 @@ const buttonLabel = computed(() =>
       : '创建并登录'
 )
 
-const scrollTo = (target) => target.value?.scrollIntoView({
-  behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
-  block: 'start'
-})
+function scrollTo(target) {
+  const scroller = landing.value
+  const section = target.value
+  if (!scroller || !section) return
+  const top = section.offsetTop
+  const movingToLogin = section === loginSection.value
+  scrollTween?.kill()
+  scroller.classList.remove('is-programmatic-scroll')
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    scroller.scrollTo({ top, behavior: 'auto' })
+    return
+  }
+  scroller.classList.add('is-programmatic-scroll')
+  scrollTween = gsap.to(scroller, {
+    scrollTop: top,
+    duration: 1.05,
+    ease: 'power3.inOut',
+    overwrite: true,
+    onComplete: () => {
+      scroller.classList.remove('is-programmatic-scroll')
+      scrollTween = null
+      if (movingToLogin) playLoginVideo()
+      else loginVideo.value?.pause()
+    },
+    onInterrupt: () => {
+      scroller.classList.remove('is-programmatic-scroll')
+      scrollTween = null
+      landingScrollHandler?.()
+    },
+  })
+}
 const goLogin = () => {
   menuOpen.value = false
+  playLoginVideo()
   scrollTo(loginSection)
-  nextTick(() => playLoginVideo())
 }
 const goHome = () => {
   menuOpen.value = false
@@ -443,20 +476,21 @@ onMounted(async () => {
       loginObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) playLoginVideo()
-          else loginVideo.value?.pause()
+          else if (!landing.value?.classList.contains('is-programmatic-scroll')) loginVideo.value?.pause()
         })
-      }, { threshold: 0.12 })
+      }, { threshold: [0, 0.01, 0.12] })
       loginObserver.observe(loginSection.value)
       let scrollAt = 0
-      const onLandingScroll = () => {
+      landingScrollHandler = () => {
         const now = performance.now()
         if (now - scrollAt < 120) return
         scrollAt = now
+        if (landing.value?.classList.contains('is-programmatic-scroll')) return
         const rect = loginSection.value?.getBoundingClientRect()
-        if (rect && rect.top < window.innerHeight * 0.75) playLoginVideo()
+        if (rect && rect.top < window.innerHeight * 0.95) playLoginVideo()
         else loginVideo.value?.pause()
       }
-      landing.value.addEventListener('scroll', onLandingScroll, { passive: true })
+      landing.value.addEventListener('scroll', landingScrollHandler, { passive: true })
     }
 
     void startHeroSequence()
@@ -479,11 +513,17 @@ onMounted(async () => {
     hairKeepAlive = keepHairAlive
 
     media = gsap.matchMedia()
-    media.add({ all: 'all', reduceMotion: '(prefers-reduced-motion: reduce)' }, ({ conditions }) => {
+    media.add({
+      all: 'all',
+      mobile: '(max-width: 620px)',
+      reduceMotion: '(prefers-reduced-motion: reduce)',
+    }, ({ conditions }) => {
       const scope = landing.value
       if (!scope) return () => {}
 
       if (!conditions.reduceMotion) {
+        const heroExitScale = conditions.mobile ? 0.98 : 0.965
+        const cardTravel = conditions.mobile ? 24 : 44
         const intro = gsap.timeline({ defaults: { ease: 'power2.out' } })
         const nav = scope.querySelector('.hero-nav')
         const left = scope.querySelector('.hero-copy-left')
@@ -493,18 +533,41 @@ onMounted(async () => {
         if (left) intro.from(left, { autoAlpha: 0, x: -24, duration: 0.45 }, '-=.18')
         if (right) intro.from(right, { autoAlpha: 0, x: 24, duration: 0.45 }, '-=.35')
         if (cue) intro.from(cue, { autoAlpha: 0, y: 8, duration: 0.3 }, '-=.2')
-        const scrollConfig = { scroller: landing.value }
-        // Keep the scroll exit separate from the children's initial entrance.
-        gsap.fromTo(scope.querySelector('.hero-foreground'), { autoAlpha: 1, scale: 1 }, {
-          autoAlpha: 0, scale: 0.98, ease: 'none',
-          scrollTrigger: { ...scrollConfig, trigger: hero.value, start: 'top top', end: '55% top', scrub: 0.15 }
+        const transition = gsap.timeline({
+          defaults: { ease: 'none' },
+          scrollTrigger: {
+            scroller: landing.value,
+            trigger: loginSection.value,
+            start: 'top 96%',
+            end: 'top 4%',
+            scrub: 0.35,
+          },
         })
-        if (loginCard.value) {
-          gsap.fromTo(loginCard.value, { autoAlpha: 0, scale: 0.96, y: 12 }, {
-            autoAlpha: 1, scale: 1, y: 0, duration: 0.25, ease: 'power2.out',
-            scrollTrigger: { ...scrollConfig, trigger: loginSection.value, start: 'top 55%', toggleActions: 'play none none reverse' }
-          })
-        }
+        transition
+          .fromTo(scope.querySelector('.hero-foreground'),
+            { autoAlpha: 1, scale: 1, yPercent: 0 },
+            { autoAlpha: 0, scale: heroExitScale, yPercent: conditions.mobile ? -1 : -2, duration: 0.78 },
+            0)
+          .fromTo(heroMedia.value,
+            { autoAlpha: 1, scale: 1 },
+            { autoAlpha: 0.5, scale: 1.025, duration: 0.9 },
+            0)
+          .fromTo(loginBg.value,
+            { autoAlpha: 0.22, scale: 1.035 },
+            { autoAlpha: 1, scale: 1, duration: 1 },
+            0)
+          .fromTo(loginHaze.value,
+            { autoAlpha: 0 },
+            { autoAlpha: 1, duration: 0.72 },
+            0.12)
+          .fromTo(loginNav.value,
+            { autoAlpha: 0, y: 16 },
+            { autoAlpha: 1, y: 0, duration: 0.45 },
+            0.42)
+          .fromTo(loginCard.value,
+            { autoAlpha: 0, scale: conditions.mobile ? 0.97 : 0.94, y: cardTravel },
+            { autoAlpha: 1, scale: 1, y: 0, duration: 0.62, ease: 'power2.out' },
+            0.34)
       }
 
       return () => {}
@@ -517,6 +580,9 @@ onMounted(async () => {
 onUnmounted(() => {
   loginObserver?.disconnect()
   loginVideo.value?.pause()
+  scrollTween?.kill()
+  landing.value?.classList.remove('is-programmatic-scroll')
+  if (landingScrollHandler) landing.value?.removeEventListener('scroll', landingScrollHandler)
   clearGreetWatch()
   const greet = heroGreet.value
   const hair = heroHair.value
@@ -562,6 +628,11 @@ async function submit(event) {
   inset: 0;
   z-index: 2;
   transform-origin: center;
+}
+
+:deep(.liquid-ether) {
+  -webkit-mask-image: linear-gradient(180deg, #000 0 70%, rgba(0, 0, 0, .55) 86%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0 70%, rgba(0, 0, 0, .55) 86%, transparent 100%);
 }
 
 /* GSAP owns the card transform; a CSS transition would delay every frame. */

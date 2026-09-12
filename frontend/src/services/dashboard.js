@@ -35,6 +35,13 @@ export async function generateAiReview(sessionId, payload) {
   return data.feedback
 }
 
+export async function uploadTrainingVisualEvidence(sessionId, frames) {
+  const { data } = await api.post(`/training/sessions/${sessionId}/visual-evidence`, {
+    frames,
+  })
+  return data
+}
+
 export async function askAiReviewQuestion(feedbackId, question) {
   const { data } = await api.post(
     `/feedbacks/${feedbackId}/ask`,

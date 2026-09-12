@@ -8,6 +8,7 @@
       </div>
     </header>
 
+    <div class="page-scroll">
     <!-- 个人中心：身份、等级、徽章、最近训练 -->
     <div v-if="page === 'center'" class="profile-stack">
       <section class="identity-card">
@@ -83,7 +84,7 @@
     <div v-else-if="page === 'settings'" class="settings-stack">
       <section class="settings-block">
         <h3>训练默认项</h3>
-        <p class="dock-hint">进入教学训练时自动套用。镜头画面只在本机预览，不会上传。</p>
+        <p class="dock-hint">进入教学训练时自动套用。可勾选本机录制整段复盘视频；评课仅上传关帧，整段视频不上云。换设备或清除站点数据后本机回放会丢失，请自行下载备份。</p>
         <label class="settings-row">
           <span>默认打开镜头</span>
           <input v-model="settings.cameraDefault" type="checkbox" @change="persistSettings" />
@@ -138,7 +139,7 @@
 
       <section class="settings-block">
         <h3>数据</h3>
-        <p>训练镜头仅用于本机观察教态，不会上传到服务器。偏好保存在这台浏览器的 localStorage。</p>
+        <p>训练镜头可本机录制复盘；整段视频只存在当前浏览器。评课分析使用关帧，不上传播放整段视频。偏好保存在这台浏览器的 localStorage。</p>
         <button type="button" @click="clearPrefs">清除本机偏好，恢复默认</button>
         <p v-if="prefsCleared" class="dock-hint">已恢复默认训练项与显示选项。</p>
       </section>
@@ -201,6 +202,7 @@
           <p v-if="messageOk" class="dock-hint">已收到。演示环境会记入你的训练日志，不会开通独立工单后台。</p>
         </form>
       </section>
+    </div>
     </div>
   </div>
 </template>

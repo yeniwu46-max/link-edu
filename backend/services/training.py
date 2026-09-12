@@ -14,6 +14,7 @@ from services.llm.deepseek import (
     generate_review_report,
     has_insufficient_evidence,
 )
+from services.training_visual import collect_visual_observations, list_visual_frame_paths
 
 FRAGMENT_MINUTES = 8
 FULL_MINUTES = 10
@@ -517,6 +518,15 @@ def generate_ai_review(
         return None, gate_error
 
     course = session.course
+    visual_observations = ''
+    try:
+        visual_observations = collect_visual_observations(
+            session_id,
+            course.title if course else None,
+        )
+    except Exception as error:  # Vision is best-effort and must not block text review.
+        current_app.logger.warning('training visual observations failed session=%s err=%s', session_id, error)
+
     review_input = {
         'course_title': course.title if course else None,
         'scene': existing_report.get('scene') or ('完整' if course and str(course.stage or '').startswith('综合') else '导入'),
@@ -528,6 +538,7 @@ def generate_ai_review(
         'last_trained_at': session.last_trained_at.isoformat() if session.last_trained_at else None,
         'transcript_text': transcript_text,
         'teacher_notes': teacher_notes,
+        'visual_observations': visual_observations,
     }
     try:
         if feedback is None:
@@ -539,6 +550,7 @@ def generate_ai_review(
             'generation_status': 'generating',
             'generation_started_at': datetime.utcnow().isoformat(),
             'material_length': len(transcript_text) + len(teacher_notes),
+            'visual_frame_count': len(list_visual_frame_paths(session_id)),
         })
         generating_report.pop('generation_error', None)
         feedback.report_json = json.dumps(generating_report, ensure_ascii=False)
@@ -561,6 +573,12 @@ def generate_ai_review(
         report['generation_status'] = 'succeeded'
         report['generation_completed_at'] = datetime.utcnow().isoformat()
         report['material_length'] = len(transcript_text) + len(teacher_notes)
+        frame_count = len(list_visual_frame_paths(session_id))
+        if frame_count:
+            report['visual_evidence'] = True
+            report['visual_frame_count'] = frame_count
+        if visual_observations:
+            report['visual_observations_used'] = True
         score_map = {item['key']: item['score'] for item in report.get('dimensions') or []}
         if not report.get('insufficient_evidence'):
             feedback.overall_score = report['overall_score']

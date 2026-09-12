@@ -100,6 +100,7 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <div class="page-scroll">
     <div class="resource-toolbar">
       <div class="resource-tabs" role="tablist" aria-label="资源分类">
         <button
@@ -135,6 +136,7 @@ onUnmounted(() => {
     </section>
 
     <p class="resource-note">官方大纲按原 Word 文件生成 PDF 预览，内容未作改写。</p>
+    </div>
 
     <Transition name="reader-fade">
       <div v-if="selected" class="reader-mask" role="presentation" @mousedown.self="closeReader">
@@ -181,12 +183,13 @@ onUnmounted(() => {
 
 <style scoped>
 .resource-page {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  height: calc(100dvh - 160px);
-  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   max-width: none;
   padding-bottom: 0;
+  overflow: hidden;
 }
 
 .resource-head {

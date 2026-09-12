@@ -36,6 +36,7 @@ function createReview() {
     'vue-echarts': {},
     '../components/fx/SplitTitle.vue': {},
     '../services/dashboard': { askAiReviewQuestion: ask },
+    '../services/trainingReplayStore': { getRecording: async () => null },
     '../utils/aiReviewErrors': reviewErrors,
     '../utils/aiReviewState': reviewState,
     '../utils/settings': { loadSettings: () => ({ showDemoBadge: true }) },
