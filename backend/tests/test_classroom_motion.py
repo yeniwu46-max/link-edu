@@ -70,8 +70,10 @@ def test_posture_accepts_multimodal_evidence_but_not_one_frame():
 
 
 def test_runtime_records_only_sanitized_motion():
+    import threading
     from services.classroom_runtime import LiveClassroom
     obj = object.__new__(LiveClassroom)
+    obj.closed = threading.Event()
     obj.finish_requested, obj.last_pose, obj.seen = False, -2, set()
     obj.elapsed = lambda: 10
     records = []

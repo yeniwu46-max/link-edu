@@ -8,15 +8,17 @@ import re
 from services.classroom_motion import sanitize_motion
 
 MIN_CLASS_SECONDS = 10
-POLICY_VERSION = 'classroom-readiness-1'
+POLICY_VERSION = 'classroom-readiness-2'
 
 
-def report_readiness(events, elapsed, cloud_vision=False):
+def report_readiness(events, elapsed, cloud_vision=False, active_elapsed=None):
     duration = max(0, elapsed) if type(elapsed) in (int, float) and math.isfinite(elapsed) else 0
     # Ignore out-of-session timestamps and duplicate persisted event IDs.
     valid = {e['id']: e for e in events if type(e.get('id')) is int and
              type(e.get('at_ms')) is int and 0 <= e['at_ms'] <= duration * 1000 and isinstance(e.get('data'), dict)}
     rows = list(valid.values())
+    if active_elapsed is not None:
+        duration = max(0, active_elapsed)
     def text_length(value):
         return len(re.findall(r'[\w]', value, re.UNICODE)) if isinstance(value, str) else 0
     texts = {e['data'].get('text', '').strip() for e in rows if e.get('type') == 'transcript'
@@ -63,7 +65,10 @@ def report_readiness(events, elapsed, cloud_vision=False):
         scene_reason += ' 已开启云端画面分析，但未识别到有效授课场景（至少 1 条、置信度 ≥ 0.6）。'
     add('scene', '教师画面 / 场景证据', scene_ok, {'teacher': teacher_info, 'cloud_observations': len(vision)},
         {'teacher_samples': 3, 'span_seconds': 4, 'cloud_observations': 1 if cloud_vision else 0}, scene_reason.strip())
-    return {'version': POLICY_VERSION, 'eligible': all(c['passed'] for c in checks), 'checks': checks,
+    for check in checks:
+        check['scope'] = 'posture' if check['key'] in ('motion', 'scene') else 'report'
+    return {'version': POLICY_VERSION, 'eligible': all(c['passed'] for c in checks if c['scope'] == 'report'), 'checks': checks,
+            'dimension_eligibility': {'posture': enough_samples(motion_info) and scene_ok},
             'reasons': [c['reason'] for c in checks if not c['passed']],
             'scene_mode': 'local_teacher_frame_and_cloud' if cloud_vision else 'local_teacher_frame',
             'notice': '仅为最低数据完整性检查，不代表教学质量达标；本地入镜检测不等于课堂背景语义识别。'}

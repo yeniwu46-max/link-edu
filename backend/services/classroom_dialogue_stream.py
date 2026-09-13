@@ -9,7 +9,7 @@ from services.classroom_budget import price, reserve, settle
 from services.classroom_stream import StudentDraft, StreamCancelled, sse_events, unique_object, validate_student
 
 
-def chat_stream(system, payload, session_id, control, on_draft, max_tokens=600):
+def chat_stream(system, payload, session_id, control, on_draft, max_tokens=1200):
     control.check()
     is_next = llm_provider() == 'openai_next'
     content = json.dumps(payload, ensure_ascii=False)

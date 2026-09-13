@@ -32,7 +32,7 @@ REPORT_SYSTEM = (
 )
 
 
-def validate_report(raw, events, sources):
+def validate_report(raw, events, sources, readiness=None):
     candidates = raw.get('dimensions')
     # Some JSON-mode responses use a keyed object instead of an array. Normalize losslessly.
     if isinstance(candidates, dict):
@@ -66,8 +66,12 @@ def validate_report(raw, events, sources):
                         (by_id[i]['type'] == 'student' and by_id[i].get('data', {}).get('reply_id') in completed)]
         score = item.get('score')
         score = round(score) if evidence and not incomplete_speech and type(score) in (int, float) and 0 <= score <= 100 else None
+        dimension_blocked = key == 'posture' and readiness is not None and not readiness['dimension_eligibility']['posture']
+        if dimension_blocked:
+            score = None
         dims.append({'key': key, 'label': label, 'score': score,
-                     'reason': ('引用包含未确认完整播放的学生文字，无法验证原结论，暂不评分；可携证据重评。'
+                     'reason': ('动作或场景证据不足，教态暂不评分；检测失败不代表教学质量差。' if dimension_blocked else
+                                '引用包含未确认完整播放的学生文字，无法验证原结论，暂不评分；可携证据重评。'
                                 if incomplete_speech else str(item.get('reason', '证据不足'))[:1600] if evidence else '证据不足，暂不评分'),
                      'event_ids': evidence,
                      'source_ids': [i for i in refs if isinstance(i, str) and i in source_ids]})
@@ -88,18 +92,30 @@ def usable_visual(event):
     return (event['type'] == 'pose' and data.get('present') is True) or (event['type'] == 'vision' and bool(data.get('observations')))
 
 
+def report_stage(room, stage):
+    import uuid
+    db.session.add(ClassroomEvent(session_id=room.session_id, event_key=uuid.uuid4().hex,
+        kind='report_stage', at_ms=max(0, int(((room.ended_at or datetime.utcnow()) - room.started_at).total_seconds() * 1000)),
+        payload={'stage': stage}))
+    db.session.commit()
+
+
 def request_report(app, session_id, retry=False):
     with locks:
         room = db.session.get(Classroom, session_id)
-        if session_id in jobs or (room.report_state == 'completed' and not retry):
+        # A repeated finish is never authorization to buy another review after failure.
+        if session_id in jobs or (room.report_state != 'idle' and not retry):
             return
         events = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=session_id).order_by(ClassroomEvent.id).all()]
-        elapsed = (room.ended_at - room.started_at).total_seconds() if room.ended_at else 0
-        readiness = report_readiness(events, elapsed, room.cloud_vision)
+        from services.classroom_clock import timing
+        clock = timing(room)
+        readiness = report_readiness(events, clock['wall_elapsed'], room.cloud_vision, active_elapsed=clock['active_elapsed'])
+        report_stage(room, 'checking')
         if room.state != 'ended' or not readiness['eligible']:
             room.report_state = 'insufficient'
             room.report_error = '课堂数据不足，未调用评审 AI；请查看各项缺失原因。'
             db.session.commit()
+            report_stage(room, 'insufficient')
             return
         room.report_state = 'running'
         room.report_error = None
@@ -110,6 +126,7 @@ def request_report(app, session_id, retry=False):
             started = time.monotonic()
             try:
                 room = db.session.get(Classroom, session_id)
+                report_stage(room, 'preparing')
                 events = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=session_id)
                           .order_by(ClassroomEvent.id).all()]
                 evidence = [e for e in events if e['type'] in ('transcript', 'student', 'pose', 'vision', 'interrupt', 'playback')]
@@ -125,21 +142,25 @@ def request_report(app, session_id, retry=False):
                 selected = {e['id']: e for e in visual[::max(1, len(visual) // 50)] + [e for e in visual if e['id'] in cited]}
                 evidence = sorted(spoken + list(selected.values()), key=lambda e: e['id'])
                 sources = search('平均分 分数 提问 教学评价 教态')
+                report_stage(room, 'judging')
                 raw = chat(REPORT_SYSTEM,
                     {'events': evidence, 'references': sources, 'teacher_objection': room.correction, 'motion_evidence': motion,
                      'data_readiness': readiness},
                     session_id, max_tokens=4000)
-                room.report = dict(validate_report(raw, all_evidence, sources), data_readiness=readiness,
+                report_stage(room, 'validating')
+                room.report = dict(validate_report(raw, all_evidence, sources, readiness), data_readiness=readiness,
                                    generation_seconds=round(time.monotonic() - started, 3))
                 room.report_state = 'completed'
                 room.report_version += 1
                 db.session.commit()
+                report_stage(room, 'completed')
             except Exception as exc:
                 db.session.rollback()
                 room = db.session.get(Classroom, session_id)
                 room.report_state = 'failed'
                 room.report_error = str(exc)[:150] if isinstance(exc, ValueError) else '报告生成异常，请重试'
                 db.session.commit()
+                report_stage(room, 'failed')
             finally:
                 with locks:
                     jobs.discard(session_id)

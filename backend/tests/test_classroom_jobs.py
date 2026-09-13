@@ -48,6 +48,29 @@ def test_empty_classroom_fails_without_cloud_or_demo(app,monkeypatch):
     room=wait_for_report(obj.sid)
     assert room.report_state=='insufficient' and room.report is None and room.report_version==0
 
+
+def test_failed_report_needs_explicit_retry_not_repeated_finish(app, monkeypatch):
+    obj = live(app)
+    from test_classroom_readiness import seed_sufficient
+    seed_sufficient(obj.sid)
+    calls = []
+    def fail(*args, **kwargs):
+        calls.append(1)
+        raise ValueError('合成评审失败')
+    monkeypatch.setattr(reports, 'chat', fail)
+    client = app.test_client()
+    url = f'/api/classroom/sessions/{obj.sid}'
+    client.post(url + '/finish', headers=headers(1))
+    assert wait_for_report(obj.sid).report_state == 'failed'
+    stages = [e.payload['stage'] for e in ClassroomEvent.query.filter_by(session_id=obj.sid, kind='report_stage').order_by(ClassroomEvent.id).all()]
+    assert stages == ['checking', 'preparing', 'judging', 'failed']
+    client.post(url + '/finish', headers=headers(1))
+    wait_for_report(obj.sid)
+    assert len(calls) == 1
+    client.post(url + '/report', headers=headers(1), json={})
+    wait_for_report(obj.sid)
+    assert len(calls) == 2
+
 def test_invalid_json_and_no_cache(app):
     obj=live(app); c=app.test_client()
     assert c.post('/api/classroom/sessions',headers=headers(1),json=[]).status_code==400

@@ -17,6 +17,7 @@ from services.classroom_speech import describe, probe_asr, speak
 from services.classroom_runtime import ACTIVE, active_lock, LiveClassroom
 from services.classroom_reports import jobs, request_report
 from services.classroom_readiness import MIN_CLASS_SECONDS, report_readiness
+from services.classroom_clock import timing, transition, clock_lock
 
 bp = Blueprint('classroom', __name__, url_prefix='/api/classroom')
 probe_results = {}
@@ -50,14 +51,20 @@ def owned(sid):
 
 
 def serialize(room, include_events=False):
+    clock = timing(room)
     data = {'session_id': room.session_id, 'topic': room.topic, 'mode': room.mode, 'state': room.state,
             'elapsed': (datetime.utcnow() - room.started_at).total_seconds() if not room.ended_at else (room.ended_at - room.started_at).total_seconds(),
             'cloud_vision': room.cloud_vision, 'report_state': room.report_state,
             'report': room.report, 'report_error': room.report_error, 'report_version': room.report_version,
             'created_at': room.started_at.isoformat(), 'students': room.students}
+    data.update(clock)
+    data['elapsed'] = clock['active_elapsed']
+    phase = ClassroomEvent.query.filter_by(session_id=room.session_id, kind='report_stage').order_by(ClassroomEvent.id.desc()).first()
+    data['report_stage'] = room.report_state if room.report_state in ('completed','failed','insufficient') else phase.payload.get('stage') if phase else room.report_state
     if include_events:
         data['events'] = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=room.session_id).order_by(ClassroomEvent.id).all()]
-        data['report_readiness'] = report_readiness(data['events'], data['elapsed'], room.cloud_vision)
+        data['report_readiness'] = report_readiness(data['events'], clock['wall_elapsed'], room.cloud_vision,
+                                                   active_elapsed=clock['active_elapsed'])
     return data
 
 
@@ -137,7 +144,7 @@ def create():
     if mode_value not in ('full', 'fragment'):
         return jsonify(message='训练模式无效'), 400
     with active_lock:
-        active = Classroom.query.filter_by(user_id=uid, state='active').first()
+        active = Classroom.query.filter_by(user_id=uid).filter(Classroom.state.in_(['active', 'paused'])).first()
         if active:
             return jsonify(serialize(active)), 200
         course = Course.query.filter_by(title='分数的初步认识（AI互动课堂）').first()
@@ -189,6 +196,34 @@ def ticket(sid):
     return jsonify(ticket=secret, expires_in=45)
 
 
+@bp.post('/sessions/<int:sid>/pause')
+@jwt_required()
+def pause(sid):
+    with active_lock, clock_lock:
+        room = owned(sid)
+        runtime = ACTIVE.get(sid)
+        if runtime and runtime.finish_requested:
+            return jsonify(message='课堂正在结束，请等待'), 409
+        transition(room, 'paused')
+        if runtime and not runtime.finish_requested:
+            runtime.closed.set()
+        return jsonify(serialize(room))
+
+
+@bp.post('/sessions/<int:sid>/resume')
+@jwt_required()
+def resume(sid):
+    with active_lock, clock_lock:
+        room = owned(sid)
+        if room.state == 'ended':
+            return jsonify(message='课堂已结束'), 409
+        runtime = ACTIVE.get(sid)
+        if runtime and runtime.closed.is_set():
+            return jsonify(message='上一连接正在关闭，请稍后继续'), 409
+        transition(room, 'active')
+        return jsonify(serialize(room))
+
+
 def consume_ticket(secret):
     digest = hashlib.sha256(secret.encode()).hexdigest()
     changed = db.session.execute(update(ClassroomTicket).where(ClassroomTicket.digest == digest,
@@ -201,8 +236,8 @@ def consume_ticket(secret):
 @jwt_required()
 def finish(sid):
     room = owned(sid)
-    elapsed = (datetime.utcnow() - room.started_at).total_seconds()
-    if room.state == 'active' and elapsed < MIN_CLASS_SECONDS:
+    elapsed = timing(room)['active_elapsed']
+    if room.state in ('active', 'paused') and elapsed < MIN_CLASS_SECONDS:
         return jsonify(message='授课至少满 10 秒后才能结束并评课', minimum_seconds=MIN_CLASS_SECONDS,
                        remaining_seconds=max(0, MIN_CLASS_SECONDS - elapsed)), 409
     with active_lock:
@@ -210,12 +245,12 @@ def finish(sid):
         if runtime and not runtime.closed.is_set():
             runtime.finish_requested = True
             return jsonify(state='draining'), 202
-    if room.state == 'active':
+    if room.state in ('active', 'paused'):
         room.state = 'ended'
         room.ended_at = datetime.utcnow()
         session = db.session.get(TrainingSession, sid)
         session.status = 'completed'
-        session.duration_minutes = min(10, max(1, round((room.ended_at - room.started_at).total_seconds() / 60)))
+        session.duration_minutes = min(10, max(1, round(elapsed / 60)))
         session.progress_percent = 100
         db.session.commit()
     request_report(current_app._get_current_object(), sid)

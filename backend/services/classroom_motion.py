@@ -134,4 +134,23 @@ def motion_evidence(events):
         applicable=lambda f: f['mouth_open'] is not None)
     if sufficient:
         result['eligible_event_ids'] = sorted({e['id'] for e in valid})
+    completed = {e['data'].get('reply_id') for e in events if e.get('type') == 'playback'
+                 and e.get('data', {}).get('status') == 'playback_completed'}
+    completed -= {e.get('data', {}).get('reply_id') for e in events if e.get('type') == 'interrupt'
+                  or (e.get('type') == 'playback' and e.get('data', {}).get('status') == 'playback_failed')}
+    replies = {e['data'].get('reply_id'): e for e in events if e.get('type') == 'student'}
+    context = [e for e in events if e.get('type') == 'transcript']
+    for e in events:
+        rid = e.get('data', {}).get('reply_id')
+        if e.get('type') == 'playback' and rid in completed and rid in replies and type(e.get('at_ms')) is int:
+            context.append(dict(replies[rid], at_ms=e['at_ms'], playback_event_id=e['id']))
+    by_id = {e['id']: e for e in frames}
+    for observation in result['observations']:
+        nearby = [e for e in context if type(e.get('at_ms')) is int and any(abs(e['at_ms'] - by_id[i]['at_ms']) <= 5000
+                                             for i in observation['event_ids'])]
+        observation['context'] = [{'event_id': e['id'], 'at_ms': e['at_ms'],
+            'text': str(e['data'].get('text', ''))[:300], 'playback_event_id': e.get('playback_event_id')}
+            for e in nearby[:8]]
+        observation['context_notice'] = '前后5秒候选关联，不证明手势意图或指向对象。'
+    result['version'] = 'motion-rubric-2'
     return result

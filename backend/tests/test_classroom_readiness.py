@@ -54,19 +54,23 @@ def test_report_gate_cannot_treat_failed_or_missing_evidence_as_sufficient(kind)
     if kind in ('low_confidence', 'multiple'):
         for e in events:
             if e['type'] == 'pose': e['data']['body']['status'] = kind
-    assert not report_readiness(events, 30, cloud_vision=kind == 'cloud_missing')['eligible']
+    result = report_readiness(events, 30, cloud_vision=kind == 'cloud_missing')
+    if kind in ('low_confidence', 'multiple', 'cloud_missing'):
+        assert result['eligible'] and not result['dimension_eligibility']['posture']
+    else:
+        assert not result['eligible']
 
 
 def test_empty_or_invalid_cloud_observations_do_not_count():
     events = sufficient_events()
     for value in ('', '   ', [], None):
         cloud = {'id': 20, 'type': 'vision', 'at_ms': 20000, 'data': {'confidence': .9, 'scene_detected': True, 'observations': value}}
-        assert not report_readiness(events + [cloud], 30, cloud_vision=True)['eligible']
+        assert not report_readiness(events + [cloud], 30, cloud_vision=True)['dimension_eligibility']['posture']
     cloud['data']['observations'] = '画面中可见一位教师正在展示两块等大的纸片。'
     assert report_readiness(events + [cloud], 30, cloud_vision=True)['eligible']
     for detected in (False, 'true', None):
         cloud['data']['scene_detected'] = detected
-        assert not report_readiness(events + [cloud], 30, cloud_vision=True)['eligible']
+        assert not report_readiness(events + [cloud], 30, cloud_vision=True)['dimension_eligibility']['posture']
 
 
 def test_finish_ten_seconds_enforced_for_rest_and_websocket(app):
@@ -80,6 +84,8 @@ def test_finish_ten_seconds_enforced_for_rest_and_websocket(app):
     obj.incoming({'type': 'finish', 'event_id': 'early'})
     assert not obj.finish_requested and obj.ws.messages[-1]['type'] == 'error'
     obj.start -= timedelta(seconds=10)
+    room.started_at = obj.start
+    db.session.commit()
     obj.incoming({'type': 'finish', 'event_id': 'on-time'})
     assert obj.finish_requested
 

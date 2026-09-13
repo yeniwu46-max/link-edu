@@ -113,6 +113,14 @@ class StudentDraft:
 def validate_student(output):
     if not isinstance(output, dict) or output.get('action') not in ('wait', 'raise', 'answer', 'followup'):
         raise ValueError('invalid action')
+    if 'state_version' in output:
+        from services.classroom_learning import INTENTS
+        if type(output['state_version']) is not int or output['state_version'] != 2 or output.get('intent') not in INTENTS:
+            raise ValueError('invalid learning state version or intent')
+        if not isinstance(output.get('state_updates'), list) or len(output['state_updates']) > 3:
+            raise ValueError('invalid state updates')
+        if 'topic_changed' in output and type(output['topic_changed']) is not bool:
+            raise ValueError('invalid topic transition')
     if output['action'] == 'wait':
         return output
     if output.get('student_id') not in ('ming', 'yu', 'lin'):
