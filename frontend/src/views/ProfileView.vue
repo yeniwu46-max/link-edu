@@ -9,6 +9,7 @@
       </div>
     </header>
 
+    <div class="page-scroll">
     <!-- 个人中心：身份、等级、徽章、最近训练 -->
     <div v-if="page === 'center'" class="profile-stack">
       <section class="identity-card">
@@ -170,6 +171,7 @@
           <p v-if="messageError" class="dock-hint" role="alert">{{ messageError }}</p>
         </form>
       </section>
+    </div>
     </div>
   </div>
 </template>

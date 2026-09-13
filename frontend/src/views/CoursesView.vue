@@ -2,13 +2,14 @@
   <div class="sparse-page page-courses">
     <header class="page-head">
       <p class="shiny-kicker">COURSE DECK</p>
-      <SplitTitle text="课程中心" />
+      <h1 class="split-title">课程中心</h1>
       <p class="page-lead">九项教学技能，从专项研习到课堂实践。</p>
       <p v-if="query && !loading" class="course-search-status" role="status">
         搜索“{{ query }}” · {{ filtered.length }} 个结果
       </p>
     </header>
 
+    <div class="page-scroll">
     <div class="course-layout">
       <aside class="filter-rail glass" aria-label="课程分类">
         <button
@@ -61,6 +62,7 @@
         </ul>
       </div>
     </div>
+    </div>
 
     <aside v-if="detail" class="detail-drawer glass" role="dialog">
       <button type="button" class="close-x" aria-label="关闭" @click="detail = null">×</button>
@@ -96,7 +98,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Magnet from '../components/fx/Magnet.vue'
-import SplitTitle from '../components/fx/SplitTitle.vue'
 import SpotlightPane from '../components/fx/SpotlightPane.vue'
 import { fetchCourses } from '../services/dashboard'
 import { filterCourses, normalizeSearchQuery } from '../utils/navigation'
@@ -132,7 +133,7 @@ const filtered = computed(() => {
 
 const featured = computed(() => {
   const sorted = [...filtered.value].sort((a, b) => Number(b.status === 'in_progress') - Number(a.status === 'in_progress'))
-  return sorted.slice(0, 2)
+  return sorted.slice(0, 3)
 })
 
 const rest = computed(() => {

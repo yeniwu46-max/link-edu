@@ -23,6 +23,9 @@
           <div class="hud-meta">
             <span>{{ modeLabel }}</span>
             <span>{{ liveHint }}</span>
+            <span v-if="running" class="hud-rec" :class="{ on: recordingActive }">
+              {{ recordingActive ? `录制中 · ${frameCount} 帧` : '未录制' }}
+            </span>
             <button type="button" class="hud-cam" @click="toggleCamera">
               {{ cameraOn ? '关闭镜头' : '打开镜头' }}
             </button>
@@ -83,6 +86,11 @@
             @update:model-value="pickSkill"
           />
           <p class="dock-hint">{{ setupHint }}</p>
+          <label class="train-record-consent">
+            <input v-model="recordConsent" type="checkbox" />
+            <span>同意本机录制，并上传最多 8 张关键帧用于云端 AI 评课；整段视频不上云。</span>
+          </label>
+          <p v-if="recordError" class="error" role="alert">{{ recordError }}</p>
           <div class="setup-actions">
             <button type="button" class="ghost-link" @click="toggleCamera">
               {{ cameraOn ? '关闭镜头' : '打开镜头观察教态' }}
@@ -108,7 +116,15 @@ import GlassSurface from '../components/fx/GlassSurface.vue'
 import Magnet from '../components/fx/Magnet.vue'
 import SkillPills from '../components/fx/SkillPills.vue'
 import StageWave from '../components/fx/StageWave.vue'
-import { completeTraining, fetchCourses, patchTraining, startTraining } from '../services/dashboard'
+import {
+  completeTraining,
+  fetchCourses,
+  patchTraining,
+  startTraining,
+  uploadTrainingVisualEvidence,
+} from '../services/dashboard'
+import { putRecording } from '../services/trainingReplayStore'
+import { createTrainingRecorder } from '../services/useTrainingRecorder'
 import { loadSettings } from '../utils/settings'
 import { parseCourseId } from '../utils/navigation'
 
@@ -147,10 +163,16 @@ const courseId = ref(parseCourseId(route.query.courseId) || 0)
 const courseTitle = ref('导入技能')
 const courses = ref([])
 const courseError = ref('')
+const recordConsent = ref(false)
+const recordError = ref('')
+const recordingActive = ref(false)
+const frameCount = ref(0)
 let tick = null
+let frameTick = null
 let startedAt = 0
 let sessionPromise = null
 const finishing = ref(false)
+const recorder = createTrainingRecorder()
 
 const modePills = [
   { id: 'fragment', label: '阶段练习 8 分钟' },
@@ -195,6 +217,7 @@ const currentCourse = computed(() => courses.value.find((item) => item.id === co
 const meters = computed(() => [
   { label: '镜头', value: cameraOn.value ? '已开' : '演示' },
   { label: '进度', value: `${progress.value}%` },
+  { label: '录像', value: recordingActive.value ? `${frameCount.value} 帧` : '关' },
   { label: '提示', value: liveHint.value || '跟进中' },
 ])
 
@@ -206,6 +229,9 @@ const { stream, start: startCam, stop: stopCam } = useUserMedia({
 watch(stream, (value) => {
   if (camRef.value) camRef.value.srcObject = value || null
   cameraOn.value = Boolean(value)
+  if (!value && recordingActive.value) {
+    stopRecordingSoft()
+  }
 })
 
 watch(
@@ -303,31 +329,73 @@ onMounted(async () => {
   await loadCourses()
 })
 
+function syncFrameHud() {
+  frameCount.value = recorder.frameCount()
+  recordingActive.value = recorder.isRecording()
+}
+
+function stopRecordingSoft() {
+  if (frameTick) {
+    clearInterval(frameTick)
+    frameTick = null
+  }
+  recordingActive.value = false
+}
+
 async function toggleCamera() {
   if (cameraOn.value) {
+    if (recordingActive.value) {
+      recordError.value = '录制中关闭镜头将停止录像'
+      await recorder.stop(courseTitle.value).catch(() => null)
+      stopRecordingSoft()
+    }
     stopCam()
     return
   }
   try {
     await startCam()
+    recordError.value = ''
   } catch {
     cameraOn.value = false
+    recordError.value = '无法打开镜头，请检查浏览器权限'
   }
 }
 
 async function begin() {
   if (running.value || finishing.value) return
   if (courseError.value || !currentCourse.value) return
+  recordError.value = ''
   if (!courseId.value && mode.value === 'full') pickFullCourse()
   if (!courseId.value) pickSkill(skillCourses.value[0]?.id)
   const prefs = loadSettings()
-  if (prefs.cameraDefault && !cameraOn.value) {
+  const needCamera = recordConsent.value || prefs.cameraDefault
+  if (needCamera && !cameraOn.value) {
     try {
       await startCam()
     } catch {
       cameraOn.value = false
+      if (recordConsent.value) {
+        recordError.value = '已勾选录像但无法打开镜头，将继续训练但不保存录像'
+      }
     }
   }
+
+  if (recordConsent.value && cameraOn.value && stream.value) {
+    try {
+      if (!recorder.supported()) {
+        throw new Error('当前浏览器不支持本机录像')
+      }
+      await new Promise((r) => setTimeout(r, 120))
+      recorder.start(stream.value, { videoEl: camRef.value })
+      recordingActive.value = true
+      syncFrameHud()
+      frameTick = setInterval(syncFrameHud, 1000)
+    } catch (error) {
+      recordingActive.value = false
+      recordError.value = error?.message || '无法开始本机录像'
+    }
+  }
+
   running.value = true
   remain.value = totalSeconds.value
   startedAt = Date.now()
@@ -359,30 +427,101 @@ async function finish() {
   finishing.value = true
   clearInterval(tick)
   tick = null
+  if (frameTick) {
+    clearInterval(frameTick)
+    frameTick = null
+  }
+
+  let recording = null
+  try {
+    if (recorder.isRecording()) {
+      recording = await recorder.stop(courseTitle.value)
+    }
+  } catch {
+    recording = null
+  }
+  recordingActive.value = false
   stopCam()
+
   if (sessionPromise) await sessionPromise
   const payload = {
     duration_minutes: elapsedMinutes.value,
     scene: mode.value === 'full' ? '完整' : scene.value,
     mode: mode.value,
   }
+
+  const frames = recording?.frames?.length ? recording.frames : recorder.getFrames()
+
   try {
     if (!sessionId.value) {
       router.push('/ai-review')
       return
     }
+
     const { feedback } = await completeTraining(sessionId.value, payload)
+
+    if (recording?.blob) {
+      try {
+        await putRecording(sessionId.value, recording.blob, {
+          filename: recording.filename,
+          mimeType: recording.mimeType,
+          courseTitle: courseTitle.value,
+        })
+        recorder.download(recording)
+      } catch {
+        recordError.value = '本机保存录像失败，仍可继续评课'
+      }
+    }
+
+    if (frames.length) {
+      try {
+        await uploadTrainingVisualEvidence(sessionId.value, frames)
+      } catch {
+        /* visual evidence is best-effort */
+      }
+    }
+
     router.push({ path: '/ai-review', query: { sessionId: sessionId.value, feedbackId: feedback?.id } })
   } catch {
     router.push('/ai-review')
   } finally {
     running.value = false
     finishing.value = false
+    recorder.dispose({ keepFrames: false })
   }
 }
 
 onUnmounted(() => {
   clearInterval(tick)
+  if (frameTick) clearInterval(frameTick)
+  recorder.dispose()
   stopCam()
 })
 </script>
+
+<style scoped>
+.train-record-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 8px;
+  color: #cfc6d8;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+.train-record-consent input {
+  margin-top: 3px;
+}
+.hud-rec {
+  color: #9d97a3;
+}
+.hud-rec.on {
+  color: #ff9a4a;
+}
+.train-setup .error {
+  margin: 0 0 8px;
+  color: #ff8f8f;
+  font-size: 13px;
+}
+</style>

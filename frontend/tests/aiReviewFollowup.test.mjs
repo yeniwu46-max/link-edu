@@ -49,6 +49,7 @@ function createReview({ ask: askOverride, generate: generateOverride } = {}) {
         report: completedReport(),
       })),
     },
+    '../services/trainingReplayStore': { getRecording: async () => null },
     '../utils/aiReviewErrors': reviewErrors,
     '../utils/aiReviewState': reviewState,
     '../utils/settings': { loadSettings: () => ({ showDemoBadge: true }) },
@@ -74,6 +75,14 @@ function completedReport(overrides = {}) {
     ...overrides,
   }
 }
+
+test('review dashboard does not turn missing evidence into a zero score', () => {
+  const { state } = createReview()
+  assert.equal(state.statOverallScore.value, null)
+  state.current.value = { id: 7, session_id: 3, overall_score: null, report: completedReport() }
+  assert.equal(state.statOverallScore.value, null)
+  assert.deepEqual(state.dimensions.value, [])
+})
 
 test('a completed report with insufficient evidence allows follow-up without changing scores', async () => {
   const { state, ask } = createReview()

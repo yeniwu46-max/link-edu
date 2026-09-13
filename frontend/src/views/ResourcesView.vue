@@ -107,6 +107,7 @@ onUnmounted(() => {
       </div>
     </header>
 
+    <div class="page-scroll">
     <div class="collection-switch" aria-label="资料来源">
       <button type="button" :aria-pressed="collection === 'library'" @click="collection = 'library'">精选资料</button>
       <button type="button" :aria-pressed="collection === 'courses'" @click="collection = 'courses'">课程资源</button>
@@ -146,6 +147,7 @@ onUnmounted(() => {
     </section>
 
     <p v-if="collection === 'library'" class="resource-note">官方大纲提供 PDF 预览与原始 Word 文件。</p>
+    </div>
 
     <Teleport to="body">
       <dialog v-if="selected" ref="readerRef" class="reader-mask" :aria-labelledby="`reader-title-${selected.id}`" @cancel.prevent="closeReader" @mousedown.self="closeReader">
@@ -190,9 +192,11 @@ onUnmounted(() => {
 .resource-page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 160px);
+  height: 100%;
+  min-height: 0;
   max-width: none;
   padding-bottom: 0;
+  overflow: hidden;
 }
 
 .resource-head {

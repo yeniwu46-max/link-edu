@@ -72,15 +72,9 @@
       <div class="page-frame">
         <router-view v-slot="{ Component }">
           <transition name="page-sweep" mode="out-in">
-            <motion.div
-              class="page-slot"
-              :key="route.path === '/classroom' ? route.path : route.fullPath"
-              :initial="route.path === '/classroom' ? { opacity: 1 } : { opacity: 0.2, filter: 'blur(6px)' }"
-              :animate="{ opacity: 1, filter: route.path === '/classroom' ? 'none' : 'blur(0px)' }"
-              :transition="{ duration: 0.35 }"
-            >
+            <div class="page-slot" :key="route.path === '/classroom' ? route.path : route.fullPath">
               <component :is="Component" />
-            </motion.div>
+            </div>
           </transition>
         </router-view>
       </div>
@@ -93,7 +87,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { motion } from 'motion-v'
 import BrandMark from '../components/BrandMark.vue'
 import HelpChat from '../components/HelpChat.vue'
 import Aurora from '../components/fx/Aurora.vue'

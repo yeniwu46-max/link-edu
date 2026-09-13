@@ -170,6 +170,25 @@ def finish_training_session(session_id):
     return jsonify(session=session.to_dict(), feedback=feedback.to_dict())
 
 
+@content_bp.post('/training/sessions/<int:session_id>/visual-evidence')
+@jwt_required()
+def upload_training_visual_evidence(session_id):
+    from services.training_visual import save_visual_evidence
+
+    user = current_user()
+    if not user:
+        return jsonify(message='用户不存在'), 404
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(message='请求内容必须是 JSON 对象'), 400
+    frames = data.get('frames')
+    result, error = save_visual_evidence(user.id, session_id, frames)
+    if error:
+        status = 404 if error == '训练不存在' else 400
+        return jsonify(message=error), status
+    return jsonify(result)
+
+
 @content_bp.post('/training/sessions/<int:session_id>/ai-review')
 @jwt_required()
 def create_ai_review(session_id):
