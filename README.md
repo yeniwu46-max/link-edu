@@ -38,6 +38,8 @@ python scripts/evaluate_classroom.py check
 
 ## 本次交付 · 2026-09-10
 
+2026-09-13 增量升级：[学习状态、有效计时与本机录像复盘](docs/classroom-learning-replay-20260913.md)。包括暂停/继续、版本化学生认知、取景校准、维度级拒评、真实报告阶段和本机录像证据回放；保留真人验收边界。
+
 [两路合并与上线前整理](docs/integration-delivery-20260910.md)：已整合 `gao/dev` 和提供的 ZIP 更新，保留本机模拟授课及新版 AI 报告，精简无效入口和重复提示，记录冲突取舍与回归结果。
 
 - [课堂播放器与学生形象](docs/classroom-player-refresh-20260910.md)
