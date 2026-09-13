@@ -114,6 +114,10 @@ export function eventLabel(event) {
       error: "课堂提醒",
       latency: "语音延迟",
       playback: "播放状态",
+      pause: "课堂暂停",
+      resume: "课堂恢复",
+      learning: "模拟理解更新",
+      report_stage: "评审阶段",
     }[event.type] || "连接记录"
   );
 }

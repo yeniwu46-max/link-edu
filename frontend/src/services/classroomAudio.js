@@ -18,6 +18,16 @@ export class ClassroomAudio {
     this.volume = Math.max(0, Math.min(1, value));
     this.outputGain?.gain.setTargetAtTime(this.volume, this.ctx.currentTime, .02);
   }
+  recordingStream() {
+    if (!this.ctx || this.disposed) return null;
+    if (!this.recordDestination) {
+      this.recordDestination = this.ctx.createMediaStreamDestination();
+      this.source.connect(this.recordDestination);
+      // Tap the actual playback gain, never feed mixed student audio into ASR.
+      this.outputGain.connect(this.recordDestination);
+    }
+    return this.recordDestination.stream;
+  }
   async start() {
     this.ctx = new AudioContext();
     await this.ctx.resume();

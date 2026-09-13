@@ -74,7 +74,7 @@ async (page) => {
   await drawer.waitFor();
   check(await drawer.locator('#review-evidence-3').isVisible(),'Technical playback evidence must be retained');
   await drawer.getByRole('searchbox',{name:'查找证据'}).fill('#3');
-  check(await drawer.locator('li').count()===1,'Evidence filtering broken');
+  check(await drawer.locator('li[id^="review-evidence-"]').count()===1,'Evidence filtering broken');
   await drawer.getByRole('searchbox',{name:'查找证据'}).fill('');
   await drawer.getByRole('button',{name:'查看截图'}).click();
   await page.getByRole('dialog',{name:'课堂截图证据'}).getByRole('img').waitFor();

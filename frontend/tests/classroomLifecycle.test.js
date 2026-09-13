@@ -144,7 +144,7 @@ test('pausing camera stops its worker and microphone without generating a report
   await f.live.toggleCamera();
   assert.ok(f.workers[0].terminated); assert.ok(f.tracks[1].stopped);
   assert.ok(f.tracks[0].stopped); assert.equal(f.live.pose.value,null);
-  assert.equal(f.live.state.value,'disconnected');
+  assert.equal(f.live.state.value,'paused');
   assert.ok(!f.posts.some(p=>p.endsWith('/finish')));
   f.unmount.forEach(fn=>fn());
 });
@@ -225,7 +225,7 @@ test('external camera removal pauses capture and offers reconnection',async t=>{
   const f=fixture(t); await f.live.begin('full',true,true);
   f.tracks[1].onended(); await Promise.resolve();
   assert.equal(f.live.cameraEnabled.value,false);
-  assert.equal(f.live.state.value,'disconnected');
+  assert.equal(f.live.state.value,'paused');
   assert.ok(f.tracks[0].stopped);
   assert.match(f.live.error.value,/摄像头/);
   f.unmount.forEach(fn=>fn());

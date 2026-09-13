@@ -22,3 +22,10 @@ test('retained terminal text does not keep a student waving after playback', () 
 test('unknown student ids cannot turn into arbitrary image paths', () => {
   assert.equal(studentPresentation('../other').src, '/assets/students/lin-listening.png');
 });
+
+test('interrupted students wait for invitation without raising their hands', () => {
+  const view = studentPresentation('yu', { interactionState: 'interrupted' });
+  assert.equal(view.label, '等待邀请续答');
+  assert.equal(view.pose, 'listening');
+  assert.equal(studentPresentation('yu', { interactionState: 'interrupted', speaking: true }).label, '正在发言');
+});

@@ -111,7 +111,7 @@ async (page) => {
   await page.evaluate(() => { const live=window.__classroomQA; live.state.value='finishing'; });
   check(await page.getByRole('button', { name: '结束并评课' }).isDisabled(), 'Finish must not repeat');
   await page.evaluate(() => { const live=window.__classroomQA; live.state.value='disconnected'; live.activeStudent.value=null; live.error.value='连接已断开，请重新连接。'; });
-  check(await page.getByRole('button', { name: '重新连接', exact: true }).isVisible(), 'Reconnect missing');
+  check(await page.getByRole('button', { name: '继续授课', exact: true }).isVisible(), 'Reconnect missing');
   await page.evaluate(() => {
     const live=window.__classroomQA; live.state.value='ended'; live.partial.value=''; live.error.value=''; live.raised.value=null;
     const events=[{id:1,type:'transcript',at_ms:1000,data:{text:'每份一样大，才是平均分。'}},{id:2,type:'playback',at_ms:5000,data:{status:'playback_completed'}},{id:3,type:'vision',at_ms:15000,data:{observations:'教师展示了等分示意图。'}}];

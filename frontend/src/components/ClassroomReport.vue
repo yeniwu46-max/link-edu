@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { buildReview, formatReportTime as time, formatReportDate } from '../services/classroomReview.js';
 import { eventLabel, eventText } from '../services/classroomStatus.js';
 import ClassroomDialog from './ClassroomDialog.vue';
+import ClassroomReplay from './ClassroomReplay.vue';
 const props=defineProps({room:Object,busy:Boolean});
 const emit=defineEmits(['regenerate']);
 const view=computed(()=>buildReview(props.room));
@@ -12,6 +13,8 @@ const selectedKey=ref('clarity');
 const selected=computed(()=>view.value.dimensions.find(d=>d.key===selectedKey.value)||view.value.dimensions[0]);
 const status=computed(()=>({idle:'待评课',running:'评课进行中',completed:'已完成',failed:'生成失败',insufficient:'证据不足 · 未生成'}[props.room.report_state]||'待评课'));
 const drawerOpen=ref(false), drawerTitle=ref('课堂证据'), evidence=ref([]), filter=ref('');
+const playbackEvent=ref(null);
+const reportStage=computed(()=>({checking:'检查最低证据',preparing:'整理课堂证据',judging:'AI 评审中',validating:'校验评审结果',completed:'完成',failed:'生成失败'}[props.room.report_stage]||'等待评审状态'));
 const imageOpen=ref(false), image=ref(''), imageError=ref(''), imageLoading=ref(false), objection=ref('');
 let imageRequest=0;
 const filtered=computed(()=>evidence.value.filter(e=>!filter.value || `${eventLabel(e)} ${eventText(e)} #${e.id} ${time(e.at_ms)}`.includes(filter.value.trim())));
@@ -20,7 +23,7 @@ const sources=computed(()=>props.room.report?.sources||[]);
 const sourceLink=s=>/^https?:\/\//i.test(s.url||s.source||'')?(s.url||s.source):null;
 const modalityLabels={body:'身体姿态',hands:'手势动作',face:'面部几何'};
 const ratio=m=>m.total_samples>0?Math.max(0,Math.min(100,m.observed_samples/m.total_samples*100)):0;
-function showEvidence(items,title){evidence.value=items;drawerTitle.value=title;filter.value='';drawerOpen.value=true;}
+function showEvidence(items,title){evidence.value=items;playbackEvent.value=items[0]||null;drawerTitle.value=title;filter.value='';drawerOpen.value=true;}
 async function showImage(event){
   const request=++imageRequest;
   imageError.value='';imageLoading.value=true;imageOpen.value=true;
@@ -42,7 +45,9 @@ function regenerate(){
 <template>
   <article class="evidence-report" aria-label="课堂 AI 评课报告">
     <div class="report-status-line"><span :class="['report-status',room.report_state]"><i aria-hidden="true" />{{ status }}</span><span>{{ view.hasReport ? '报告版本 v'+(room.report_version||1) : '记录已保留' }}</span></div>
-    <div v-if="room.report_state==='running'" class="review-inline-alert" role="status">正在生成报告。可离开此页，稍后从历史课堂继续查看。</div>
+    <div v-if="room.report_state==='running'" class="review-inline-alert" role="status" aria-live="polite">{{reportStage}}。可离开此页，稍后从历史课堂继续查看。</div>
+    <button class="review-button no-print" @click="showEvidence(view.events,'录像与课堂记录')">录像与课堂记录</button>
+    <p v-if="view.hasReport && room.report?.data_readiness?.dimension_eligibility?.posture===false" class="review-inline-alert" role="status">动作或场景证据不足，本报告仅评价其他有证据的维度，教态不评分。</p>
     <p v-if="room.report_state==='failed'" class="review-inline-alert" role="alert">{{ room.report_error || '报告生成失败，可在下方重试。' }}</p>
     <section v-if="room.report_state==='insufficient'" class="report-blocked review-panel">
       <ShieldCheck aria-hidden="true" /><h2>这节课的证据，还不足以形成评课</h2><p>本次未生成 AI 评课报告，也不会用替代分数填补缺项。</p>
@@ -102,7 +107,7 @@ function regenerate(){
       <p class="review-caption">采样可观察率不是教态得分，也不是整课时长占比。面部几何不用于推断情绪、性格或自信程度。</p>
       <details class="report-fold"><summary>查看动作线索与检测边界</summary>
         <p v-if="motion.status!=='observed'">有效动作证据不足，不能据此给出教态评分。</p>
-        <article v-for="o in motion.observations" :key="o.code"><h3>{{ o.description }}</h3><p>{{ o.matched_samples }} / {{ o.observed_samples }} 个有效样本出现该线索；连续采样跨度 {{ (o.longest_observed_span_ms/1000).toFixed(1) }} 秒（非持续动作测量）。</p><p>启发式提示：{{ o.suggestion }}</p><button class="review-button no-print" @click="showEvidence(view.events.filter(e=>o.event_ids?.includes(e.id)),o.description+' · 证据')">查看相关记录</button></article>
+        <article v-for="o in motion.observations" :key="o.code"><h3>{{ o.description }}</h3><p>{{ o.matched_samples }} / {{ o.observed_samples }} 个有效样本出现该线索；连续采样跨度 {{ (o.longest_observed_span_ms/1000).toFixed(1) }} 秒（非持续动作测量）。</p><p>启发式提示：{{ o.suggestion }}</p><p v-if="o.context_notice">{{o.context_notice}}</p><p v-for="c in o.context||[]" :key="c.event_id">#{{c.event_id}} · {{time(c.at_ms)}}：{{c.text}}</p><button class="review-button no-print" @click="showEvidence(view.events.filter(e=>o.event_ids?.includes(e.id)||o.context?.some(c=>c.event_id===e.id||c.playback_event_id===e.id)),o.description+' · 证据')">查看相关记录</button></article>
         <p v-for="note in motion.limitations" :key="note">{{ note }}</p>
       </details>
     </section>
@@ -116,14 +121,15 @@ function regenerate(){
       <details class="report-fold"><summary>这份评课如何形成</summary><p>课堂事件 → AI 六维判断 → 服务端引用及证据校验 → 本页可视化。此页面直接读取本节已保存的 AI 报告，不重新生成或改写结论。</p><p>分数不是标准化教育量表，尚无人工校准的信度、效度或常模支持；不提供排名、百分位、显著性或因果推断。</p><p>转写可能存在识别误差。应结合教师自我纠错和实际播放记录复核判断；无视觉证据不评价教态，动作不能推导心理状态。</p><p>报告生成：{{ formatReportDate(room.report.generated_at) }} · 模型标识：{{ room.report.model || '此历史报告未记录' }} · 当前展示版本：v{{ room.report_version || 1 }}</p><p>{{ room.report.notice }}</p></details>
       <details class="report-fold"><summary>教学依据与来源（{{ sources.length }}）</summary><p class="review-caption">以下为本次报告保存的检索资料，用于解释教学判断，不代表量表已获得科学验证。</p><article v-for="s in sources" :key="s.id"><h3>{{ s.title }}</h3><small>{{ s.type }} · {{ s.location }}</small><p>{{ s.text }}</p><a v-if="sourceLink(s)" :href="sourceLink(s)" target="_blank" rel="noopener noreferrer">查看原始来源 ↗</a><span v-else>{{ s.source }}</span></article><p v-if="!sources.length">本次报告未记录教学资料来源。</p></details>
     </section>
-    <details v-if="!['running','insufficient'].includes(room.report_state)" class="review-panel report-correction no-print">
+    <details v-if="room.report_state!=='running' && (room.report_state!=='insufficient' || room.report_readiness?.eligible)" class="review-panel report-correction no-print">
       <summary><Refresh aria-hidden="true" />补充证据 / 重新评课</summary>
       <div class="correction-form"><label for="report-objection">补充说明（可选，不会直接加分）</label><textarea id="report-objection" v-model="objection" maxlength="2000" rows="3" placeholder="例如：02:15 我已更正前面的表述，请结合该段重新核对。" /><button class="review-button" :disabled="busy" @click="regenerate">{{ busy?'请求中…':view.hasReport?'重新评课':room.report_state==='failed'?'重试生成':'生成报告' }}</button><small>仅主动确认后调用 AI，会消耗授课额度。成功后更新报告。</small></div>
     </details>
     <footer class="report-footer">LINK · 每一份判断，都应回到课堂本身。<span>教师自主复核 · AI 辅助成长</span></footer>
     <ClassroomDialog v-model="drawerOpen" :title="drawerTitle">
+      <ClassroomReplay v-if="drawerOpen" :room="room" :event="playbackEvent" />
       <div class="report-evidence-drawer"><p class="review-caption">本节课堂原始记录 · {{ evidence.length }} 条</p><label class="evidence-search">查找证据<input v-model="filter" type="search" placeholder="关键词、事件编号或时间" /></label>
-        <ol><li v-for="e in filtered" :key="e.id" :id="'review-evidence-'+e.id"><header><span>{{ eventLabel(e) }}</span><time>{{ time(e.at_ms) }}</time><small>#{{ e.id }}</small></header><p>{{ eventText(e) }}</p><small v-if="e.type==='student'">生成文字；是否完整播放请核对同一 reply_id 的播放记录。</small><button v-if="e.type==='vision'" class="review-button" @click="showImage(e)"><Photo aria-hidden="true" />查看截图</button><details><summary>原始事件数据</summary><pre>{{ JSON.stringify(e,null,2) }}</pre></details></li></ol>
+        <ol><li v-for="e in filtered" :key="e.id" :id="'review-evidence-'+e.id"><header><span>{{ eventLabel(e) }}</span><button class="review-button" :aria-label="'回放 '+time(e.at_ms)+' 的课堂证据'" @click="playbackEvent=e"><time>{{ time(e.at_ms) }}</time></button><small>#{{ e.id }}</small></header><p>{{ eventText(e) }}</p><small v-if="e.type==='student'">生成文字；是否完整播放请核对同一 reply_id 的播放记录。</small><button v-if="e.type==='vision'" class="review-button" @click="showImage(e)"><Photo aria-hidden="true" />查看截图</button><details><summary>原始事件数据</summary><pre>{{ JSON.stringify(e,null,2) }}</pre></details></li></ol>
         <p v-if="!filtered.length">没有匹配的记录。</p>
       </div>
     </ClassroomDialog>

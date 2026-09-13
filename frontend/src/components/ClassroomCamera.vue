@@ -41,7 +41,9 @@ const expanded = ref(false),
   mirror = ref(false),
   now = ref(0);
 const settingsOpen = ref(false);
-defineExpose({openSettings: () => { settingsOpen.value = true; }});
+defineExpose({openSettings: () => { settingsOpen.value = true; },
+  recordingSnapshot:()=>({video:video.value,mirror:mirror.value,captions:captions.value,
+    captionText:captionText.value,captionLabel:captionLabel.value})});
 let prefs = {};
 try {
   prefs =

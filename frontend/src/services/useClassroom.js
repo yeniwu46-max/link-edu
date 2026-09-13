@@ -30,6 +30,9 @@ export function useClassroom() {
     elapsed = ref(0),
     cloudVision = ref(false),
     busy = ref(false);
+  const wallElapsed = ref(0), audioForRecording = ref(null);
+  let wallBase = 0;
+  let evidenceStartedAt = Infinity;
   let ws,
     audio,
     cameraStream,
@@ -81,10 +84,13 @@ export function useClassroom() {
     events.value = room.value.events || [];
     seen.clear();
     events.value.forEach((e) => seen.add(e.id));
-    elapsed.value = room.value.elapsed;
+    wallElapsed.value = room.value.wall_elapsed ?? room.value.elapsed;
+    wallBase = performance.now() - wallElapsed.value * 1000;
+    elapsed.value = room.value.active_elapsed ?? room.value.elapsed;
     syncClock(room.value.elapsed, room.value.state === 'active');
     cloudVision.value = room.value.cloud_vision;
     if (room.value.state === "ended") state.value = "ended";
+    else if (room.value.state === 'paused') state.value = 'paused';
   }
   function syncClock(seconds, running = true) {
     clearInterval(clock);
@@ -92,6 +98,7 @@ export function useClassroom() {
     baseTime = performance.now() - elapsed.value * 1000;
     if (running) clock = setInterval(() => {
       elapsed.value = Math.max(0, (performance.now() - baseTime) / 1000);
+      wallElapsed.value = Math.max(0, (performance.now() - wallBase) / 1000);
     }, 250);
   }
   async function connect() {
@@ -133,6 +140,8 @@ export function useClassroom() {
         return;
       reply.value = reduceReply(reply.value, m);
       if (m.type === "connected") {
+        wallElapsed.value = m.wall_elapsed ?? m.elapsed;
+        wallBase = performance.now() - wallElapsed.value * 1000;
         students.value = m.students;
         syncClock(m.elapsed);
       }
@@ -140,12 +149,13 @@ export function useClassroom() {
         capabilities.value.budget = m.budget;
       if (m.type === "ready") {
         clearTimeout(connectTimeout);
+        evidenceStartedAt = performance.now();
         state.value = "listening";
       }
       if (m.type === "event" && !seen.has(m.event.id)) {
         seen.add(m.event.id);
         events.value.push(m.event);
-        if (m.event.type === "student")
+        if (['student', 'learning', 'playback'].includes(m.event.type) && m.event.data.states)
           room.value.students = m.event.data.states;
       }
       if (m.type === "partial") partial.value = m.text;
@@ -163,6 +173,7 @@ export function useClassroom() {
         if (m.ok === false) error.value = "学生语音播放失败，可查看回复文字。";
       }
       if (m.type === "cancel") {
+        if (m.states) room.value.students = m.states;
         playbackStudent.value = null;
         audio?.cancel(m.reply_id);
         activeStudent.value = null;
@@ -194,6 +205,7 @@ export function useClassroom() {
       audio?.close();
       stopCamera();
       if (state.value !== "ended" && !disposed) {
+        clearInterval(clock);
         state.value = "disconnected";
         error.value ||= "连接已断开，已保存记录保留。请点击重连。";
       }
@@ -251,9 +263,15 @@ export function useClassroom() {
       state.value = 'connecting';
       await prepareDevices();
       await load(room.value.session_id);
+      if (room.value.state === 'paused') {
+        const { data } = await api.post(`/classroom/sessions/${room.value.session_id}/resume`, {}, {timeout:10000,skipBusy:true});
+        room.value = {...room.value, ...data};
+      }
       if (room.value.state === "active") await connect();
       else { await audio?.close(); stopCamera(); }
     } catch (e) {
+      await audio?.close();
+      stopCamera();
       await audio?.close();
       stopCamera();
       error.value = e.message || "重连失败，请稍后重试";
@@ -329,6 +347,7 @@ export function useClassroom() {
     audio.setVolume(volume.value);
     try {
       await audio.start();
+      audioForRecording.value = () => audio?.recordingStream();
     } catch {
       throw new Error("麦克风不可用，请允许权限并检查设备");
     }
@@ -410,7 +429,8 @@ export function useClassroom() {
           at: data.captured_at ?? performance.now(),
         };
         const now = performance.now();
-        if (now - landmarks.value.at < 1500 && now - lastMotionSent >= 2100) {
+        if (Number.isFinite(data.captured_at) && data.captured_at >= evidenceStartedAt &&
+            now - landmarks.value.at < 1500 && now - lastMotionSent >= 2100) {
           send("pose", { data: data.data });
           lastMotionSent = now;
         }
@@ -439,6 +459,7 @@ export function useClassroom() {
     poseWorker.postMessage({ type: "init" });
   }
   function stopCamera() {
+    evidenceStartedAt = Infinity;
     clearTimeout(motionTimeout);
     clearInterval(frameTimer);
     clearInterval(visionTimer);
@@ -550,14 +571,27 @@ export function useClassroom() {
       cameraPending = false;
     }
   }
-  function pauseCapture(message = '已暂停摄像头与麦克风采集，记录保留；可重新连接继续授课。') {
+  async function pauseCapture(message = '课堂已暂停，设备与倒计时均已停止。') {
+    if (message !== '课堂已暂停，设备与倒计时均已停止。') error.value = message;
+    clearInterval(clock);
+    const previous = ws;
+    ws = null; // Invalidate close callbacks before asynchronous pause acknowledgement.
     stopCamera();
     audio?.close();
-    ws?.close();
-    if (room.value?.state === 'active') {
-      state.value = 'disconnected';
-      error.value = message;
+    if (room.value && room.value.state !== 'ended') {
+      busy.value = true;
+      state.value = 'paused';
+      try {
+        const {data} = await api.post(`/classroom/sessions/${room.value.session_id}/pause`, {}, {timeout:10000,skipBusy:true});
+        room.value = {...room.value, ...data};
+        elapsed.value = data.active_elapsed ?? data.elapsed ?? elapsed.value;
+      } catch {
+        error.value = '设备已停止，暂停状态尚未确认；恢复前将重新读取服务端状态。';
+      } finally {
+        busy.value = false;
+      }
     }
+    previous?.close();
   }
   function setVision() {
     send("vision_consent", { enabled: cloudVision.value });
@@ -582,6 +616,8 @@ export function useClassroom() {
   });
   return {
     room,
+    wallElapsed,
+    audioForRecording,
     volume,
     setVolume,
     cameraResolution,

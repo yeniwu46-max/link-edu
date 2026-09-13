@@ -51,7 +51,8 @@ async function initialize(){
   }else loading.value=false;
 }
 async function regenerate(objection){
-  if(busy.value || !room.value || ['running','insufficient'].includes(room.value.report_state))return;
+  if(busy.value || !room.value || room.value.report_state==='running' ||
+    (room.value.report_state==='insufficient' && !room.value.report_readiness?.eligible))return;
   busy.value=true;error.value='';
   try {
     const {data}=await api.post(`/classroom/sessions/${room.value.session_id}/report`,{objection},{timeout:20000,skipBusy:true});
@@ -96,7 +97,7 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
     <section v-else-if="!room && !error && !historyError" class="review-empty-state"><h2>你的第一份评课，等待一节真实课堂</h2><p>完成授课后，AI 结论与课堂证据会一起保存在这里。</p><router-link class="review-button primary" to="/classroom">进入模拟课堂<ArrowUpRight aria-hidden="true" /></router-link></section>
     <template v-if="room">
       <div class="review-session-meta"><span>课堂 #{{ room.session_id }} · {{ room.topic }}</span><span>{{ formatReportDate(room.created_at) }} · {{ formatReportTime(Number.isFinite(room.elapsed)?room.elapsed*1000:NaN) }}</span></div>
-      <section v-if="room.state==='active'" class="review-empty-state"><h2>这节课堂还未结束</h2><p>此处不会提前生成评分。</p><router-link class="review-button" :to="classroomDestination(room)">返回课堂</router-link></section>
+      <section v-if="['active','paused'].includes(room.state)" class="review-empty-state"><h2>这节课堂还未结束</h2><p>此处不会提前生成评分。</p><router-link class="review-button" :to="classroomDestination(room)">返回课堂</router-link></section>
       <ClassroomReport v-else :room="room" :busy="busy" @regenerate="regenerate" />
     </template>
   </div>

@@ -4,7 +4,7 @@ import { createBubbleRetention } from '../services/classroomBubble.js';
 import { studentPresentation } from '../services/classroomStudent.js';
 const props = defineProps({
   student: Object, raised: Boolean, speaking: Boolean, level: Number,
-  understanding: String, reply: Object, compact: Boolean,
+  understanding: String, reply: Object, compact: Boolean, interactionState: String,
 });
 defineEmits(['select']);
 const bubble = ref(null), visibleReply = ref(null);
