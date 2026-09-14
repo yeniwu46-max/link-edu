@@ -5,6 +5,7 @@ import MarkdownReader from "../components/MarkdownReader.vue";
 import CourseResourceCatalog from "../components/CourseResourceCatalog.vue";
 import SplitTitle from "../components/fx/SplitTitle.vue";
 import { libraryResources, libraryTabs } from "../data/libraryResources";
+import { boardCoverFor } from "../data/libraryBoardCovers";
 
 const tab = ref("全部");
 const collection = ref('library');
@@ -17,6 +18,15 @@ const layoutKey = ref(0);
 const readerRef = ref(null);
 let readerTrigger = null;
 let requestId = 0;
+
+const categoryTone = {
+  官方标准: "official",
+  课题专包: "topic",
+  评课说明: "review",
+  实操清单: "checklist",
+  院校案例: "case",
+  外部资源: "external",
+};
 
 const visible = computed(() => {
   if (tab.value === "全部") return libraryResources;
@@ -37,6 +47,33 @@ const visible = computed(() => {
     },
   }));
 });
+
+const boardColumns = computed(() => {
+  const order = libraryTabs.filter((name) => name !== "全部");
+  const items = visible.value;
+  return order
+    .map((category) => ({
+      category,
+      tone: categoryTone[category] || "topic",
+      items: items.filter((item) => item.category === category),
+    }))
+    .filter((column) => column.items.length);
+});
+
+/** Fill left-to-right so shorter categories do not leave empty holes between columns. */
+const boardCards = computed(() =>
+  boardColumns.value.flatMap((column) =>
+    column.items.map((item) => ({
+      ...item,
+      tone: column.tone,
+    })),
+  ),
+);
+
+function metaLabel(item) {
+  if (item.pages) return `${item.format} · ${item.pages} 页`;
+  return item.format || "点击阅读";
+}
 
 async function open(item) {
   readerTrigger = document.activeElement;
@@ -146,7 +183,46 @@ onUnmounted(() => {
       />
     </section>
 
-    <p v-if="collection === 'library'" class="resource-note">官方大纲提供 PDF 预览与原始 Word 文件。</p>
+    <section v-if="collection === 'library'" class="resource-board" aria-label="分类资料浏览">
+      <header class="resource-board__head">
+        <div>
+          <p>BROWSE BY TOPIC</p>
+          <h2>分类浏览</h2>
+        </div>
+        <span>封面来自公开图库 · 点击卡片阅读</span>
+      </header>
+      <div class="resource-board__legend" aria-label="分类数量">
+        <span v-for="column in boardColumns" :key="`legend-${column.category}`">
+          {{ column.category }} <b>{{ column.items.length }}</b>
+        </span>
+      </div>
+      <div class="resource-board__grid">
+        <button
+          v-for="item in boardCards"
+          :key="`board-${item.id}`"
+          type="button"
+          class="resource-board-card"
+          :data-tone="item.tone"
+          @click="open(item)"
+        >
+          <em>{{ item.category }}</em>
+          <strong>{{ item.title }}</strong>
+          <p>{{ item.description }}</p>
+          <span class="resource-board-card__meta">{{ metaLabel(item) }}</span>
+          <span class="resource-board-card__media">
+            <img
+              :src="boardCoverFor(item)"
+              :alt="`${item.title}封面`"
+              loading="lazy"
+              decoding="async"
+            />
+            <i aria-hidden="true">+</i>
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <p v-if="collection === 'library'" class="resource-note">课题专包与评课说明为训练摘要；官方大纲提供 PDF 预览与原始 Word。非正式国标条目均已在简介中标明。</p>
     </div>
 
     <Teleport to="body">
@@ -296,8 +372,9 @@ onUnmounted(() => {
 
 .resource-deck {
   position: relative;
-  min-height: 540px;
-  flex: 1;
+  min-height: 420px;
+  height: min(48vh, 460px);
+  flex: 0 0 auto;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 20px;
@@ -309,6 +386,185 @@ onUnmounted(() => {
   background-size: auto, 42px 42px, 42px 42px, auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   isolation: isolate;
+}
+
+.resource-board {
+  margin-top: 22px;
+  display: grid;
+  gap: 14px;
+}
+
+.resource-board__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.resource-board__head p {
+  margin: 0 0 4px;
+  color: #9d97a3;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+}
+
+.resource-board__head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.resource-board__head > span {
+  color: #8f8994;
+  font-size: 12px;
+}
+
+.resource-board__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.resource-board__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b9b3bd;
+  font-size: 12px;
+}
+
+.resource-board__legend b {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: #d8d2dc;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.resource-board__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  justify-content: start;
+}
+
+.resource-board-card {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 16px 16px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(32, 27, 40, 0.92), rgba(14, 11, 18, 0.88));
+  color: inherit;
+  text-align: left;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.06);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.resource-board-card:hover,
+.resource-board-card:focus-visible {
+  border-color: rgba(255, 154, 66, 0.55);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.resource-board-card em {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+.resource-board-card[data-tone="official"] em {
+  color: #ffd1ad;
+  background: rgba(255, 122, 24, 0.16);
+}
+.resource-board-card[data-tone="topic"] em {
+  color: #e2beff;
+  background: rgba(180, 92, 255, 0.16);
+}
+.resource-board-card[data-tone="review"] em {
+  color: #9fd6ff;
+  background: rgba(72, 140, 220, 0.18);
+}
+.resource-board-card[data-tone="checklist"] em {
+  color: #ffc2d8;
+  background: rgba(220, 90, 140, 0.16);
+}
+.resource-board-card[data-tone="case"] em {
+  color: #9fe7c8;
+  background: rgba(56, 160, 120, 0.16);
+}
+.resource-board-card[data-tone="external"] em {
+  color: #ffe0a3;
+  background: rgba(200, 140, 40, 0.16);
+}
+
+.resource-board-card strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 650;
+}
+
+.resource-board-card p {
+  margin: 0;
+  color: #a9a1ae;
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.resource-board-card__meta {
+  color: #8f8994;
+  font-size: 12px;
+}
+
+.resource-board-card__media {
+  position: relative;
+  display: block;
+  margin-top: 4px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1a1520;
+  aspect-ratio: 16 / 10;
+}
+
+.resource-board-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.resource-board-card__media i {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 182, 150, 0.92);
+  color: #1a1010;
+  font-style: normal;
+  font-size: 22px;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .deck-instruction {
@@ -509,12 +765,22 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
     min-height: 0;
+    height: auto;
     padding: 14px;
     overflow: visible;
   }
 
   .deck-instruction {
     display: none;
+  }
+
+  .resource-board__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resource-board__head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
@@ -528,6 +794,10 @@ onUnmounted(() => {
   }
 
   .resource-deck {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-board__grid {
     grid-template-columns: 1fr;
   }
 

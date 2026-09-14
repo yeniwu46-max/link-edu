@@ -100,10 +100,30 @@ def seed_if_empty():
     db.session.add_all(feedbacks)
 
     resources = [
-        Resource(title='微格教案模板', category='教案', description='适用于 10 分钟片段教学'),
-        Resource(title='课堂提问设计素材包', category='素材', description='导入、提问、总结三类场景'),
-        Resource(title='AI 评课示例报告', category='报告', description='查看完整评课维度拆解'),
-        Resource(title='师范生成长档案样例', category='档案', description='训练记录与成长轨迹示例'),
+        Resource(
+            title='分数微格教案样例',
+            category='教案',
+            description='8–10 分钟样例；训练用，非正式国标',
+            file_url='/library/original/fraction-micro-lesson.md',
+        ),
+        Resource(
+            title='开课设备与授权检查',
+            category='素材',
+            description='训前设备与授权清单',
+            file_url='/library/original/device-preflight-checklist.md',
+        ),
+        Resource(
+            title='六维评课量规说明',
+            category='报告',
+            description='六维与证据原则',
+            file_url='/library/original/review-six-dimensions.md',
+        ),
+        Resource(
+            title='公开教学资料索引',
+            category='档案',
+            description='公开链接索引，不转载全文',
+            file_url='/library/original/public-sources-index.md',
+        ),
     ]
     db.session.add_all(resources)
     db.session.commit()
@@ -385,16 +405,72 @@ def _match_course(item, courses):
 
 
 EXTRA_RESOURCES = [
-    {'title': '10 分钟微格教案模板', 'category': '教案', 'description': '目标—过程—板书—作业四栏，贴合师范技能训练常用结构'},
-    {'title': '导入技能教案示例', 'category': '教案', 'description': '引起注意、激发动机、进入目标的示范教案'},
-    {'title': '结束技能教案示例', 'category': '教案', 'description': '总结、作业、激励三步收口'},
-    {'title': '候答 8 秒提示卡', 'category': '素材', 'description': '提问后沉默等待的课堂提示'},
-    {'title': '高阶提问动词表', 'category': '素材', 'description': '解释、比较、推断、评价等可迁移提问词'},
-    {'title': '板书分区示意图说明', 'category': '素材', 'description': '左结构右例证，避免整板抄写'},
-    {'title': '六维评课量表', 'category': '报告', 'description': '表达、节奏、互动、教态、提问、结构对照表'},
-    {'title': '演示评分与规则分说明', 'category': '报告', 'description': '本期评课可复现，便于评审核对'},
-    {'title': '成长档案填写说明', 'category': '档案', 'description': '近 30 天回放、热力图与训练日志怎么记'},
-    {'title': '教师职业技能训练大纲导读', 'category': '档案', 'description': '九项课堂教学技能先分项、再综合，依据公开大纲改编，不替代原文件'},
+    {
+        'title': '分数微格教案样例',
+        'category': '教案',
+        'description': '8–10 分钟《分数的初步认识》样例；自编训练用，非正式国标',
+        'file_url': '/library/original/fraction-micro-lesson.md',
+    },
+    {
+        'title': '分数核心知识卡',
+        'category': '教案',
+        'description': '平均分、单位分数、同一整体；训练摘要，非正式国标',
+        'file_url': '/library/original/fraction-knowledge-card.md',
+    },
+    {
+        'title': '10 分钟时间分配表',
+        'category': '教案',
+        'description': '导入—新授—追问—小结分钟建议',
+        'file_url': '/library/original/time-allocation-10min.md',
+    },
+    {
+        'title': '分数典型误解对照表',
+        'category': '素材',
+        'description': '纠错与追问对照；训练用，非正式国标',
+        'file_url': '/library/original/fraction-misconceptions.md',
+    },
+    {
+        'title': '开课设备与授权检查',
+        'category': '素材',
+        'description': '麦克风、摄像头、本机录像等训前检查',
+        'file_url': '/library/original/device-preflight-checklist.md',
+    },
+    {
+        'title': '板书自检 8 条',
+        'category': '素材',
+        'description': '课题、平均分、单位分数与分区自检',
+        'file_url': '/library/original/board-self-check.md',
+    },
+    {
+        'title': '公开教学资料索引',
+        'category': '素材',
+        'description': '大纲目录与分数策略文链接；不转载全文',
+        'file_url': '/library/original/public-sources-index.md',
+    },
+    {
+        'title': '六维评课量规说明',
+        'category': '报告',
+        'description': '六维看什么、何时暂不评分；非教资官方量表',
+        'file_url': '/library/original/review-six-dimensions.md',
+    },
+    {
+        'title': '证据门槛一页纸',
+        'category': '报告',
+        'description': '有效时长、转写与完整播放门槛摘要',
+        'file_url': '/library/original/review-evidence-threshold.md',
+    },
+    {
+        'title': '成长档案填写说明',
+        'category': '档案',
+        'description': '近 30 天回放、热力图与训练日志怎么记（站内成长页）',
+        'file_url': '/growth',
+    },
+    {
+        'title': '教师职业技能训练大纲导读',
+        'category': '档案',
+        'description': '九项技能先分项再综合；公开大纲改编，不替代原文件',
+        'file_url': 'https://jnzx.zznu.edu.cn/info/1051/3771.htm',
+    },
 ]
 
 
@@ -424,12 +500,27 @@ def ensure_demo_catalog():
             stub.is_active = False
             added = True
 
-    titles = {resource.title for resource in Resource.query.all()}
+    resources_by_title = {resource.title: resource for resource in Resource.query.all()}
     for item in EXTRA_RESOURCES:
-        if item['title'] in titles:
+        resource = resources_by_title.get(item['title'])
+        if resource is None:
+            db.session.add(Resource(
+                title=item['title'],
+                category=item['category'],
+                description=item['description'],
+                file_url=item.get('file_url'),
+            ))
+            added = True
             continue
-        db.session.add(Resource(title=item['title'], category=item['category'], description=item['description']))
-        added = True
+        if resource.category != item['category']:
+            resource.category = item['category']
+            added = True
+        if resource.description != item['description']:
+            resource.description = item['description']
+            added = True
+        if item.get('file_url') and resource.file_url != item['file_url']:
+            resource.file_url = item['file_url']
+            added = True
 
     demo = User.query.filter_by(account='demo').first()
     if demo and not demo.school:

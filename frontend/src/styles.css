@@ -2669,6 +2669,81 @@ button.learn-more:focus-visible{
   border-radius:50%;
   background:rgba(255,255,255,.07);
 }
+.page-courses .mooc-extend{
+  margin-top:28px;
+  padding-top:8px;
+}
+.page-courses .mooc-extend__head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:14px;
+}
+.page-courses .mooc-extend__head h2{
+  margin:6px 0 0;
+  font-size:clamp(22px,2vw,28px);
+  font-weight:650;
+  letter-spacing:-.02em;
+}
+.page-courses .mooc-extend__head>p{
+  margin:0;
+  max-width:36ch;
+  color:#8f8994;
+  font-size:12px;
+  line-height:1.55;
+  text-align:right;
+}
+.page-courses .mooc-extend__grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.page-courses .mooc-card{
+  display:grid;
+  gap:8px;
+  min-height:148px;
+  padding:20px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:20px;
+  background:linear-gradient(145deg,rgba(27,23,34,.67),rgba(10,8,14,.58));
+  box-shadow:inset 0 1px rgba(255,255,255,.075);
+  color:inherit;
+  text-decoration:none;
+  transition:border-color .18s ease,background .18s ease,transform .18s ease;
+}
+.page-courses .mooc-card:hover{
+  border-color:rgba(211,143,255,.34);
+  background:linear-gradient(145deg,rgba(34,28,42,.72),rgba(12,9,16,.64));
+  transform:translateY(-1px);
+}
+.page-courses .mooc-card:focus-visible{
+  outline:2px solid #d98cff;
+  outline-offset:3px;
+}
+.page-courses .mooc-card em{
+  color:#c9a0ff;
+  font-size:12px;
+  font-style:normal;
+  letter-spacing:.04em;
+}
+.page-courses .mooc-card strong{
+  font-size:17px;
+  font-weight:650;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.page-courses .mooc-card p{
+  margin:0;
+  color:#9d97a3;
+  font-size:13px;
+  line-height:1.55;
+}
+.page-courses .mooc-card span{
+  margin-top:auto;
+  color:#8f8994;
+  font-size:12px;
+}
 
 @media(max-width:900px){
   .page-courses .course-layout{grid-template-columns:1fr;gap:12px}
@@ -2683,6 +2758,12 @@ button.learn-more:focus-visible{
   .page-courses .filter-rail button{flex:0 0 auto;padding-inline:15px}
   .page-courses .course-slab{flex-basis:100%}
   .page-courses .course-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .page-courses .mooc-extend__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .page-courses .mooc-extend__head{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .page-courses .mooc-extend__head>p{text-align:left}
 }
 @media(max-width:620px){
   .page-courses{padding-inline:8px}
@@ -2690,6 +2771,7 @@ button.learn-more:focus-visible{
   .page-courses .course-strip{grid-template-columns:1fr}
   .page-courses .course-slab{flex-basis:100%;padding:22px;border-radius:22px}
   .page-courses .course-strip li{min-height:104px;border-radius:18px}
+  .page-courses .mooc-extend__grid{grid-template-columns:1fr}
   .page-courses .detail-drawer{
     top:10px;
     right:10px;

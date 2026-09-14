@@ -60,6 +60,31 @@
             <button type="button" @click="start(course)">进入</button>
           </li>
         </ul>
+
+        <section class="mooc-extend" aria-label="慕课延伸">
+          <header class="mooc-extend__head">
+            <div>
+              <p class="shiny-kicker">MOOC EXTEND</p>
+              <h2>慕课延伸</h2>
+            </div>
+            <p>外链需平台账号 · 开课学期可能变化 · 非正式国标</p>
+          </header>
+          <div class="mooc-extend__grid">
+            <a
+              v-for="item in featuredMoocs"
+              :key="item.id"
+              class="mooc-card glass"
+              :href="item.url"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <em>{{ item.platform }}</em>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.summary }}</p>
+              <span>{{ item.tags.join(' · ') }}</span>
+            </a>
+          </div>
+        </section>
       </div>
     </div>
     </div>
@@ -69,8 +94,8 @@
       <p>{{ detail.stage || detail.category }}</p>
       <h2>{{ detail.title }}</h2>
       <p>{{ detail.description }}</p>
-      <p v-if="detail.source" class="course-source">
-        <span>来源：{{ detail.source }}</span>
+      <p v-if="detail.source || moocForCourse(detail)" class="course-source">
+        <span v-if="detail.source">来源：{{ detail.source }}</span>
         <a
           v-if="detail.source_url"
           :href="detail.source_url"
@@ -78,11 +103,11 @@
           rel="noopener noreferrer"
         >查看出处</a>
         <a
-          v-if="extendUrl(detail)"
-          :href="extendUrl(detail)"
+          v-if="moocForCourse(detail)"
+          :href="moocForCourse(detail).url"
           target="_blank"
           rel="noopener noreferrer"
-        >延伸：智慧树微格课</a>
+        >{{ moocForCourse(detail).label }}</a>
       </p>
       <pre v-if="detail.outline" class="course-outline">{{ detail.outline }}</pre>
       <p>{{ detail.lesson_count }} 课时 · {{ detail.status_label }}</p>
@@ -99,10 +124,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Magnet from '../components/fx/Magnet.vue'
 import SpotlightPane from '../components/fx/SpotlightPane.vue'
+import { featuredMoocs, moocForCourse } from '../data/moocCourses'
 import { fetchCourses } from '../services/dashboard'
 import { filterCourses, normalizeSearchQuery } from '../utils/navigation'
-
-const SMART_EDU = 'https://higher.smartedu.cn/course/671ad61416d8a05eedca49d6'
 
 const route = useRoute()
 const router = useRouter()
@@ -140,13 +164,6 @@ const rest = computed(() => {
   const ids = new Set(featured.value.map((item) => item.id))
   return filtered.value.filter((item) => !ids.has(item.id))
 })
-
-function extendUrl(course) {
-  if (!course?.stage) return ''
-  if (String(course.stage).startsWith('综合11')) return ''
-  if (course.source_url === SMART_EDU) return ''
-  return SMART_EDU
-}
 
 function start(course) {
   router.push({ path: '/training', query: { courseId: course.id } })

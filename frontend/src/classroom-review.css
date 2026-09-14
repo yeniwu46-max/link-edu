@@ -4,7 +4,8 @@
   --review-muted:#a8b0bc; --review-line:#30353e; --review-accent:#ffad6a;
   --review-teal:#82d2c5; --class-surface-raised:#191c22; --class-ink:#f0f0eb;
   --class-muted:#a8b0bc; --line:#30353e;
-  max-width:1240px;margin:0 auto;padding:20px 0 50px;color:var(--review-ink);line-height:1.65;color-scheme:dark;
+  max-width:1240px;width:100%;min-height:0;height:100%;margin:0 auto;padding:12px 0 50px;color:var(--review-ink);line-height:1.65;color-scheme:dark;
+  overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;
 }
 .classroom-review-page *{box-sizing:border-box;min-width:0;}
 .classroom-review-page :is(h1,h2,h3,p){margin:0;}

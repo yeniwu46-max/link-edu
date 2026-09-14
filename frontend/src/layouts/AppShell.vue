@@ -117,8 +117,8 @@ const crumb = computed(() => {
   return route.meta.crumb || '工作台  /  总览'
 })
 const immersive = computed(() => Boolean(route.meta.immersive))
-// Keep the camera/player and evidence report outside the new console shell.
-const protectedShell = computed(() => ['/classroom', '/ai-review'].includes(route.path))
+// Keep console shell chrome (sidebar / workspace) consistent on every authenticated page.
+const protectedShell = computed(() => false)
 const displayName = computed(() => auth.user?.name || '临客')
 const roleLabel = computed(() => auth.user?.role_label || '师范生')
 const profileInitial = computed(() => displayName.value.slice(0, 1))

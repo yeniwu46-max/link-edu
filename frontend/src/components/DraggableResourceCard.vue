@@ -10,6 +10,7 @@ const emit = defineEmits(["activate", "open"]);
 const cardRef = ref(null);
 const offset = ref({ x: 0, y: 0 });
 const dragging = ref(false);
+const thumbFailed = ref(false);
 let gesture = null;
 let suppressClick = false;
 
@@ -19,6 +20,10 @@ const cardStyle = computed(() => ({
   zIndex: props.active ? 30 : props.item.position.z,
   transform: `translate3d(${offset.value.x}px, ${offset.value.y}px, 0) rotate(${dragging.value ? 0 : props.item.position.rotate}deg)`,
 }));
+
+const showSheetCover = computed(() => Boolean(props.item.sheetCover));
+const showThumbnail = computed(() => Boolean(props.item.thumbnail) && !thumbFailed.value && !showSheetCover.value);
+const showFileCover = computed(() => showSheetCover.value || showThumbnail.value);
 
 function pointerDown(event) {
   if (event.button !== 0) return;
@@ -82,6 +87,7 @@ function openCard(event) {
     :class="{
       'is-dragging': dragging,
       'is-recommended': item.recommended,
+      'has-file-cover': showFileCover,
       [`cover-${item.cover}`]: item.cover,
     }"
     :style="cardStyle"
@@ -93,13 +99,34 @@ function openCard(event) {
     @click="openCard"
     @dragstart.prevent
   >
-    <span class="resource-cover" :class="`theme-${item.coverTheme}`">
-      <span class="cover-art" aria-hidden="true">
+    <span
+      class="resource-cover"
+      :class="showFileCover ? 'is-file' : `theme-${item.coverTheme}`"
+    >
+      <span v-if="showSheetCover" class="cover-sheet" aria-hidden="true">
+        <i class="cover-sheet__rule"></i>
+        <strong>{{ item.sheetCover.title }}</strong>
+        <em>{{ item.sheetCover.subtitle }}</em>
+        <span v-for="(line, index) in item.sheetCover.lines" :key="index">{{ line }}</span>
+        <b>{{ item.sheetCover.footer }}</b>
+      </span>
+      <img
+        v-else-if="showThumbnail"
+        class="cover-thumb"
+        :src="item.thumbnail"
+        :alt="`${item.title}封面`"
+        loading="lazy"
+        decoding="async"
+        draggable="false"
+        @error="thumbFailed = true"
+      />
+      <span v-else class="cover-art" aria-hidden="true">
         <i>{{ item.coverLabel }}</i>
         <b>{{ item.coverMark }}</b>
         <strong>{{ item.coverTitle }}</strong>
         <span>{{ item.source }} / {{ item.year }}</span>
       </span>
+      <em v-if="showFileCover" class="cover-format">{{ item.format.split(' / ')[0] }}</em>
       <small v-if="item.recommended">推荐</small>
     </span>
     <span class="resource-card-copy">
@@ -117,7 +144,7 @@ function openCard(event) {
 .draggable-resource-card {
   position: absolute;
   width: clamp(176px, 17vw, 204px);
-  min-height: 258px;
+  min-height: 278px;
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 14px;
@@ -156,20 +183,26 @@ function openCard(event) {
   position: relative;
   display: grid;
   place-items: center;
-  height: 136px;
+  height: 156px;
   overflow: hidden;
   border-radius: 9px;
   background: #251a16;
 }
 
-.resource-cover::before,
-.resource-cover::after {
+.resource-cover.is-file {
+  background:
+    linear-gradient(180deg, #2a2430, #1a1520);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.resource-cover:not(.is-file)::before,
+.resource-cover:not(.is-file)::after {
   position: absolute;
   content: "";
   pointer-events: none;
 }
 
-.resource-cover::before {
+.resource-cover:not(.is-file)::before {
   inset: 0;
   background:
     linear-gradient(115deg, transparent 0 48%, rgba(255, 255, 255, 0.1) 48.4% 49%, transparent 49.4%),
@@ -177,7 +210,7 @@ function openCard(event) {
   opacity: 0.72;
 }
 
-.resource-cover::after {
+.resource-cover:not(.is-file)::after {
   right: -24px;
   bottom: -32px;
   width: 112px;
@@ -185,6 +218,92 @@ function openCard(event) {
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 50%;
   box-shadow: 0 0 0 18px rgba(255, 255, 255, 0.035);
+}
+
+.cover-thumb {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  background: #f7f4ef;
+  pointer-events: none;
+}
+
+.cover-sheet {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 12px 28px;
+  background: #fffefb;
+  color: #1a1520;
+  box-shadow: inset 0 0 0 1px #d8d2c8;
+  font-family: "Songti SC", "SimSun", "STSong", "Noto Serif SC", serif;
+  text-align: center;
+}
+
+.cover-sheet__rule {
+  display: block;
+  width: 78%;
+  height: 1px;
+  margin: 2px auto 8px;
+  background: #222;
+}
+
+.cover-sheet strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.cover-sheet em {
+  display: block;
+  margin: 0 0 6px;
+  color: #5a5560;
+  font-size: 10px;
+  font-style: normal;
+}
+
+.cover-sheet > span {
+  display: block;
+  color: #2c2730;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: left;
+  padding-inline: 4px;
+}
+
+.cover-sheet b {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  color: #6a6470;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.cover-format {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 2;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: rgba(12, 9, 16, 0.78);
+  color: #f0eaf4;
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(6px);
 }
 
 .cover-art {
@@ -262,6 +381,7 @@ function openCard(event) {
   position: absolute;
   top: 9px;
   right: 9px;
+  z-index: 2;
   padding: 5px 8px;
   border-radius: 6px;
   background: #ff7a18;
@@ -332,6 +452,10 @@ function openCard(event) {
     transform: none !important;
     will-change: auto;
     touch-action: manipulation;
+  }
+
+  .resource-cover {
+    height: 180px;
   }
 }
 </style>

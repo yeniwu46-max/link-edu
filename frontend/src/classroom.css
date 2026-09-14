@@ -12,9 +12,15 @@
   color: var(--class-ink);
   color-scheme: dark;
   max-width: 1440px;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
   margin: 0 auto;
-  padding: 20px 0;
+  padding: 12px 0 20px;
   line-height: 1.6;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .classroom-page * {
   box-sizing: border-box;
