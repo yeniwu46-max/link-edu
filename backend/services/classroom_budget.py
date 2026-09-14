@@ -22,6 +22,13 @@ def status():
         result['pricing_confirmed'] = result['pricing_confirmed'] and result['credits']['pricing_confirmed']
         result['stopped'] = result['stopped'] or result['credits']['accounts']['dialogue']['stopped']
         result['warning'] = result['warning'] or any(a['warning'] for a in result['credits']['accounts'].values())
+    from services import delivery_budget
+    with db.engine.connect() as connection:
+        release = delivery_budget.status(connection)
+    if release:
+        result['release'] = release
+        result['stopped'] = result['stopped'] or release['stopped']
+        result['warning'] = result['warning'] or release['warning']
     return result
 
 
@@ -35,12 +42,16 @@ def reserve(service, amount, session_id=None):
                 func.coalesce(ApiUsage.charged_cny, ApiUsage.reserved_cny)), 0))).scalar())
             if not math.isfinite(amount) or amount <= 0 or total + amount >= 90:
                 raise ValueError('调用预算已到停止阈值，本次未发起云请求')
+            from services.delivery_budget import check
+            check(connection, amount)
             result = connection.execute(ApiUsage.__table__.insert().values(
                 service=service, session_id=session_id, reserved_cny=amount))
             return result.inserted_primary_key[0]
 
 
 def settle(usage_id, charge, units):
+    if not math.isfinite(charge) or charge < 0:
+        raise ValueError('人民币用量无效，保留原预留')
     with lock, budget_file_lock():
         with db.engine.begin() as connection:
             connection.execute(ApiUsage.__table__.update().where(ApiUsage.id == usage_id).values(

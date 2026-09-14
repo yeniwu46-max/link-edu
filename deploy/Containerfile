@@ -1,0 +1,13 @@
+FROM docker.io/library/python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app
+ARG PIP_INDEX_URL=https://pypi.org/simple
+COPY backend/requirements.lock.txt /app/requirements.lock.txt
+RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.lock.txt
+COPY backend /app/backend
+COPY frontend/public/models /app/frontend/public/models
+RUN useradd --uid 10001 --create-home link && mkdir -p /app/backend/instance && chown -R link:link /app
+USER link
+WORKDIR /app/backend
+EXPOSE 5001
+CMD ["gunicorn", "--workers", "1", "--threads", "16", "--bind", "0.0.0.0:5001", "--timeout", "180", "--access-logfile", "-", "--error-logfile", "-", "app:app"]

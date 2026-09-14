@@ -29,7 +29,7 @@ const accounts = computed(() =>
         刷新状态
       </button>
     </div>
-    <p class="subtle-note">检查会消耗少量额度</p>
+    <p class="subtle-note">{{ capabilities?.can_probe === false ? "服务状态由管理员维护，刷新不会发起付费检查。" : "检查会消耗少量额度" }}</p>
     <div class="service-grid">
       <article v-for="(label, key) in services" :key="key">
         <div class="service-heading">
@@ -49,6 +49,7 @@ const accounts = computed(() =>
           {{ capabilities.services[key].message || "暂时无法连接，请重试。" }}
         </p>
         <button
+          v-if="capabilities?.can_probe !== false"
           class="class-btn secondary"
           type="button"
           :aria-label="`检查${label}`"
@@ -80,7 +81,12 @@ const accounts = computed(() =>
       </p>
     </details>
     <h3 class="settings-subtitle">额度详情</h3>
-    <template v-if="budget">
+    <template v-if="capabilities?.can_probe === false">
+      <p>每日 {{ capabilities?.quota?.daily_limit }} 场，今日剩余 {{ capabilities?.quota?.remaining_today }} 场；每场最长10分钟。</p>
+      <p>同时开放 {{ capabilities?.capacity?.limit }} 间课堂，当前空闲 {{ capabilities?.capacity?.available }} 间。</p>
+      <p>{{ budget?.stopped ? '体验额度暂已用完，已有报告仍可查看。' : '体验额度由平台提供，以进入课堂时的检查结果为准。' }}</p>
+    </template>
+    <template v-else-if="budget">
       <div
         v-for="account in accounts"
         :key="account.label"

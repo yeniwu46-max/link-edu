@@ -28,7 +28,7 @@ def route_intent(text, carried=None, interrupted=None):
     compact = re.sub(r'[\s，,。！!？?]', '', text)
     if re.search(r'我(?:想想|想一下|在想|自言自语)|让我想', text):
         intent = 'self_talk'
-    elif re.search(r'难道|岂不是|何尝|不是.*(?:吗|么)', text):
+    elif re.search(r'难道|岂不是|何尝|不是[^。！？?!，,\n]*(?:吗|么)[。！？?!\s]*$', text):
         intent = 'rhetorical'
     elif re.fullmatch(r'(?:小明|小雨|小林)?(?:同学)?(?:请|你)?(?:继续|接着)(?:说|回答|讲)?(?:吧)?', compact):
         intent, named = 'resume', named or interrupted

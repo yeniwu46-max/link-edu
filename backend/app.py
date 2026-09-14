@@ -11,7 +11,17 @@ import classroom_models
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
-    CORS(app)
+    if app.config.get('PUBLIC_DEPLOYMENT'):
+        secret = app.config.get('JWT_SECRET_KEY', '')
+        if len(secret) < 40 or not app.config.get('PUBLIC_ORIGINS') or app.config.get('SEED_ON_STARTUP'):
+            raise RuntimeError('公网部署必须配置强JWT密钥、PUBLIC_ORIGINS并关闭SEED_ON_STARTUP')
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+        CORS(app, origins=app.config['PUBLIC_ORIGINS'])
+    else:
+        CORS(app)
+    from services.public_access import install_policy
+    install_policy(app)
 
     db.init_app(app)
     jwt.init_app(app)
@@ -27,6 +37,10 @@ def create_app(config_class=Config):
     @jwt.unauthorized_loader
     def missing_token(_reason):
         return jsonify(message='请先登录', code='token_missing'), 401
+
+    @app.get('/api/health')
+    def health():
+        return jsonify(status='ok', version='competition-20260914')
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)

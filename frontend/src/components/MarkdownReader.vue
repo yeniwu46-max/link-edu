@@ -6,8 +6,8 @@ const props = defineProps({
 });
 
 function inlineParts(text) {
-  const normalized = text.replace(/[—–]+/g, " - ");
-  const pattern = /\[([^\]]+)]\((https?:\/\/[^)]+)\)/g;
+  const normalized = text.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2').replace(/\\[()]/g, '');
+  const pattern = /\[([^\]]+)]\((https?:\/\/[^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`/g;
   const parts = [];
   let cursor = 0;
   let match;
@@ -16,7 +16,8 @@ function inlineParts(text) {
     if (match.index > cursor) {
       parts.push({ type: "text", text: normalized.slice(cursor, match.index) });
     }
-    parts.push({ type: "link", text: match[1], href: match[2] });
+    parts.push(match[1] ? { type: "link", text: match[1], href: match[2] }
+      : { type: match[3] ? 'strong' : 'code', text: match[3] || match[4] });
     cursor = match.index + match[0].length;
   }
 
@@ -29,6 +30,7 @@ function inlineParts(text) {
 const blocks = computed(() => {
   const result = [];
   let list = null;
+  let currentTable = null;
   const closeList = () => {
     list = null;
   };
@@ -37,8 +39,22 @@ const blocks = computed(() => {
     const line = raw.trim();
     if (!line) {
       closeList();
+      currentTable = null;
       continue;
     }
+
+    if (line.startsWith('|') && line.endsWith('|')) {
+      closeList();
+      const cells = line.slice(1, -1).split('|').map(cell => cell.trim());
+      if (cells.every(cell => /^:?-{3,}:?$/.test(cell))) continue;
+      if (!currentTable) {
+        currentTable = { type: 'table', rows: [] };
+        result.push(currentTable);
+      }
+      currentTable.rows.push(cells.map(inlineParts));
+      continue;
+    }
+    currentTable = null;
 
     const heading = line.match(/^(#{1,3})\s+(.+)/);
     if (heading) {
@@ -89,7 +105,7 @@ const blocks = computed(() => {
             target="_blank"
             rel="noopener noreferrer"
           >{{ part.text }}</a>
-          <template v-else>{{ part.text }}</template>
+          <component :is="part.type === 'strong' ? 'strong' : part.type === 'code' ? 'code' : 'span'" v-else>{{ part.text }}</component>
         </template>
       </component>
 
@@ -101,7 +117,7 @@ const blocks = computed(() => {
             target="_blank"
             rel="noopener noreferrer"
           >{{ part.text }}</a>
-          <template v-else>{{ part.text }}</template>
+          <component :is="part.type === 'strong' ? 'strong' : part.type === 'code' ? 'code' : 'span'" v-else>{{ part.text }}</component>
         </template>
       </blockquote>
 
@@ -117,11 +133,23 @@ const blocks = computed(() => {
               target="_blank"
               rel="noopener noreferrer"
             >{{ part.text }}</a>
-            <template v-else>{{ part.text }}</template>
+            <component :is="part.type === 'strong' ? 'strong' : part.type === 'code' ? 'code' : 'span'" v-else>{{ part.text }}</component>
           </template>
         </li>
       </component>
 
+      <div v-else-if="block.type === 'table'" class="reader-table-scroll">
+        <table><tbody>
+          <tr v-for="(row, rowIndex) in block.rows" :key="rowIndex">
+            <component :is="rowIndex === 0 ? 'th' : 'td'" v-for="(cell, cellIndex) in row" :key="cellIndex">
+              <template v-for="(part, partIndex) in cell" :key="partIndex">
+                <a v-if="part.type === 'link'" :href="part.href" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
+                <component :is="part.type === 'strong' ? 'strong' : part.type === 'code' ? 'code' : 'span'" v-else>{{ part.text }}</component>
+              </template>
+            </component>
+          </tr>
+        </tbody></table>
+      </div>
       <p v-else>
         <template v-for="(part, partIndex) in block.parts" :key="partIndex">
           <a
@@ -130,7 +158,7 @@ const blocks = computed(() => {
             target="_blank"
             rel="noopener noreferrer"
           >{{ part.text }}</a>
-          <template v-else>{{ part.text }}</template>
+          <component :is="part.type === 'strong' ? 'strong' : part.type === 'code' ? 'code' : 'span'" v-else>{{ part.text }}</component>
         </template>
       </p>
     </template>
@@ -202,4 +230,9 @@ const blocks = computed(() => {
 .markdown-reader a:hover {
   color: #ffd0ad;
 }
+.reader-table-scroll { overflow-x: auto; margin: 18px 0; }
+.markdown-reader table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.markdown-reader th, .markdown-reader td { border: 1px solid #514657; padding: 10px 12px; text-align: left; }
+.markdown-reader th { background: #2b2331; color: #fff; }
+.markdown-reader code { padding: 2px 4px; background: #2b2331; }
 </style>

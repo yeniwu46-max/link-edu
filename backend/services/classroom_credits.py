@@ -57,6 +57,8 @@ def reserve(account, service, model, amount, session_id=None):
         total = float(connection.execute(total_query(account)).scalar())
         if total + amount >= ceiling * .9:
             raise ValueError(f'{ACCOUNTS[account][0]}美元预算达到90%停止线，本次未发起云请求')
+        from services.delivery_budget import check
+        check(connection, amount, 'USD')
         result = connection.execute(CreditUsage.__table__.insert().values(account=account,
             service=service, model=model, session_id=session_id, reserved_usd=amount))
         return result.inserted_primary_key[0]

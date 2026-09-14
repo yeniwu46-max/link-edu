@@ -45,9 +45,9 @@ def request(client, method, path, **kwargs):
     return response.json()
 
 
-def stream_classroom(client, sid, raw_clips, seconds):
+def stream_classroom(client, sid, raw_clips, seconds, allow_interrupt=True, start_delay=0):
     ticket=request(client,'POST',f'/api/classroom/sessions/{sid}/ticket')['ticket']
-    ws=websocket.create_connection(str(client.base_url).replace('http:','ws:').rstrip('/')+'/api/classroom/live',timeout=15)
+    ws=websocket.create_connection(str(client.base_url).replace('https:','wss:').replace('http:','ws:').rstrip('/')+'/api/classroom/live',timeout=15)
     messages, errors, metrics=[],[],[]
     started=None; clip=None; offset=0; turn=0; next_turn=0; next_audio=0
     cancelled=set(); play_end={}; ended_audio=set(); reply_at={}; first_audio=set()
@@ -62,7 +62,7 @@ def stream_classroom(client, sid, raw_clips, seconds):
             if item['type']=='ready': break
             if item['type']=='error': raise ValueError(item['message'])
         else: raise ValueError('Classroom never became ready')
-        ws.settimeout(.02); started=time.monotonic(); next_audio=started
+        ws.settimeout(.02); started=time.monotonic(); next_audio=started; next_turn=start_delay
         while time.monotonic()-started < seconds:
             now=time.monotonic(); elapsed=now-started
             if elapsed>=first_progress:
@@ -114,7 +114,7 @@ def stream_classroom(client, sid, raw_clips, seconds):
                 if rid not in first_audio:
                     first_audio.add(rid); send('playback_started',reply_id=rid,latency_ms=0)
                     metrics.append({'stage':'reply_to_first_pcm','seconds':round(now-reply_at.get(rid,now),3)})
-                    if not interrupted and clip is None:
+                    if allow_interrupt and not interrupted and clip is None:
                         clip=raw_clips[-1]; offset=0; interrupted=True
             if kind=='audio_end' and rid not in cancelled:
                 if item.get('ok') and rid in first_audio: ended_audio.add(rid)

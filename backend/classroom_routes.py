@@ -20,6 +20,7 @@ from services.classroom_readiness import MIN_CLASS_SECONDS, report_readiness
 from services.classroom_clock import timing, transition, clock_lock
 
 bp = Blueprint('classroom', __name__, url_prefix='/api/classroom')
+from services.public_access import capacity, daily_quota, public_mode, public_budget
 probe_results = {}
 probe_lock = threading.Lock()
 probe_times = {}
@@ -77,7 +78,8 @@ def capabilities():
         services[service] = {**info,
             'status': probe_results.get(service, {}).get('status', 'unverified') if info['configured'] else 'unconfigured',
             'message': info.get('message') or probe_results.get(service, {}).get('message', '')}
-    return jsonify(services=services, budget=budget.status(),
+    return jsonify(services=services, budget=public_budget(budget.status()),
+        capacity=capacity(), quota=daily_quota(int(get_jwt_identity())), can_probe=not public_mode(),
         motion_assets={name: (Path(current_app.root_path).parent / 'frontend/public/models' / filename).exists()
                        for name, filename in {'body': 'pose_landmarker_lite.task', 'hands': 'gesture_recognizer.task', 'face': 'face_landmarker.task'}.items()},
         pose_assets=(Path(current_app.root_path).parent / 'frontend/public/models/pose_landmarker_lite.task').exists())
@@ -147,6 +149,12 @@ def create():
         active = Classroom.query.filter_by(user_id=uid).filter(Classroom.state.in_(['active', 'paused'])).first()
         if active:
             return jsonify(serialize(active)), 200
+        if capacity()['available'] == 0:
+            return jsonify(message='当前5个课堂名额已满，请稍后重试', code='classroom_capacity'), 503
+        if public_mode() and daily_quota(uid)['remaining_today'] == 0:
+            return jsonify(message='今日体验次数已用完，明天可继续训练', code='daily_quota'), 429
+        if public_mode() and budget.status()['stopped']:
+            return jsonify(message='体验额度已到停止线，已有报告仍可查看', code='budget_stopped'), 429
         course = Course.query.filter_by(title='分数的初步认识（AI互动课堂）').first()
         if not course:
             course = Course(title='分数的初步认识（AI互动课堂）', category='小学数学', stage='综合12 · AI课堂',
@@ -187,8 +195,12 @@ def ticket(sid):
     room = owned(sid)
     if room.state != 'active':
         return jsonify(message='课堂已结束'), 409
+    with active_lock:
+        if sid not in ACTIVE and capacity()['available'] == 0:
+            return jsonify(message='当前课堂名额已满，请稍后重试', code='classroom_capacity'), 503
     secret = secrets.token_urlsafe(32)
-    ClassroomTicket.query.filter(ClassroomTicket.expires_at < datetime.utcnow()).delete()
+    # Expired tickets are rejected at consume time. Prune during maintenance;
+    # concurrent range DELETEs here create MySQL gap-lock deadlocks on admission.
     row = ClassroomTicket(digest=hashlib.sha256(secret.encode()).hexdigest(), session_id=sid,
                           user_id=room.user_id, expires_at=datetime.utcnow() + timedelta(seconds=45))
     db.session.add(row)
@@ -309,11 +321,20 @@ def register_classroom(app):
                 ws.close(reason='classroom unavailable')
                 return
             with active_lock:
-                if ACTIVE:
-                    ws.close(reason='another classroom connection is active')
+                if room.session_id in ACTIVE:
+                    ws.close(reason='classroom already connected')
+                    return
+                if capacity()['available'] == 0:
+                    ws.send(json.dumps({'type': 'error', 'message': '当前5个课堂名额已满，请稍后重试', 'code': 'classroom_capacity'}))
+                    ws.close(reason='classroom capacity reached')
                     return
                 runtime = LiveClassroom(app, ws, room)
                 ACTIVE[room.session_id] = runtime
-            runtime.run()
+            try:
+                runtime.run()
+            finally:
+                with active_lock:
+                    if ACTIVE.get(room.session_id) is runtime:
+                        ACTIVE.pop(room.session_id, None)
         except Exception:
             ws.close()

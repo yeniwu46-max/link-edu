@@ -117,6 +117,11 @@ def request_report(app, session_id, retry=False):
             db.session.commit()
             report_stage(room, 'insufficient')
             return
+        if len(jobs) >= 5:
+            room.report_state = 'failed'
+            room.report_error = '评课任务繁忙，请稍后重试'
+            db.session.commit()
+            return
         room.report_state = 'running'
         room.report_error = None
         db.session.commit()

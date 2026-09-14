@@ -3,15 +3,15 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import LandingView from './views/LandingView.vue'
-import AppShell from './layouts/AppShell.vue'
-import DashboardView from './views/DashboardView.vue'
-import CoursesView from './views/CoursesView.vue'
+const AppShell = () => import('./layouts/AppShell.vue')
+const DashboardView = () => import('./views/DashboardView.vue')
+const CoursesView = () => import('./views/CoursesView.vue')
 import { classroomEntry } from './services/classroomEntry.js'
-import ClassroomView from './views/ClassroomView.vue'
-import AiReviewView from './views/AiReviewHub.vue'
-import GrowthView from './views/GrowthView.vue'
-import ResourcesView from './views/ResourcesView.vue'
-import ProfileView from './views/ProfileView.vue'
+const ClassroomView = () => import('./views/ClassroomView.vue')
+const AiReviewView = () => import('./views/AiReviewHub.vue')
+const GrowthView = () => import('./views/GrowthView.vue')
+const ResourcesView = () => import('./views/ResourcesView.vue')
+const ProfileView = () => import('./views/ProfileView.vue')
 import { useAuthStore } from './stores/auth'
 import './styles.css'
 

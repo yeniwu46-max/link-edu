@@ -31,11 +31,17 @@ def current_user():
 @auth_bp.post('/register')
 def register():
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict) or any(not isinstance(data.get(k, ''), str) for k in ('account', 'password', 'name', 'role')):
+        return jsonify(message='请求字段必须为文字'), 400
     account = (data.get('account') or '').strip()
     password = data.get('password') or ''
     name = (data.get('name') or '').strip()
     role = data.get('role') or 'student'
 
+    if not all(isinstance(data.get(k, ''), str) for k in ('account', 'password', 'name', 'role')):
+        return jsonify(message='注册字段必须为文字'), 400
+    if len(account) > 64 or len(name) > 64 or len(password) > 128:
+        return jsonify(message='注册字段长度超限'), 400
     if not account or not password or not name:
         return jsonify(message='请完整填写姓名、账号和密码'), 400
     if len(password) < 6:
@@ -52,13 +58,20 @@ def register():
         role=role,
     )
     db.session.add(user)
-    db.session.commit()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(message='该账号已经注册，请直接登录'), 409
     return jsonify(message='注册成功', user=user.to_dict()), 201
 
 
 @auth_bp.post('/login')
 def login():
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict) or any(not isinstance(data.get(k, ''), str) for k in ('account', 'password', 'name', 'role')):
+        return jsonify(message='请求字段必须为文字'), 400
     account = (data.get('account') or '').strip()
     password = data.get('password') or ''
     role = data.get('role') or 'student'

@@ -1,0 +1,6 @@
+[Unit]
+Description=Renew LINK short-lived trusted IP certificate
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/link-demo/current/deploy/renew-ip.sh

@@ -51,6 +51,8 @@ export function classroomStartBlockers({ capabilities, capabilitiesLoading = fal
       if (!service.configured) add(`${key}_config`, `${label}服务未配置完整，请在课堂设置查看，并联系管理员补齐配置。`, 'settings');
       if (!service.pricing_confirmed) add(`${key}_pricing`, `${label}的单价尚未确认，请在课堂设置查看，并联系管理员核对价格。`, 'settings');
     }
+    if (['idle', 'disconnected'].includes(state) && capabilities.capacity?.available === 0)
+      add('capacity', '当前课堂名额已满，请稍后刷新状态。', 'refresh');
     const budget = capabilities.budget;
     if (!budget) add('budget_missing', '未读取到授课额度，请重新读取状态。', 'refresh');
     else {

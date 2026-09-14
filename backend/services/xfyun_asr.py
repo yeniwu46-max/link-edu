@@ -64,6 +64,11 @@ class ASR:
             if self.failed or self.closed.is_set():
                 return
             self.failed = True
+            # Diagnostic locations only: never log signed URLs, keys, audio or SQL values.
+            import traceback
+            frames = traceback.extract_tb(exc.__traceback__)
+            self.app.logger.warning('ASR failure %s at %s', type(exc).__name__,
+                ' > '.join(f'{f.name}:{f.lineno}' for f in frames[-4:]))
             safe = exc if isinstance(exc, ProviderError) else ProviderError('讯飞识别连接中断，请检查网络后重连；未确认文本不会入档')
             try:
                 self.events.put_nowait(safe)
@@ -147,7 +152,9 @@ class ASR:
                 usage, amount = book('asr', self.sid)
                 segment = {'socket': wire.connect(wire.ASR_URL), 'seq': 0, 'seconds': 0,
                            'usage': usage, 'amount': amount, 'ended': None}
-                segment['socket'].settimeout(0.5)
+                # websocket-client shares this timeout between send and receive.
+                # 0.5 s spuriously aborted PCM writes on small-bandwidth servers.
+                segment['socket'].settimeout(5)
                 with self.lock:
                     if self.closed.is_set():
                         segment['socket'].close()

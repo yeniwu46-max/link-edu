@@ -1,0 +1,29 @@
+services:
+  db:
+    image: docker.io/library/mysql:8.4
+    environment:
+      MYSQL_DATABASE: link
+      MYSQL_USER: link
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    command: ["--innodb-buffer-pool-size=128M", "--max-connections=40", "--performance-schema=OFF"]
+    volumes:
+      - link-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+    env_file: runtime.env
+    ports: ["127.0.0.1:5012:5001"]
+    volumes: ["link-runtime:/app/backend/instance"]
+    depends_on:
+      db:
+        condition: service_healthy
+volumes:
+  link-db:
+  link-runtime:

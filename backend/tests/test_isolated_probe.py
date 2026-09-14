@@ -10,7 +10,9 @@ from test_classroom_base import app
 def test_isolated_probe_has_bounded_budget_and_own_database(tmp_path,monkeypatch):
     monkeypatch.setenv('AI_PRICING_CONFIRMED','true')
     probe=isolated_app(tmp_path)
-    assert str(tmp_path) in probe.config['SQLALCHEMY_DATABASE_URI'].replace('/', '\\')
+    from sqlalchemy.engine import make_url
+    database = make_url(probe.config['SQLALCHEMY_DATABASE_URI']).database
+    assert Path(database).resolve().parent == tmp_path.resolve()
     with probe.app_context():
         reserve('test',9)
         with pytest.raises(ValueError,match='预算'):
