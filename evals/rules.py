@@ -48,6 +48,22 @@ def inspect_output(case, raw):
                 d.get('score') is None or (d.get('key') in by_key and by_key[d['key']]['score'] is not None)
                 for d in (raw['dimensions'] if isinstance(raw['dimensions'], list) else
                           [dict(d, key=k) for k, d in raw['dimensions'].items()]))
+            checks['no_score_without_events'] = all(
+                d.get('score') is None or len(d.get('event_ids') or []) > 0
+                for d in (raw['dimensions'] if isinstance(raw['dimensions'], list) else raw['dimensions'].values()))
+            theory = case.get('theory_by_dimension') or {}
+            if theory:
+                match = True
+                for d in dims:
+                    if not isinstance(d, dict):
+                        match = False
+                        break
+                    allowed = {s['id'] for s in theory.get(d.get('key'), []) if isinstance(s, dict)}
+                    for sid in d.get('source_ids') or []:
+                        if isinstance(sid, str) and sid.startswith('kb:') and allowed and sid not in allowed:
+                            match = False
+                            break
+                checks['kb_refs_match_dimension'] = match
     except (ValueError, TypeError, KeyError, AttributeError):
         checks[f'{case["kind"]}_structure'] = False
     return {'raw_output': raw, 'validated_output': validated, 'checks': checks}

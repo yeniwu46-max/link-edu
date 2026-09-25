@@ -1,0 +1,80 @@
+[
+  {
+    "query": "把一个整体平均分成若干份 二分之一 等分",
+    "expect": { "title_contains": "平均分" },
+    "check_top": 3
+  },
+  {
+    "query": "分子分母 四分之一 含义",
+    "expect": { "title_contains": "分子分母" },
+    "check_top": 3
+  },
+  {
+    "query": "1/4 和 1/2 同一整体 比较大小",
+    "expect": { "title_contains": "单位分数" },
+    "check_top": 3
+  },
+  {
+    "query": "学生误解 四分之一更大 追问",
+    "expect": { "title_contains": "误解" },
+    "check_top": 3
+  },
+  {
+    "query": "分数教学策略 平均分 活动",
+    "expect": { "title_contains": "人教社" },
+    "check_top": 3
+  },
+  {
+    "query": "教师资格 面试大纲 学段",
+    "expect": { "category": "curriculum_standard" },
+    "check_top": 3
+  },
+  {
+    "query": "部级精品课 评价指标",
+    "expect": { "category": "rubric" },
+    "check_top": 3
+  },
+  {
+    "query": "提问 教学 评价 指标 背景",
+    "expect": { "category": "rubric" },
+    "check_top": 5
+  },
+  {
+    "query": "导入环节 激发 学习兴趣",
+    "expect": { "title_contains": "人教社" },
+    "check_top": 5
+  },
+  {
+    "query": "课堂结构 目标 小结 归纳",
+    "expect": { "title_contains": "人教社" },
+    "check_top": 5
+  },
+  {
+    "query": "教态 着装 动作 建议 面试",
+    "expect": { "title_contains": "面试大纲" },
+    "check_top": 5
+  },
+  {
+    "query": "互动设计 提问 全班回收",
+    "expect": { "title_contains": "误解" },
+    "check_top": 5
+  },
+  {
+    "query": "教学节奏 等待 推进",
+    "expect": { "title_contains": "平均分" },
+    "check_top": 5
+  },
+  {
+    "query": "表达清晰 指令 一次听懂",
+    "expect": { "title_contains": "分子" },
+    "check_top": 5
+  },
+  {
+    "query": "quantum chromodynamics lattice gauge theory",
+    "expect_irrelevant": true
+  },
+  {
+    "query": "区块链智能合约Solidity漏洞",
+    "expect_irrelevant": true
+  }
+]

@@ -47,6 +47,8 @@ def create_app(config_class=Config):
     app.register_blueprint(content_bp)
     from classroom_routes import register_classroom
     register_classroom(app)
+    from rag import register_rag
+    register_rag(app)
 
     @app.before_request
     def classroom_single_process():
@@ -80,6 +82,10 @@ def _ensure_columns():
         ('courses', 'outline', 'TEXT'),
         ('courses', 'source', 'VARCHAR(128)'),
         ('courses', 'source_url', 'VARCHAR(255)'),
+        ('kb_documents', 'content_version', "VARCHAR(32) NOT NULL DEFAULT '1'"),
+        ('kb_documents', 'license_note', 'VARCHAR(255)'),
+        ('kb_documents', 'valid_until', 'VARCHAR(10)'),
+        ('kb_documents', 'last_audited_at', 'DATETIME'),
     ]
     tables = set(inspector.get_table_names())
     for table, column, ddl in specs:

@@ -12,6 +12,7 @@ const AiReviewView = () => import('./views/AiReviewHub.vue')
 const GrowthView = () => import('./views/GrowthView.vue')
 const ResourcesView = () => import('./views/ResourcesView.vue')
 const ProfileView = () => import('./views/ProfileView.vue')
+const RagKnowledgeView = () => import('./views/RagKnowledgeView.vue')
 import { useAuthStore } from './stores/auth'
 import './styles.css'
 
@@ -31,6 +32,7 @@ const router = createRouter({
         { path: 'ai-review', component: AiReviewView, meta: { crumb: 'AI 评课  /  报告' } },
         { path: 'growth', component: GrowthView, meta: { crumb: '成长档案  /  轨迹' } },
         { path: 'resources', component: ResourcesView, meta: { crumb: '资源库  /  教案与素材' } },
+        { path: 'knowledge', component: RagKnowledgeView, meta: { crumb: '知识库  /  检索与语料' } },
         { path: 'profile', component: ProfileView, meta: { crumb: '个人中心' } },
       ],
     },

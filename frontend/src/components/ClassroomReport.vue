@@ -3,6 +3,7 @@ import { computed, ref, onBeforeUnmount, watch } from 'vue';
 import { ChartBar, ArrowUpRight, Focus2, ListDetails, ShieldCheck, Bulb, Photo, Refresh } from '@vicons/tabler';
 import { api } from '../services/api';
 import { buildReview, formatReportTime as time, formatReportDate } from '../services/classroomReview.js';
+import { fetchRagChunk } from '../services/rag.js';
 import { eventLabel, eventText } from '../services/classroomStatus.js';
 import ClassroomDialog from './ClassroomDialog.vue';
 import ClassroomReplay from './ClassroomReplay.vue';
@@ -16,6 +17,7 @@ const drawerOpen=ref(false), drawerTitle=ref('课堂证据'), evidence=ref([]), 
 const playbackEvent=ref(null);
 const reportStage=computed(()=>({checking:'检查最低证据',preparing:'整理课堂证据',judging:'AI 评审中',validating:'校验评审结果',completed:'完成',failed:'生成失败'}[props.room.report_stage]||'等待评审状态'));
 const imageOpen=ref(false), image=ref(''), imageError=ref(''), imageLoading=ref(false), objection=ref('');
+const kbOpen=ref(false), kbLoading=ref(false), kbError=ref(''), kbChunk=ref(null), kbDocument=ref(null);
 let imageRequest=0;
 const filtered=computed(()=>evidence.value.filter(e=>!filter.value || `${eventLabel(e)} ${eventText(e)} #${e.id} ${time(e.at_ms)}`.includes(filter.value.trim())));
 const motion=computed(()=>props.room.report?.motion_evidence);
@@ -24,6 +26,21 @@ const sourceLink=s=>/^https?:\/\//i.test(s.url||s.source||'')?(s.url||s.source):
 const modalityLabels={body:'身体姿态',hands:'手势动作',face:'面部几何'};
 const ratio=m=>m.total_samples>0?Math.max(0,Math.min(100,m.observed_samples/m.total_samples*100)):0;
 function showEvidence(items,title){evidence.value=items;playbackEvent.value=items[0]||null;drawerTitle.value=title;filter.value='';drawerOpen.value=true;}
+async function showKbSource(source){
+  const chunkId=source?.chunkId;
+  if(!Number.isInteger(chunkId)){return;}
+  kbError.value='';kbLoading.value=true;kbOpen.value=true;kbChunk.value=null;kbDocument.value=null;
+  try{
+    const data=await fetchRagChunk(chunkId);
+    kbChunk.value=data.chunk;kbDocument.value=data.document;
+  }catch{
+    kbError.value='无法加载知识库原文。';
+  }finally{kbLoading.value=false;}
+}
+function jumpToEvidence(events){
+  if(!events?.length)return;
+  showEvidence(events,'维度关联课堂事件');
+}
 async function showImage(event){
   const request=++imageRequest;
   imageError.value='';imageLoading.value=true;imageOpen.value=true;
@@ -86,7 +103,17 @@ function regenerate(){
             <span class="report-attribution">已保存的评课结论</span><p class="dimension-reason">{{ selected.reason }}</p>
             <div class="dimension-evidence-actions"><button class="review-button" :disabled="!selected.evidence.length" @click="showEvidence(selected.evidence,selected.label+' · 证据')"><Focus2 aria-hidden="true" />查看 {{ selected.evidence.length }} 条证据<ArrowUpRight aria-hidden="true" /></button><span>{{ selected.sources.length }} 项教学依据</span></div>
             <p v-if="selected.unresolved" class="review-inline-alert">{{ selected.unresolved }} 个引用无法对应本节记录，未补造时间点；请人工核对。</p>
-            <details v-if="selected.sources.length" class="dimension-sources"><summary>本维度引用的教学依据</summary><p v-for="source in selected.sources" :key="source.id">{{ source.title }}<small> · {{ source.location || source.type }}</small></p></details>
+            <details v-if="selected.sources.length" class="dimension-sources" open>
+              <summary>本维度引用的教学依据</summary>
+              <article v-for="source in selected.sources" :key="source.id" class="kb-source-card">
+                <p>{{ source.title }}<small> · {{ source.location || source.type }}</small></p>
+                <div class="kb-source-actions">
+                  <button v-if="source.isKb" type="button" class="review-button" @click="showKbSource(source)">知识库原文</button>
+                  <button type="button" class="review-button" :disabled="!selected.evidence.length" @click="jumpToEvidence(selected.evidence)">关联 {{ selected.evidence.length }} 条课堂事件</button>
+                  <a v-if="sourceLink(source)" class="review-button" :href="sourceLink(source)" target="_blank" rel="noopener">外部来源</a>
+                </div>
+              </article>
+            </details>
           </div>
         </div>
         <div class="report-print-dimensions"><section v-for="d in view.dimensions" :key="d.key"><h3>{{ d.label }} · {{ d.score ?? '暂不评分' }}</h3><p>{{ d.reason }}</p><small>事件引用：{{ d.evidence.map(e=>'#'+e.id+' '+time(e.at_ms)).join('；') || '无' }}</small></section></div>
@@ -134,5 +161,19 @@ function regenerate(){
       </div>
     </ClassroomDialog>
     <ClassroomDialog v-model="imageOpen" title="课堂截图证据"><p v-if="imageLoading" role="status">正在读取截图…</p><p v-if="imageError" role="alert">{{ imageError }}</p><img v-if="image" :src="image" alt="此课堂时间点的分析截图" class="report-evidence-image" /></ClassroomDialog>
+    <ClassroomDialog v-model="kbOpen" title="知识库依据原文">
+      <p v-if="kbLoading" role="status">正在加载切片…</p>
+      <p v-if="kbError" role="alert">{{ kbError }}</p>
+      <article v-if="kbChunk" class="kb-chunk-view">
+        <header><strong>{{ kbDocument?.title }}</strong><small>{{ kbChunk.section }} · #{{ kbChunk.id }}</small></header>
+        <pre>{{ kbChunk.text }}</pre>
+        <button type="button" class="review-button" :disabled="!selected.evidence.length" @click="jumpToEvidence(selected.evidence)">跳转到本维度课堂事件</button>
+      </article>
+    </ClassroomDialog>
   </article>
 </template>
+
+<style scoped>
+.kb-source-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.35rem;}
+.kb-chunk-view pre{white-space:pre-wrap;font-size:.85rem;max-height:40vh;overflow:auto;}
+</style>

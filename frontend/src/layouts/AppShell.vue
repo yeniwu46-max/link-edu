@@ -106,6 +106,7 @@ const nav = [
   { label: 'AI 评课', to: '/ai-review' },
   { label: '成长档案', to: '/growth' },
   { label: '资源库', to: '/resources' },
+  { label: '知识库', to: '/knowledge' },
 ]
 
 const crumb = computed(() => {

@@ -17,4 +17,13 @@
 
 `verify-database.sh` 只创建带时间戳的独立验证数据库，检查初始化和 SQL 恢复；不会删除生产数据库。`backup.sh` 输出私有备份，不能放入竞赛包。备份含用户密码哈希和云端配置，应受控存储。
 
+备份内容包含 MySQL 全库（含 RAG 表 `kb_documents` / `kb_chunks` 中的向量 BLOB）以及 `instance/` 目录（含 `instance/rag/files/` 原始资料）。恢复后若切换了 Embedding 模型，需在后端容器内执行 `python -m rag.cli reindex --all`。
+
+## RAG 向量库（语料 + 语义索引）
+
+1. 在 `runtime.env` 中启用：`RAG_ENABLED=true`、`RAG_ADMIN_ACCOUNTS`（公网必填）、百炼 `RAG_EMBEDDING_PROVIDER=openai_compatible` 与 `RAG_EMBEDDING_*`，并核对 `RAG_EMBEDDING_CNY_PER_MILLION` 后设 `AI_PRICING_CONFIRMED=true`。
+2. 在构建机或容器内按 [`sources/rag/README.md`](../sources/rag/README.md) 执行 `rag_export_knowledge_cards.py` 与 `rag_ingest_manifest.py`（或上传 API）。
+3. 切换语义模型后：`docker compose -f deploy/compose.yml exec app python -m rag.cli reindex --all`。
+4. 验收：`GET /api/rag/status`（`stale_documents=0`）、`python scripts/rag_eval_retrieval.py`（不调 LLM）。
+
 公网预算固定总计 30 CNY，配套测试账本最多 70 CNY；保留开始时间和历史账本。不要通过删库、改开始时间、增加进程或换账本绕过限制。每个实例只运行一个 Gunicorn worker；扩到多进程需要引入跨进程容量/任务协调。

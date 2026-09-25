@@ -13,3 +13,5 @@ jieba==0.42.1
 pypdf>=5,<7
 python-docx>=1.1,<2
 openai>=1.68.0,<2
+numpy>=2,<3
+# Optional: RAG_VECTOR_BACKEND=faiss needs faiss-cpu (not installed by default).

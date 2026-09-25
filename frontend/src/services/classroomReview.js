@@ -8,6 +8,12 @@ export const REVIEW_DIMENSIONS = [
   ['structure','课堂结构','目标、展开与收束是否连贯','复看开头与结尾，核对本课目标是否得到回应。'],
 ];
 const list=value=>Array.isArray(value)?value:[];
+export const parseKbSourceId=id=>typeof id==='string' && id.startsWith('kb:') ? Number(id.slice(3)) : null;
+export function enrichSource(source){
+  if(!source || typeof source!=='object') return source;
+  const chunkId=source.chunk_id ?? parseKbSourceId(source.id);
+  return {...source, chunkId: Number.isInteger(chunkId)?chunkId:null, isKb:Number.isInteger(chunkId)};
+}
 export const validScore=value=>typeof value==='number' && Number.isFinite(value) && value>=0 && value<=100 ? value : null;
 const timed=e=>typeof e.at_ms==='number' && Number.isFinite(e.at_ms) && e.at_ms>=0;
 const byTime=(a,b)=>(timed(a)?a.at_ms:Infinity)-(timed(b)?b.at_ms:Infinity) || a.id-b.id;
@@ -28,14 +34,17 @@ export function buildReview(room={}) {
   const events=[...new Map(list(room.events).filter(e=>Number.isInteger(e?.id)).map(e=>[e.id,{...e,data:e.data||{}}])).values()].sort(byTime);
   const byId=new Map(events.map(e=>[e.id,e]));
   const report=room.report_state==='insufficient'?null:room.report;
-  const sourceMap=new Map(list(report?.sources).map(s=>[s.id,s]));
+  const sourceMap=new Map(list(report?.sources).map(s=>[s.id,enrichSource(s)]));
+  const theoryByDimension=report?.theory_by_dimension||{};
   const dimensions=REVIEW_DIMENSIONS.map(([key,label,focus,reflection])=>{
     const item=list(report?.dimensions).find(d=>d.key===key)||{};
     const ids=[...new Set(list(item.event_ids))];
+    const dimTheory=list(theoryByDimension[key]).map(enrichSource);
     return {key,label,focus,reflection,score:validScore(item.score),reason:item.reason||'此维度暂无可用结论。',
       evidence:ids.filter(id=>byId.has(id)).map(id=>byId.get(id)).sort(byTime),
       unresolved:ids.filter(id=>!byId.has(id)).length,
-      sources:[...new Set(list(item.source_ids))].filter(id=>sourceMap.has(id)).map(id=>sourceMap.get(id))};
+      sources:[...new Set(list(item.source_ids))].filter(id=>sourceMap.has(id)).map(id=>sourceMap.get(id)),
+      theoryPool:dimTheory.length?dimTheory:undefined};
   });
   const replies=events.filter(e=>e.type==='student');
   const replyIds=new Set(replies.map(e=>e.data.reply_id).filter(Boolean));

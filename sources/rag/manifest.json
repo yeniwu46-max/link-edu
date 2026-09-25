@@ -1,0 +1,99 @@
+[
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/fraction-equal.md",
+    "title": "平均分与几分之一",
+    "category": "theory",
+    "source": "项目自编，数学事实核对",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/fraction-symbol.md",
+    "title": "分子分母的含义",
+    "category": "theory",
+    "source": "项目自编，数学事实核对",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/fraction-size.md",
+    "title": "同一整体与单位分数比较",
+    "category": "theory",
+    "source": "项目自编，数学事实核对",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/fraction-teach.md",
+    "title": "学生误解与追问",
+    "category": "case",
+    "source": "项目自编教学场景",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/pep-fraction.md",
+    "title": "人教社：分数教学策略",
+    "category": "theory",
+    "source": "人民教育出版社网站",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/ntce-outline.md",
+    "title": "教师资格考试面试大纲索引",
+    "category": "curriculum_standard",
+    "source": "中国教育考试网",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "sources/rag/corpus/classroom_knowledge/premium-rubric.md",
+    "title": "部级精品课评价指标索引",
+    "category": "rubric",
+    "source": "教育部基础教育精品课平台",
+    "tags": [
+      "分数",
+      "微格",
+      "P0"
+    ],
+    "priority": "P0"
+  },
+  {
+    "path": "output/competition-delivery-20260914/04—作品方案/04—作品方案.docx",
+    "title": "临客 LINK 作品方案",
+    "category": "case",
+    "source": "项目竞赛交付材料",
+    "tags": [
+      "LINK",
+      "微格",
+      "P1"
+    ],
+    "priority": "P1",
+    "description": "产品与技术方案摘要，用于检索平台能力说明"
+  }
+]

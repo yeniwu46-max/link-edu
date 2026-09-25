@@ -36,6 +36,10 @@ python scripts/evaluate_classroom.py check
 
 第一条运行前后端测试与生产构建，结果默认保存到 `artifacts/private/`；第二条离线检查课堂用例与规则，默认不调用模型。DeepEval 单测使用独立评测环境，见 [离线评测说明](docs/classroom-offline-evaluation.md)。
 
+## 本次交付 · 2026-09-25
+
+**版本 `2026.09.25-rag`：** [RAG 纵深与可信评测技术更新说明](docs/技术更新-RAG与可信评测-20260925.md)（混合检索、知识库页、课堂六维 RAG、引用校验、证据互跳）。
+
 ## 本次交付 · 2026-09-10
 
 2026-09-13 增量升级：[学习状态、有效计时与本机录像复盘](docs/classroom-learning-replay-20260913.md)。包括暂停/继续、版本化学生认知、取景校准、维度级拒评、真实报告阶段和本机录像证据回放；保留真人验收边界。
@@ -46,6 +50,7 @@ python scripts/evaluate_classroom.py check
 - [统一 AI 评课与证据可视化](docs/classroom-ai-review-20260910.md)
 - [摄像课堂与报告证据门槛](docs/classroom-camera-first.md)
 - [动作捕捉与教态评价](docs/classroom-motion-evaluation.md)
+- [RAG 向量知识库（架构 / 运维 / 优化路线）](docs/rag/README.md)
 - [历史技术交接](docs/classroom-handoff-20260910.md)
 
 ## 部署边界
