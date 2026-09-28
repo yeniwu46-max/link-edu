@@ -76,6 +76,9 @@ def test_failure_preserves_reservation_and_redacts_response(app, next_config, mo
         providers.chat('JSON', {})
     assert len(calls) == 1
     assert 'private' not in str(error.value)
+    if code == 401:
+        assert '密钥鉴权失败' in str(error.value)
+        assert 'OPENAI_NEXT_DIALOGUE_API_KEY' in str(error.value)
     assert credits.status()['accounts']['dialogue']['spent_and_reserved_usd'] > 0
     assert db.session.execute(select(CreditUsage)).scalar_one().charged_usd is None
 

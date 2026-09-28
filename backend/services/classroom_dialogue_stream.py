@@ -4,7 +4,7 @@ import os
 import time
 import httpx
 from flask import current_app
-from services.classroom_providers import key, model, llm_provider, ProviderError
+from services.classroom_providers import key, model, llm_provider, ProviderError, provider_http_error, deepseek_credential
 from services.classroom_budget import price, reserve, settle
 from services.classroom_stream import StudentDraft, StreamCancelled, sse_events, unique_object, validate_student
 
@@ -23,7 +23,8 @@ def chat_stream(system, payload, session_id, control, on_draft, max_tokens=1200)
             raise ProviderError('请检查对话端点、模型及单价配置')
         ip, op = price('OPENAI_NEXT_DIALOGUE_INPUT_USD_PER_MILLION'), price('OPENAI_NEXT_DIALOGUE_OUTPUT_USD_PER_MILLION')
     else:
-        token = key('DEEPSEEK_API_KEY')
+        credential = deepseek_credential()
+        token = key(credential)
         endpoint = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com').rstrip('/')
         if not endpoint.startswith('https://'):
             raise ProviderError('对话端点必须使用 HTTPS')
@@ -42,7 +43,9 @@ def chat_stream(system, payload, session_id, control, on_draft, max_tokens=1200)
                       'stream_options': {'include_usage': True}}) as response:
             control.bind(response)
             if response.status_code != 200:
-                raise ProviderError(f'流式回复失败（HTTP {response.status_code}），请检查额度及模型支持后重试')
+                raise provider_http_error(
+                    response.status_code, 'OpenAI Next' if is_next else 'DeepSeek',
+                    f'OPENAI_NEXT_{account.upper()}_API_KEY' if is_next else credential)
             for raw in sse_events(response.iter_lines()):
                 control.check()
                 if time.monotonic() - started > 45:

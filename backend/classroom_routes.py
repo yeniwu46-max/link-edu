@@ -122,7 +122,8 @@ def probe():
             else:
                 probe_asr()
             probe_results[service] = {'status': 'available', 'message': '接口验证通过' if service != 'asr' else '会话握手通过；真实识别需麦克风验收'}
-            if service in ('dialogue', 'vision') and describe(service)['provider'] == 'openai_next':
+            if service in ('dialogue', 'vision') and (
+                    describe(service)['provider'] == 'openai_next' or 'DEEPSEEK_TEST_API_KEY' in os.environ):
                 probe_results[service]['message'] = '测试密钥模型验证通过；正式课堂使用该用途专属密钥'
         except Exception as exc:
             probe_results[service] = {'status': 'failed', 'message': str(exc)[:160] if isinstance(exc, ValueError) else '接口验证失败，请检查配置与网络'}

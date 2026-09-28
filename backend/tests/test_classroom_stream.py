@@ -83,6 +83,41 @@ def test_next_stream_uses_dialogue_key_and_usd_ledger(app, monkeypatch):
     assert reservations[0][:2] == ('dialogue', 'dialogue') and len(settlements) == 1
 
 
+@pytest.mark.parametrize('profile,purpose', [(None, 'DIALOGUE'), ('test', 'TEST')])
+def test_deepseek_stream_uses_purpose_key(app, monkeypatch, profile, purpose):
+    app.config['CLASSROOM_API_PROFILE'] = profile
+    monkeypatch.setenv(f'DEEPSEEK_{purpose}_API_KEY', 'synthetic-purpose')
+    _, calls, _, _ = fake_provider(monkeypatch, chunks_for())
+    keys = []
+    monkeypatch.setattr(provider, 'key', lambda name: keys.append(name) or 'synthetic')
+    assert provider.chat_stream('JSON', {}, None, StreamControl(), lambda _: None) == OUTPUT
+    assert keys == [f'DEEPSEEK_{purpose}_API_KEY'] and len(calls) == 1
+
+
+@pytest.mark.parametrize('selected,profile,credential', [
+    ('deepseek', None, 'DEEPSEEK_API_KEY'),
+    ('openai_next', None, 'OPENAI_NEXT_DIALOGUE_API_KEY'),
+    ('openai_next', 'test', 'OPENAI_NEXT_TEST_API_KEY'),
+])
+def test_stream_401_identifies_credential_without_retry_or_key_fallback(app, monkeypatch, selected, profile, credential):
+    from services import classroom_credits
+    monkeypatch.setenv('CLASSROOM_LLM_PROVIDER', selected)
+    app.config['CLASSROOM_API_PROFILE'] = profile
+    response, calls, _, _ = fake_provider(monkeypatch, [])
+    response.status_code = 401
+    keys, settlements, drafts = [], [], []
+    monkeypatch.setattr(provider, 'key', lambda name: keys.append(name) or 'synthetic-private-token')
+    monkeypatch.setattr(classroom_credits, 'reserve', lambda *args: 1)
+    monkeypatch.setattr(classroom_credits, 'settle', lambda *args: settlements.append(args))
+    with pytest.raises(provider.ProviderError, match='密钥鉴权失败') as error:
+        provider.chat_stream('JSON', {}, None, StreamControl(), drafts.append)
+    assert credential in str(error.value)
+    assert 'synthetic-private-token' not in str(error.value)
+    assert '重新登录课堂无法解决' in str(error.value)
+    assert keys == [credential] and len(calls) == 1
+    assert response.closed and not drafts and not settlements
+
+
 @pytest.mark.parametrize('chunks', [chunks_for()[:-3], [{'error':{'message':'do not leak'}}], ['not json'], chunks_for(dict(OUTPUT, student_id='intruder'))])
 def test_invalid_or_disconnected_stream_never_retries(app, monkeypatch, chunks):
     response, calls, _, _ = fake_provider(monkeypatch, chunks)

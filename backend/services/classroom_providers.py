@@ -15,6 +15,22 @@ class ProviderError(ValueError):
     pass
 
 
+def provider_http_error(status_code, provider_name, credential_name):
+    """Explain upstream failures without exposing credentials or response bodies."""
+    prefix = f'{provider_name} 请求失败（HTTP {status_code}）'
+    if status_code == 401:
+        return ProviderError(
+            f'{prefix}：模型服务密钥鉴权失败，请管理员检查或更新后端 '
+            f'{credential_name} 并重启服务；重新登录课堂无法解决此问题')
+    if status_code == 403:
+        return ProviderError(f'{prefix}：模型服务拒绝访问，请管理员检查该用途密钥的权限或访问限制')
+    if status_code == 429:
+        return ProviderError(f'{prefix}：模型服务限流或额度不足，请检查该用途额度及调用频率后重试')
+    if status_code >= 500:
+        return ProviderError(f'{prefix}：模型服务暂时异常，请稍后重试')
+    return ProviderError(f'{prefix}，请检查模型支持与请求配置后重试')
+
+
 def key(name):
     value = os.getenv(name, '').strip()
     if not value:
@@ -27,6 +43,13 @@ def llm_provider():
     if selected not in ('deepseek', 'openai_next'):
         raise ProviderError('CLASSROOM_LLM_PROVIDER 仅支持 deepseek 或 openai_next')
     return selected
+
+
+def deepseek_credential(service='dialogue', *, test=False):
+    """Use the configured purpose key; legacy single-key deployments still work."""
+    account = 'test' if test or current_app.config.get('CLASSROOM_API_PROFILE') == 'test' else service
+    name = f'DEEPSEEK_{account.upper()}_API_KEY'
+    return name if name in os.environ else 'DEEPSEEK_API_KEY'
 
 
 def model(service):
@@ -42,7 +65,8 @@ def model(service):
 def chat(system, payload, session_id=None, image=None, max_tokens=600, *, test=False):
     if llm_provider() == 'openai_next':
         return next_chat(system, payload, session_id, image, max_tokens, test=test)
-    token = key('DEEPSEEK_API_KEY')
+    credential = deepseek_credential('vision' if image else 'dialogue', test=test)
+    token = key(credential)
     endpoint = os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com').rstrip('/')
     if not endpoint.startswith('https://'):
         raise ProviderError('DeepSeek端点必须使用HTTPS，本次未发送密钥')
@@ -64,7 +88,7 @@ def chat(system, payload, session_id=None, image=None, max_tokens=600, *, test=F
                   'thinking': {'type': 'disabled'}, 'max_tokens': max_tokens,
                   'response_format': {'type': 'json_object'}})
         if response.status_code != 200:
-            raise ProviderError(f'DeepSeek 请求失败（HTTP {response.status_code}），请检查模型权限、余额或稍后重试')
+            raise provider_http_error(response.status_code, 'DeepSeek', credential)
         result = response.json()
         usage = result.get('usage', {})
         if 'prompt_tokens' in usage and 'completion_tokens' in usage:
@@ -110,7 +134,7 @@ def next_chat(system, payload, session_id, image, max_tokens, *, test=False):
                   'thinking': {'type': 'disabled'}, 'max_tokens': max_tokens,
                   'response_format': {'type': 'json_object'}})
         if response.status_code != 200:
-            raise ProviderError(f'OpenAI Next 请求失败（HTTP {response.status_code}），请检查该用途密钥的额度、有效期与模型权限')
+            raise provider_http_error(response.status_code, 'OpenAI Next', f'OPENAI_NEXT_{account.upper()}_API_KEY')
         result = response.json()
         usage = result.get('usage') or {}
         counts = [usage.get('prompt_tokens'), usage.get('completion_tokens')]

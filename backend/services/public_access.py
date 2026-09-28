@@ -45,7 +45,14 @@ def install_policy(app):
         if not app.config.get('PUBLIC_DEPLOYMENT') or not request.path.startswith('/api/'):
             return
         if request.method in ('POST', 'PATCH', 'PUT'):
-            if request.content_length and request.content_length > (app.config.get('MAX_CONTENT_LENGTH') or 2000000):
+            limit = app.config.get('MAX_CONTENT_LENGTH') or 2000000
+            if request.endpoint == 'rag.upload_document':
+                from rag.settings import load_settings
+                try:
+                    limit = load_settings().max_upload_bytes
+                except ValueError:
+                    pass
+            if request.content_length and request.content_length > limit:
                 return jsonify(message='请求内容过大'), 413
             body = request.get_json(silent=True)
             if body is not None and not isinstance(body, dict):

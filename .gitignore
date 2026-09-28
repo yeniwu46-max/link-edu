@@ -28,3 +28,6 @@ output/playwright/
 artifacts/library-pdf-review/
 artifacts/resource-review/
 output/pixel-characters/
+# Local delivery bundles can contain private configuration and participant data.
+/output/
+/tmp/

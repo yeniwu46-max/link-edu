@@ -57,7 +57,7 @@ def describe(service):
             return {'provider': 'openai_next', 'model': bailian.model(service),
                     'configured': configured, 'pricing_confirmed': priced, 'account': service}
         return {'provider': 'deepseek', 'model': bailian.model(service),
-                'configured': bool(os.getenv('DEEPSEEK_API_KEY', '').strip()), 'pricing_confirmed': True}
+                'configured': bool(os.getenv(bailian.deepseek_credential(service), '').strip()), 'pricing_confirmed': True}
     try:
         selected = provider()
     except bailian.ProviderError as exc:

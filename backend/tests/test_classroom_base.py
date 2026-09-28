@@ -16,6 +16,8 @@ def app(monkeypatch, tmp_path):
         raise AssertionError('Unmocked external stream in unit test')
     monkeypatch.setattr(httpx, 'stream', blocked_stream)
     monkeypatch.setenv('CLASSROOM_LLM_PROVIDER', 'deepseek')
+    for purpose in ('DIALOGUE', 'VISION', 'TEST'):
+        monkeypatch.delenv(f'DEEPSEEK_{purpose}_API_KEY', raising=False)
     monkeypatch.setenv('AI_PRICING_CONFIRMED', 'true')
     class Config:
         TESTING = True
