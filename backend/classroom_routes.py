@@ -11,12 +11,15 @@ from flask_sock import Sock
 from sqlalchemy import update
 from extensions import db
 from models import Course, TrainingSession, User
-from classroom_models import Classroom, ClassroomEvent, ClassroomTicket
+from classroom_models import Classroom, ClassroomEvent, ClassroomTicket, PracticePlan
 from services import classroom_budget as budget
 from services.classroom_speech import describe, probe_asr, speak
 from services.classroom_runtime import ACTIVE, active_lock, LiveClassroom
 from services.classroom_reports import jobs, request_report
 from services.classroom_readiness import MIN_CLASS_SECONDS, report_readiness
+from services.classroom_behaviors import analyze_behaviors
+from services.classroom_scenarios import scenario_brief
+from services.classroom_practice import ensure_plans
 from services.classroom_clock import timing, transition, clock_lock
 
 bp = Blueprint('classroom', __name__, url_prefix='/api/classroom')
@@ -57,13 +60,20 @@ def serialize(room, include_events=False):
             'elapsed': (datetime.utcnow() - room.started_at).total_seconds() if not room.ended_at else (room.ended_at - room.started_at).total_seconds(),
             'cloud_vision': room.cloud_vision, 'report_state': room.report_state,
             'report': room.report, 'report_error': room.report_error, 'report_version': room.report_version,
-            'created_at': room.started_at.isoformat(), 'students': room.students}
+            'created_at': room.started_at.isoformat(), 'students': room.students,
+            'scenario': scenario_brief()}
     data.update(clock)
     data['elapsed'] = clock['active_elapsed']
     phase = ClassroomEvent.query.filter_by(session_id=room.session_id, kind='report_stage').order_by(ClassroomEvent.id.desc()).first()
     data['report_stage'] = room.report_state if room.report_state in ('completed','failed','insufficient') else phase.payload.get('stage') if phase else room.report_state
     if include_events:
         data['events'] = [e.to_dict() for e in ClassroomEvent.query.filter_by(session_id=room.session_id).order_by(ClassroomEvent.id).all()]
+        data['behavior_analysis'] = analyze_behaviors(data['events'])
+        data['practice_plans'] = [plan.to_dict() for plan in PracticePlan.query.filter_by(
+            source_session_id=room.session_id, source_report_version=room.report_version)
+            .order_by(PracticePlan.created_at.desc()).all()]
+        active_plan = PracticePlan.query.filter_by(retest_session_id=room.session_id).first()
+        data['active_practice_plan'] = active_plan.to_dict() if active_plan else None
         data['report_readiness'] = report_readiness(data['events'], clock['wall_elapsed'], room.cloud_vision,
                                                    active_elapsed=clock['active_elapsed'])
     return data
@@ -78,7 +88,7 @@ def capabilities():
         services[service] = {**info,
             'status': probe_results.get(service, {}).get('status', 'unverified') if info['configured'] else 'unconfigured',
             'message': info.get('message') or probe_results.get(service, {}).get('message', '')}
-    return jsonify(services=services, budget=public_budget(budget.status()),
+    return jsonify(services=services, budget=public_budget(budget.status()), scenario=scenario_brief(),
         capacity=capacity(), quota=daily_quota(int(get_jwt_identity())), can_probe=not public_mode(),
         motion_assets={name: (Path(current_app.root_path).parent / 'frontend/public/models' / filename).exists()
                        for name, filename in {'body': 'pose_landmarker_lite.task', 'hands': 'gesture_recognizer.task', 'face': 'face_landmarker.task'}.items()},
@@ -146,9 +156,23 @@ def create():
     mode_value = data.get('mode', 'full')
     if mode_value not in ('full', 'fragment'):
         return jsonify(message='训练模式无效'), 400
+    practice_id = data.get('practice_plan_id')
+    plan = None
+    if practice_id is not None:
+        if type(practice_id) is not int or practice_id <= 0:
+            return jsonify(message='复练任务编号无效'), 400
+        plan = PracticePlan.query.filter_by(id=practice_id, user_id=uid).first()
+        if not plan:
+            abort(404)
+        source = db.session.get(Classroom, plan.source_session_id)
+        if (plan.status != 'suggested' or not source or source.report_state != 'completed' or
+                source.report_version != plan.source_report_version):
+            return jsonify(message='这项复练任务已开始或来源报告已更新，请重新选择'), 409
     with active_lock:
         active = Classroom.query.filter_by(user_id=uid).filter(Classroom.state.in_(['active', 'paused'])).first()
         if active:
+            if plan:
+                return jsonify(message='请先完成当前课堂，再开始复练任务'), 409
             return jsonify(serialize(active)), 200
         if capacity()['available'] == 0:
             return jsonify(message='当前5个课堂名额已满，请稍后重试', code='classroom_capacity'), 503
@@ -168,6 +192,9 @@ def create():
         db.session.flush()
         room = Classroom(session_id=session.id, user_id=uid, mode=mode_value, cloud_vision=data.get('cloud_vision') is True)
         db.session.add(room)
+        if plan:
+            plan.retest_session_id = session.id
+            plan.status = 'active'
         db.session.commit()
         return jsonify(serialize(room)), 201
 
@@ -177,6 +204,33 @@ def create():
 def history():
     return jsonify(items=[serialize(r) for r in Classroom.query.filter_by(user_id=int(get_jwt_identity()))
                          .order_by(Classroom.started_at.desc()).limit(50).all()])
+
+
+@bp.get('/practice-plans')
+@jwt_required()
+def practice_plans():
+    return jsonify(items=[plan.to_dict() for plan in PracticePlan.query.filter_by(
+        user_id=int(get_jwt_identity())).order_by(PracticePlan.created_at.desc()).limit(100).all()])
+
+
+@bp.get('/practice-plans/<int:plan_id>')
+@jwt_required()
+def practice_plan_detail(plan_id):
+    plan = PracticePlan.query.filter_by(id=plan_id, user_id=int(get_jwt_identity())).first()
+    if not plan:
+        abort(404)
+    return jsonify(plan.to_dict())
+
+
+@bp.post('/sessions/<int:sid>/practice-plans')
+@jwt_required()
+def create_practice_plans(sid):
+    room = owned(sid)
+    if room.state != 'ended' or room.report_state != 'completed':
+        return jsonify(message='请在课堂报告完成后生成复练任务'), 409
+    plans = ensure_plans(room)
+    db.session.commit()
+    return jsonify(items=[plan.to_dict() for plan in plans])
 
 
 @bp.get('/sessions/<int:sid>')

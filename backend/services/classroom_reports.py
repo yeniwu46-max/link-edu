@@ -8,6 +8,7 @@ from services.classroom_providers import chat
 from services.classroom_knowledge import search
 from services.classroom_motion import motion_evidence
 from services.classroom_readiness import report_readiness
+from services.classroom_practice import ensure_plans, finish_retest_plans
 
 RAG_REPORT_QUERY = '平均分 分数 提问 教学评价 教态 导入 候答'
 
@@ -146,6 +147,7 @@ def report_stage(room, stage):
 def request_report(app, session_id, retry=False):
     with locks:
         room = db.session.get(Classroom, session_id)
+        finish_retest_plans(room)
         # A repeated finish is never authorization to buy another review after failure.
         if session_id in jobs or (room.report_state != 'idle' and not retry):
             return
@@ -202,6 +204,7 @@ def request_report(app, session_id, retry=False):
                                    generation_seconds=round(time.monotonic() - started, 3))
                 room.report_state = 'completed'
                 room.report_version += 1
+                ensure_plans(room)
                 db.session.commit()
                 report_stage(room, 'completed')
             except Exception as exc:

@@ -24,6 +24,12 @@ def test_silent_update_and_interrupted_reply_do_not_resolve_question(app):
     obj.dispatch('decision',(obj.revision,None,False,{'action':'wait','state_updates':[
         {'student_id':'yu','understanding':'每份必须同样大','misconceptions':[], 'concepts':['平均分'],'correction_event_ids':[event]}]}))
     assert db.session.get(Classroom,obj.sid).students['yu']['understanding']=='每份必须同样大'
+    from classroom_models import ClassroomEvent
+    transition = ClassroomEvent.query.filter_by(session_id=obj.sid, kind='student_state_transition').one()
+    assert transition.payload['student_id'] == 'yu'
+    assert transition.payload['event_ids'] == [event]
+    assert transition.payload['before']['concept_states']['equal_parts'] == 'misconception'
+    assert transition.payload['after']['concept_states']['equal_parts'] == 'addressed'
     obj.last_final='小雨，请解释什么是平均分？'
     obj.start_reply({'student_id':'yu','action':'answer','text':'每份同样大才是平均分。','resolved':True})
     assert obj.students['yu']['open_question'] == obj.last_final
@@ -51,6 +57,28 @@ def test_correction_on_silent_turn_requires_real_explanation_reference():
     assert changed['yu']['misconceptions'] == []
     assert changed['yu']['correction_event_ids'] == [2]
     update['correction_event_ids'] = [999]
+    assert apply_updates(states, [update], events) == states
+
+
+def test_unrelated_or_unverified_explanation_cannot_clear_misconception():
+    states = normalize_states({})
+    update = {'student_id': 'yu', 'understanding': '我完全会了', 'misconceptions': [],
+              'concepts': ['平均分'], 'correction_event_ids': [2]}
+    events = [{'id': 2, 'type': 'transcript', 'data': {'text': '今天我们学习分数，请大家看看黑板上的数字。'}}]
+    assert apply_updates(states, [update], events) == states
+    events[0]['data']['text'] = '分母表示一共分成几份，其中一份叫几分之一。'
+    assert apply_updates(states, [update], events) == states
+    events[0]['data']['text'] = '平均分不是每份一样多，不用分得一样。'
+    assert apply_updates(states, [update], events) == states
+
+
+def test_legacy_student_state_migrates_without_erasing_unknown_misconceptions():
+    old = {'yu': {'misconceptions': ['可能混淆平均分与分母大小', '另一个未分类误解']}}
+    states = normalize_states(old)
+    assert states['yu']['concept_states']['equal_parts'] == 'misconception'
+    update = {'student_id': 'yu', 'understanding': '每份相等', 'misconceptions': [],
+              'concepts': ['平均分'], 'correction_event_ids': [7]}
+    events = [{'id': 7, 'type': 'transcript', 'data': {'text': '平均分就是每份同样多。'}}]
     assert apply_updates(states, [update], events) == states
 
 

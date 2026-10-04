@@ -1,7 +1,7 @@
 import threading
 import time
 from extensions import db
-from classroom_models import ClassroomEvent, Classroom
+from classroom_models import ClassroomEvent, Classroom, PracticePlan
 from services import classroom_reports as reports
 from test_classroom_base import app
 from test_classroom_runtime import live
@@ -34,11 +34,16 @@ def test_finish_is_idempotent_and_correction_has_no_fixed_bonus(app,monkeypatch)
     release.set()
     room=wait_for_report(obj.sid)
     assert len(calls)==1 and room.report_version==1 and room.report['overall_score']==70
+    first_plan=PracticePlan.query.filter_by(source_session_id=obj.sid,source_report_version=1).one()
+    assert first_plan.source_event_ids==[eid] and first_plan.status=='suggested'
     c.post(url+'/finish',headers=headers(1))
     assert len(calls)==1
     c.post(url+'/report',headers=headers(1),json={'objection':'请核对时间20秒'})
     room=wait_for_report(obj.sid)
     assert len(calls)==2 and room.report_version==2 and room.report['overall_score']==70
+    db.session.refresh(first_plan)
+    assert first_plan.status=='superseded'
+    assert PracticePlan.query.filter_by(source_session_id=obj.sid,source_report_version=2).count()==1
     assert ClassroomEvent.query.filter_by(session_id=obj.sid,kind='correction').count()==1
 
 def test_empty_classroom_fails_without_cloud_or_demo(app,monkeypatch):

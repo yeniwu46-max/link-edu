@@ -70,3 +70,32 @@ class ClassroomTicket(db.Model):
     user_id = db.Column(db.Integer, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     used = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class PracticePlan(db.Model):
+    """Evidence-linked next practice; never a standardized teacher assessment."""
+    __tablename__ = 'classroom_practice_plans'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    source_session_id = db.Column(db.Integer, db.ForeignKey('classrooms.session_id'), nullable=False, index=True)
+    source_report_version = db.Column(db.Integer, nullable=False)
+    dimension = db.Column(db.String(24), nullable=False)
+    target_kind = db.Column(db.String(40), nullable=False)
+    task_text = db.Column(db.Text, nullable=False)
+    basis = db.Column(db.String(24), nullable=False)
+    source_event_ids = db.Column(db.JSON, default=list, nullable=False)
+    criteria = db.Column(db.JSON, default=dict, nullable=False)
+    status = db.Column(db.String(24), default='suggested', nullable=False)
+    retest_session_id = db.Column(db.Integer, db.ForeignKey('classrooms.session_id'), unique=True)
+    comparison = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (db.UniqueConstraint('source_session_id', 'source_report_version', 'target_kind'),)
+
+    def to_dict(self):
+        return dict(id=self.id, source_session_id=self.source_session_id,
+                    source_report_version=self.source_report_version, dimension=self.dimension,
+                    target_kind=self.target_kind, task_text=self.task_text, basis=self.basis,
+                    source_event_ids=self.source_event_ids, criteria=self.criteria,
+                    status=self.status, retest_session_id=self.retest_session_id,
+                    comparison=self.comparison, created_at=self.created_at.isoformat())
