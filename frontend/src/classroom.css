@@ -1023,3 +1023,4 @@
     animation: none;
   }
 }
+.classroom-scenario{display:grid;gap:12px;margin:14px 0;padding:18px 20px;}.classroom-scenario small{color:var(--class-muted);font-size:11px;}.classroom-scenario h2{margin:5px 0;font-size:19px;}.classroom-scenario p{margin:0;font-size:12px;line-height:1.6;color:var(--class-muted);}.classroom-scenario ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none;}.classroom-scenario li{display:flex;gap:6px;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.06);font-size:11px;}.classroom-scenario li span{color:var(--class-muted);}

@@ -98,7 +98,7 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
     <template v-if="room">
       <div class="review-session-meta"><span>课堂 #{{ room.session_id }} · {{ room.topic }}</span><span>{{ formatReportDate(room.created_at) }} · {{ formatReportTime(Number.isFinite(room.elapsed)?room.elapsed*1000:NaN) }}</span></div>
       <section v-if="['active','paused'].includes(room.state)" class="review-empty-state"><h2>这节课堂还未结束</h2><p>此处不会提前生成评分。</p><router-link class="review-button" :to="classroomDestination(room)">返回课堂</router-link></section>
-      <ClassroomReport v-else :room="room" :busy="busy" @regenerate="regenerate" />
+      <ClassroomReport v-else :room="room" :busy="busy" @regenerate="regenerate" @plans-created="loadRoom(room.session_id)" />
     </template>
   </div>
 </template>

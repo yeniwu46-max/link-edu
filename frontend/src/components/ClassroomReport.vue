@@ -8,7 +8,7 @@ import { eventLabel, eventText } from '../services/classroomStatus.js';
 import ClassroomDialog from './ClassroomDialog.vue';
 import ClassroomReplay from './ClassroomReplay.vue';
 const props=defineProps({room:Object,busy:Boolean});
-const emit=defineEmits(['regenerate']);
+const emit=defineEmits(['regenerate','plans-created']);
 const view=computed(()=>buildReview(props.room));
 const selectedKey=ref('clarity');
 const selected=computed(()=>view.value.dimensions.find(d=>d.key===selectedKey.value)||view.value.dimensions[0]);
@@ -22,6 +22,25 @@ let imageRequest=0;
 const filtered=computed(()=>evidence.value.filter(e=>!filter.value || `${eventLabel(e)} ${eventText(e)} #${e.id} ${time(e.at_ms)}`.includes(filter.value.trim())));
 const motion=computed(()=>props.room.report?.motion_evidence);
 const sources=computed(()=>props.room.report?.sources||[]);
+const behaviorLabels={teacher_question:'教师提问',student_response:'学生完整回应',question_response:'提问与回应',teacher_followup:'教师追问',teacher_feedback:'教师反馈',teacher_summary:'课堂小结',post_question_silence:'提问后的静默间隔',board_observation:'可见板书',board_speech_context:'板书与授课发言',motion_speech_context:'动作与授课发言'};
+const behaviors=computed(()=>props.room.behavior_analysis?.segments||[]);
+function behaviorEvents(segment){return view.value.events.filter(event=>segment.event_ids?.includes(event.id));}
+const transitions=computed(()=>view.value.events.filter(event=>event.type==='student_state_transition'));
+const studentNames={ming:'小明',yu:'小雨',lin:'小林'};
+const plans=computed(()=>props.room.practice_plans||[]);
+const activePractice=computed(()=>props.room.active_practice_plan);
+const activePracticeEvidence=computed(()=>{
+  const ids=new Set((activePractice.value?.comparison?.retest_event_ids||[]).flat());
+  return view.value.events.filter(event=>ids.has(event.id));
+});
+const generatingPractice=ref(false), practiceError=ref('');
+async function generatePractice(){
+  if(generatingPractice.value)return;
+  generatingPractice.value=true;practiceError.value='';
+  try{await api.post(`/classroom/sessions/${props.room.session_id}/practice-plans`,{}, {skipBusy:true});emit('plans-created');}
+  catch(e){practiceError.value=e.response?.data?.message||'复练任务生成失败，请稍后重试。';}
+  finally{generatingPractice.value=false;}
+}
 const sourceLink=s=>/^https?:\/\//i.test(s.url||s.source||'')?(s.url||s.source):null;
 const modalityLabels={body:'身体姿态',hands:'手势动作',face:'面部几何'};
 const ratio=m=>m.total_samples>0?Math.max(0,Math.min(100,m.observed_samples/m.total_samples*100)):0;
@@ -128,6 +147,31 @@ function regenerate(){
       </div>
       <p v-if="view.duration===null || view.untimed" class="review-caption">{{ view.duration===null?'课堂时长未记录，横轴为已知事件跨度。':'' }}{{ view.untimed ? view.untimed+' 条事件没有有效时间戳，仅在记录列表展示。' : '' }}</p>
     </section>
+    <section class="review-panel report-behaviors" aria-labelledby="behavior-heading">
+      <div class="report-section-title"><div><p class="review-eyebrow">BEHAVIOR TRACE</p><h2 id="behavior-heading"><ListDetails aria-hidden="true" />可回放的教学行为</h2></div><span>规则识别 · 不代表教学质量评分</span></div>
+      <p class="review-caption">只展示能关联到原始课堂事件的片段。提问到学生回应的间隔包含系统生成和语音播放时间，不是教师候答时间。</p>
+      <p class="review-caption">可用记录：教师转写 {{ room.behavior_analysis?.coverage?.teacher_transcripts||0 }} 段，完整学生回应 {{ room.behavior_analysis?.coverage?.completed_student_replies||0 }} 次，画面采样 {{ room.behavior_analysis?.coverage?.vision_samples||0 }} 条，本地可观察动作样本 {{ room.behavior_analysis?.coverage?.observed_motion_samples||0 }} 条。</p>
+      <ol v-if="behaviors.length" class="behavior-list">
+        <li v-for="(segment,index) in behaviors" :key="segment.kind+'-'+segment.event_ids.join('-')+'-'+index">
+          <time>{{ time(segment.start_ms) }}</time><strong>{{ behaviorLabels[segment.kind]||segment.kind }}</strong>
+          <p>{{ segment.detail || '查看关联课堂记录' }}</p>
+          <button type="button" class="review-button no-print" @click="showEvidence(behaviorEvents(segment),(behaviorLabels[segment.kind]||'教学行为')+' · 原始证据')">查看 {{ segment.event_ids.length }} 条证据</button>
+        </li>
+      </ol>
+      <p v-else class="review-caption">暂无足够的已记录事件来识别教学行为片段。</p>
+    </section>
+    <section v-if="transitions.length" class="review-panel" aria-labelledby="student-change-heading">
+      <div class="report-section-title"><div><p class="review-eyebrow">SIMULATED STATE</p><h2 id="student-change-heading">模拟学生状态变化</h2></div><span>情境状态 · 可追溯教师证据</span></div>
+      <p class="review-caption">状态只用于复盘虚拟学生如何响应本节教学，不代表真实儿童已掌握知识。</p>
+      <ol class="behavior-list">
+        <li v-for="transition in transitions" :key="transition.id">
+          <time>{{ time(transition.at_ms) }}</time><strong>{{ studentNames[transition.data.student_id]||'虚拟学生' }}</strong>
+          <p>{{ transition.data.after?.understanding || '模拟理解状态已更新' }}</p>
+          <p>仍保留的误解：{{ transition.data.after?.misconceptions?.join('；') || '无记录' }}</p>
+          <button type="button" class="review-button no-print" @click="showEvidence(view.events.filter(event=>transition.data.event_ids?.includes(event.id)),'状态变化 · 教师证据')">查看教师证据</button>
+        </li>
+      </ol>
+    </section>
     <section v-if="view.hasReport && motion?.sample_count" class="review-panel report-motion">
       <div class="report-section-title"><div><p class="review-eyebrow">04 / OBSERVABILITY</p><h2><Focus2 aria-hidden="true" />先看证据质量，再谈教态</h2></div><span>动作摘要 · {{ motion.observed_samples }} 个可观察样本</span></div>
       <div class="modality-grid"><div v-for="(m,key) in motion.modalities" :key="key"><header><span>{{ modalityLabels[key] || key }}</span><b>{{ m.observed_samples }} / {{ m.total_samples }}</b></header><div class="modality-track" :aria-label="(modalityLabels[key]||key)+'可观察样本 '+m.observed_samples+' / '+m.total_samples"><i :style="{width:ratio(m)+'%'}" /></div><small>可观察样本 / 采样总数</small></div></div>
@@ -142,6 +186,33 @@ function regenerate(){
       <div class="report-section-title"><div><p class="review-eyebrow">05 / NEXT PRACTICE</p><h2><Bulb aria-hidden="true" />把报告带回下一节课</h2></div><span>复盘提示 · 非新增 AI 结论</span></div>
       <div class="reflection-grid"><article v-for="(d,index) in view.reflections" :key="d.key"><span class="reflection-number">0{{ index+1 }}</span><h3>{{ d.label }}</h3><p>{{ d.reflection }}</p><button class="reflection-link no-print" :disabled="!d.evidence.length" @click="showEvidence(d.evidence,d.label+' · 复盘证据')">带着证据复盘<ArrowUpRight aria-hidden="true" /></button></article></div>
       <p class="review-caption">按已评分维度从低到高选取最多 3 项，提供固定练习提示；需结合本课证据由教师判断是否适用，不等同于已发现的问题。</p>
+    </section>
+    <section v-if="view.hasReport" class="review-panel" aria-labelledby="practice-heading">
+      <div class="report-section-title"><div><p class="review-eyebrow">NEXT PRACTICE</p><h2 id="practice-heading"><Bulb aria-hidden="true" />带着目标再练一次</h2></div><span>同一情境 · 同一行为识别规则</span></div>
+      <p class="review-caption">任务依据已保存的报告与课堂事件生成。复练只核对目标行为是否被记录，不直接比较不同证据覆盖的综合分。</p>
+      <p v-if="practiceError" class="review-inline-alert" role="alert">{{ practiceError }}</p>
+      <button v-if="!plans.length && room.report_state==='completed'" type="button" class="review-button no-print" :disabled="generatingPractice" @click="generatePractice">{{ generatingPractice?'生成中…':'生成复练任务' }}</button>
+      <ol v-if="plans.length" class="behavior-list">
+        <li v-for="plan in plans" :key="plan.id">
+          <strong>{{ plan.task_text }}</strong>
+          <p>{{ plan.basis==='general'?'通用练习；本次报告没有足够证据指向个人弱项。':'关联已保存的评课维度与原始课堂证据。' }}</p>
+          <p>完成判据：在复练课堂中至少记录 {{ plan.criteria?.minimum_observed||1 }} 次目标行为（{{ behaviorLabels[plan.target_kind]||plan.target_kind }}）。</p>
+          <button v-if="plan.source_event_ids?.length" type="button" class="review-button no-print" @click="showEvidence(view.events.filter(event=>plan.source_event_ids.includes(event.id)),'复练任务 · 来源证据')">查看来源证据</button>
+          <router-link v-if="plan.status==='suggested'" class="review-button primary no-print" :to="{path:'/classroom',query:{practice:String(plan.id)}}">开始这项复练</router-link>
+          <router-link v-if="plan.retest_session_id" class="review-button no-print" :to="{path:'/ai-review',query:{classroom:String(plan.retest_session_id)}}">查看复练课堂 #{{ plan.retest_session_id }}</router-link>
+          <p v-if="plan.comparison">对照结果：{{ {observed:'已记录到目标行为',not_observed:'本次未观察到目标行为',insufficient:'证据不足，无法判断'}[plan.comparison.status]||'待核对' }}。{{ plan.comparison.notice||plan.comparison.reason }}</p>
+        </li>
+      </ol>
+    </section>
+    <section v-if="activePractice" class="review-panel" aria-labelledby="active-practice-heading">
+      <div class="report-section-title"><div><p class="review-eyebrow">PRACTICE ATTEMPT</p><h2 id="active-practice-heading">本节的复练目标</h2></div><span>来源课堂 #{{ activePractice.source_session_id }}</span></div>
+      <p>{{ activePractice.task_text }}</p>
+      <p class="review-caption">判据：至少记录 {{ activePractice.criteria?.minimum_observed||1 }} 次“{{ behaviorLabels[activePractice.target_kind]||activePractice.target_kind }}”。这只核对行为是否出现，不把次数当作教学质量评分。</p>
+      <p v-if="activePractice.comparison" class="review-caption">{{ {observed:'已记录到目标行为',not_observed:'未观察到目标行为',insufficient:'证据不足，无法判断'}[activePractice.comparison.status]||'待核对' }}：{{ activePractice.comparison.notice||activePractice.comparison.reason }}</p>
+      <div class="kb-source-actions no-print">
+        <router-link class="review-button" :to="{path:'/ai-review',query:{classroom:String(activePractice.source_session_id)}}">查看来源课堂</router-link>
+        <button v-if="activePracticeEvidence.length" type="button" class="review-button" @click="showEvidence(activePracticeEvidence,'复练目标 · 本节证据')">查看本节 {{ activePracticeEvidence.length }} 条目标证据</button>
+      </div>
     </section>
     <section v-if="view.hasReport" class="report-methodology review-panel">
       <h2><ShieldCheck aria-hidden="true" />方法、来源与边界</h2>

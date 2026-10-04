@@ -14,6 +14,20 @@
         以下轨迹保留旧演示 / 规则评分。真实 AI 课堂按证据覆盖评价，不与此分数直接比较。
         <router-link to="/ai-review">查看模拟课堂评课 →</router-link>
       </p>
+      <section class="growth-practice glass" aria-label="模拟课堂复练任务">
+        <div class="growth-records__head"><div><h2>模拟课堂复练</h2><p>按课堂证据选择目标，下一节核对目标行为是否出现</p></div><router-link class="ghost-link" to="/ai-review">查看课堂报告 →</router-link></div>
+        <p v-if="practiceError" class="dock-hint" role="alert">{{ practiceError }}</p>
+        <ul v-else-if="practicePlans.length" class="growth-practice-list">
+          <li v-for="plan in practicePlans.slice(0,6)" :key="plan.id">
+            <strong>{{ plan.task_text }}</strong>
+            <span>{{ {suggested:'待开始',active:'复练中',completed:'已复练',superseded:'来源报告已更新'}[plan.status]||plan.status }} · 来源课堂 #{{ plan.source_session_id }}</span>
+            <p v-if="plan.comparison">{{ {observed:'已记录到目标行为',not_observed:'未观察到目标行为',insufficient:'证据不足，无法判断'}[plan.comparison.status]||'待核对' }}；次数不代表教学质量。</p>
+            <router-link v-if="plan.status==='suggested'" :to="{path:'/classroom',query:{practice:String(plan.id)}}">开始复练 →</router-link>
+            <router-link v-else-if="plan.retest_session_id" :to="{path:'/ai-review',query:{classroom:String(plan.retest_session_id)}}">查看复练证据 →</router-link>
+          </li>
+        </ul>
+        <p v-else class="dock-hint">完成一节模拟课堂并生成报告后，可在报告中选择复练任务。</p>
+      </section>
 
       <div class="growth-dash">
         <section class="growth-chart-panel glass" aria-label="得分趋势">
@@ -186,6 +200,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import { fetchGrowth } from '../services/dashboard'
+import { api } from '../services/api'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -198,6 +213,8 @@ const records = ref([])
 const summaries = ref([])
 const loadError = ref('')
 const journals = ref([])
+const practicePlans = ref([])
+const practiceError = ref('')
 const showAllRecords = ref(false)
 const recordLimit = 6
 const selectedPointIndex = ref(-1)
@@ -452,5 +469,16 @@ async function load() {
 }
 
 watch(range, load)
-onMounted(load)
+async function loadPracticePlans(){
+  try{practicePlans.value=(await api.get('/classroom/practice-plans',{timeout:15000,skipBusy:true})).data.items||[];practiceError.value='';}
+  catch(error){practicePlans.value=[];practiceError.value=error?.response?.data?.message||'复练任务暂时无法读取。';}
+}
+onMounted(()=>{load();loadPracticePlans();})
 </script>
+
+<style scoped>
+.growth-practice{padding:22px;margin-bottom:18px;border-radius:18px;}
+.growth-practice-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;list-style:none;margin:18px 0 0;padding:0;}
+.growth-practice-list li{display:grid;align-content:start;gap:8px;padding:15px;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:rgba(255,255,255,.035);}
+.growth-practice-list strong{font-size:13px;line-height:1.5;}.growth-practice-list span,.growth-practice-list p{font-size:11px;color:#a9a1ae;line-height:1.6;}.growth-practice-list a{font-size:12px;color:#ffb45b;}
+</style>

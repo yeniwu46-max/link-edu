@@ -225,7 +225,7 @@ export function useClassroom() {
     if (!cameraEnabled.value) await toggleCamera();
     if (!cameraEnabled.value) throw new Error(error.value || '摄像头不可用，无法开始课堂');
   }
-  async function begin(mode, consent, cameraConsent) {
+  async function begin(mode, consent, cameraConsent, practicePlanId = null) {
     if (busy.value) return;
     if (!consentReady(consent, cameraConsent)) return;
     busy.value = true;
@@ -239,6 +239,7 @@ export function useClassroom() {
         audio_consent: consent,
         camera_consent: cameraConsent,
         cloud_vision: cloudVision.value,
+        ...(practicePlanId ? { practice_plan_id: practicePlanId } : {}),
       });
       await load(data.session_id);
       await connect();

@@ -25,6 +25,7 @@ function createGrowth(fetchGrowth) {
     'echarts/core': { use() {} },
     'echarts/renderers': {}, 'echarts/charts': {}, 'echarts/components': {}, 'vue-echarts': {},
     '../services/dashboard': { fetchGrowth },
+    '../services/api': { api: { get: async () => ({ data: { items: [] } }) } },
   }
   const module = { exports: {} }
   new Function('require', 'module', 'exports', code)(name => {

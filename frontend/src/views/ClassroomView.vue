@@ -25,6 +25,21 @@ const {room, capabilities, events, error, state, partial, students, activeStuden
   finish, load, regenerate, setVision, volume, setVolume, cameraResolution, cameraAdjusting,
   cameraNote, setCameraResolution, previewCamera, pauseCapture, capabilitiesLoading, capabilitiesError} = live;
 const mode=ref(route.query.mode === 'fragment' ? 'fragment' : 'full'), consent=ref(false), cameraConsent=ref(false), history=ref([]), probing=ref("");
+const practicePlan=ref(null);
+const practiceLoading=ref(false);
+const practiceId=computed(()=>{
+  const value=route.query.practice;
+  if(typeof value!=='string' || !/^[1-9]\d*$/.test(value))return null;
+  const id=Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+});
+const practiceIssue=computed(()=>{
+  if(room.value || route.query.practice===undefined)return null;
+  if(!practiceId.value)return '复练任务编号无效，请从评课报告重新选择。';
+  if(practiceLoading.value)return '正在读取复练任务…';
+  if(!practicePlan.value || practicePlan.value.status!=='suggested')return '复练任务不可用或来源报告已更新，请从评课报告重新选择。';
+  return null;
+});
 const showHistory=ref(false), timelineOpen=ref(false), timelineRef=ref(null), cameraRef=ref(null);
 const auth=useAuthStore();
 const recording=useClassroomRecording({state,room,getUserId:()=>auth.user?.id,
@@ -51,9 +66,10 @@ const llmLabel=computed(()=>llmProvider.value==="openai_next" ? "OpenAI Next（D
 watch([asrProvider,llmProvider],()=>{consent.value=false;});
 const active=computed(()=>["connecting","listening","speaking","finishing"].includes(state.value));
 watch(cameraConsent,allowed=>{if(!allowed && cameraEnabled.value && !active.value) pauseCapture();});
-const startBlockers=computed(()=>classroomStartBlockers({capabilities:capabilities.value,
+const startBlockers=computed(()=>[...classroomStartBlockers({capabilities:capabilities.value,
   capabilitiesLoading:capabilitiesLoading.value,capabilitiesError:capabilitiesError.value,
-  consent:consent.value,cameraConsent:cameraConsent.value,busy:busy.value,state:state.value}));
+  consent:consent.value,cameraConsent:cameraConsent.value,busy:busy.value,state:state.value}),
+  ...(practiceIssue.value ? [{code:'practice_plan',message:practiceIssue.value}] : [])]);
 const startHint=computed(()=>startBlockers.value.length ? startBlockers.value.map(r=>r.message).join('\n') :
   '已就绪，点击开始授课');
 const consentOnly=computed(()=>startBlockers.value.length>0 && startBlockers.value.every(r=>['audio_consent','camera_consent'].includes(r.code)));
@@ -83,7 +99,10 @@ async function probe(service){
 }
 async function start(){
   if(startBlockers.value.length) return;
-  await begin(mode.value,consent.value,cameraConsent.value);
+  if(practiceId.value && (!practicePlan.value || practicePlan.value.status!=='suggested')){
+    error.value='复练任务不可用或来源报告已更新，请从评课报告重新选择。';return;
+  }
+  await begin(mode.value,consent.value,cameraConsent.value,practiceId.value);
   if(room.value) router.replace({query:{session:room.value.session_id}});
 }
 async function resume(){
@@ -100,6 +119,14 @@ async function openSession(sid){
   try {await load(sid);if(room.value.state==="active") state.value="disconnected";showHistory.value=false;}
   catch {error.value="课堂不存在或没有访问权限";}
 }
+async function loadPracticePlan(){
+  practicePlan.value=null;
+  if(!practiceId.value)return;
+  practiceLoading.value=true;
+  try{practicePlan.value=(await api.get(`/classroom/practice-plans/${practiceId.value}`,{timeout:10000,skipBusy:true})).data;}
+  catch{error.value='无法读取这项复练任务，请从评课报告重新选择。';}
+  finally{practiceLoading.value=false;}
+}
 async function jumpEvidence(id){
   timelineOpen.value=true;
   await nextTick();
@@ -109,9 +136,10 @@ async function jumpEvidence(id){
 watch(()=>route.query.session,sid=>{
   if(sid && Number(sid)!==room.value?.session_id && !active.value) openSession(sid);
 });
+watch(()=>route.query.practice,()=>loadPracticePlan());
 watch(state,s=>{if(s==="ended"){refreshHistory();refreshCapabilities();}});
 onMounted(async()=>{
-  await refreshCapabilities();await refreshHistory();
+  await refreshCapabilities();await refreshHistory();await loadPracticePlan();
   if(route.query.session) await openSession(route.query.session);
 });
 onBeforeRouteLeave(()=>{
@@ -135,6 +163,16 @@ onBeforeRouteLeave(()=>{
       <span>{{ quotaNotice || "部分服务待处理，请检查连接设置。" }}</span>
       <button class="text-action" @click="openSettings">查看设置 ↗</button>
     </div>
+    <section v-if="!room && capabilities?.scenario" class="class-panel classroom-scenario" aria-label="本课训练情境">
+      <div><small>本课训练情境 · {{ capabilities.scenario.grade }}</small><h2>{{ capabilities.scenario.topic }}</h2><p>{{ capabilities.scenario.objective }}</p></div>
+      <ul><li v-for="(student,id) in capabilities.scenario.students" :key="id"><strong>{{ {ming:'小明',yu:'小雨',lin:'小林'}[id] }}</strong><span>{{ student.focus }}</span></li></ul>
+      <p class="subtle-note">这些是模拟学生的初始设定，状态变化用于训练复盘，不代表真实儿童的学习测量。</p>
+    </section>
+    <section v-if="!room && practicePlan" class="class-panel classroom-scenario" aria-label="本次复练任务">
+      <div><small>来自课堂 #{{ practicePlan.source_session_id }} 的复练任务</small><h2>本次训练目标</h2><p>{{ practicePlan.task_text }}</p></div>
+      <p>完成判据：本节至少记录 {{ practicePlan.criteria?.minimum_observed||1 }} 次目标行为。</p>
+      <p class="subtle-note">完成课堂后可返回原报告，查看目标行为是否在本次记录中出现。</p>
+    </section>
     <section class="classroom-launch" aria-label="授课申请">
       <div v-if="state!=='ended'" class="launch-permissions">
         <div class="consent-row">

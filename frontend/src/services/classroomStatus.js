@@ -119,7 +119,10 @@ export function eventLabel(event) {
       pause: "课堂暂停",
       resume: "课堂恢复",
       learning: "模拟理解更新",
+      student_state_transition: "模拟学生状态变化",
       report_stage: "评审阶段",
+      teacher_speech_start: "教师开始发言",
+      teacher_speech_stop: "教师结束发言",
     }[event.type] || "连接记录"
   );
 }
@@ -128,6 +131,10 @@ export function eventText(event) {
   const data = event.data;
   if (event.type === 'pose' && data.motion_version === 2)
     return motionLabels(data).join(' · ') || '动作证据不足（未检测到、遮挡或模型不可用）';
+  if (event.type === 'student_state_transition')
+    return `${{ming:'小明',yu:'小雨',lin:'小林'}[data.student_id] || '虚拟学生'}：${data.after?.understanding || '状态已更新'}（仅供训练复盘）`;
+  if (event.type === 'teacher_speech_start') return '语音活动开始（ASR 检测）';
+  if (event.type === 'teacher_speech_stop') return `语音活动结束（约 ${data.speech_seconds ?? '未知'} 秒）`;
   if (data.text || data.observations || data.objection || data.message)
     return data.text || data.observations || data.objection || data.message;
   if (event.type === "latency") return `${data.latency_ms} ms`;
