@@ -1,9 +1,9 @@
 <template>
   <div class="sparse-page review-page">
-    <header class="page-head growth-head">
+    <header class="review-legacy-toolbar">
       <div>
-        <p class="shiny-kicker">AI REVIEW</p>
-        <h1 class="split-title">AI 评课</h1>
+
+        <h1 class="sr-only">AI 评课</h1>
         <p class="page-lead">{{ current?.course_title || '最近一次片段教学' }} · {{ report.mode_label || '评课报告' }}</p>
       </div>
       <span v-if="showDemoBadge" class="review-badge">演示评分</span>

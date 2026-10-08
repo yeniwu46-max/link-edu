@@ -968,7 +968,6 @@
 /* Player refresh: compact preparation, persistent transport, quiet neutral surfaces. */
 .app-shell:has(.classroom-page) .workspace { padding:16px 28px 24px; min-width:0; }
 .app-shell:has(.classroom-page) .topbar { height:44px; margin-bottom:8px; }
-.app-shell:has(.classroom-page) .help-fab { bottom:12px !important; top:auto !important; }
 .classroom-page.camera-first { --class-surface:#101116; --class-surface-raised:#1b1d25; --class-hover:#252832; --class-muted:#a4a6b1; --line:#ffffff14; padding-top:4px; }
 .camera-first .classroom-heading { margin-bottom:12px; }
 .camera-first .classroom-heading h1 { font-size:26px; line-height:1.25; }
@@ -1024,3 +1023,28 @@
   }
 }
 .classroom-scenario{display:grid;gap:12px;margin:14px 0;padding:18px 20px;}.classroom-scenario small{color:var(--class-muted);font-size:11px;}.classroom-scenario h2{margin:5px 0;font-size:19px;}.classroom-scenario p{margin:0;font-size:12px;line-height:1.6;color:var(--class-muted);}.classroom-scenario ul{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none;}.classroom-scenario li{display:flex;gap:6px;align-items:center;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,.06);font-size:11px;}.classroom-scenario li span{color:var(--class-muted);}
+
+/* The lesson stage owns the first viewport; preparation lives in its dialog. */
+.screen-first .classroom-camera { display:flex; flex-direction:column; height:clamp(500px,calc(100dvh - 156px),980px); }
+.screen-first .camera-stage { background:linear-gradient(140deg,#1b1420e8,#101116f2); border-color:#b45cff26; }
+.screen-first .motion-frame { flex:1; height:auto; min-height:270px; }
+.screen-first .fullscreen-students { display:block; height:clamp(178px,22dvh,200px); padding-top:8px; }
+.screen-first .classroom-camera.expanded { height:100dvh; }
+.screen-first .classroom-services { gap:4px 12px; align-items:center; min-height:32px; }
+.screen-first .classroom-ready-hint { flex:1 1 auto; font-size:11px; color:var(--class-muted); }
+.screen-first .classroom-history { display:flex; gap:6px; align-items:center; margin-left:auto; font-size:11px; }
+.screen-first .classroom-history svg { width:14px; height:14px; }
+.screen-first .class-alert,.screen-first .class-notice { margin:0 0 8px; padding:8px 12px; font-size:12px; }
+.app-shell:not(.protected-shell):has(.screen-first) .topbar > span { white-space:nowrap; }
+@media(max-width:1000px) {
+  .app-shell:not(.protected-shell):has(.screen-first) .topbar { grid-template-columns:minmax(0,1fr) auto; }
+  .app-shell:not(.protected-shell):has(.screen-first) .topbar .cir-search { display:none; }
+}
+@media(max-width:700px) {
+  .screen-first .classroom-camera { height:auto; }
+  .screen-first .motion-frame { flex:none; height:clamp(280px,48dvh,540px); }
+  .screen-first .fullscreen-students { height:204px; }
+  .screen-first .classroom-camera.expanded .motion-frame { flex:1; height:auto; min-height:180px; }
+  .screen-first .classroom-services .status-item { display:none; }
+}
+@media(max-height:600px) and (min-width:701px) { .screen-first .classroom-camera.expanded .fullscreen-students { height:128px; } }

@@ -76,6 +76,20 @@ test('closing releases capture tracks and audio resources', async t => {
   assert.equal(stopped,1); assert.equal(disconnected,1); assert.ok(f.audio.ctx.closed);
 });
 
+test('closing during microphone permission releases the late stream', async t => {
+  let grant,stopped=0,contextClosed=0;
+  for(const [name,value] of Object.entries({AudioContext:class {async resume(){} async close(){contextClosed++;}},navigator:{mediaDevices:{getUserMedia:()=>new Promise(resolve=>{grant=resolve;})}}})) {
+    const original=Object.getOwnPropertyDescriptor(globalThis,name);
+    Object.defineProperty(globalThis,name,{configurable:true,value});
+    t.after(()=>original?Object.defineProperty(globalThis,name,original):delete globalThis[name]);
+  }
+  const audio=new ClassroomAudio(()=>{},()=>{});
+  const starting=audio.start();await Promise.resolve();await audio.close();
+  grant({getTracks:()=>[{stop(){stopped++;}}]});
+  await assert.rejects(starting,/disposed/);
+  assert.equal(stopped,1);assert.equal(contextClosed,1);
+});
+
 test('avatar playback waits for scheduled audio and cancel suppresses late animation',t=>{
   const f=fixture(t), phases=[]; f.audio.onPlayback=(id,phase)=>phases.push([id,phase]);
   f.audio.chunk('one',f.pcm(100),16000);

@@ -47,6 +47,8 @@ def create_app(config_class=Config):
     app.register_blueprint(content_bp)
     from classroom_routes import register_classroom
     register_classroom(app)
+    from assistant_routes import register_assistant
+    register_assistant(app)
     from rag import register_rag
     register_rag(app)
 

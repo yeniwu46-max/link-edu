@@ -57,10 +57,10 @@ function toggleMute(volume) {
 .player-speed { font:11px/1 ui-monospace,monospace; color:var(--class-muted); padding:0 8px; }
 @media(max-width:1100px) { .player-time { display:none; } .player-speed { display:none; } .camera-bar { gap:4px; padding-inline:8px; } }
 @media(max-width:700px) {
-  .camera-bar { height:100px; flex-direction:column; align-items:stretch; justify-content:center; gap:4px; padding:4px; }
+  .camera-bar { height:auto; min-height:100px; flex-direction:column; align-items:stretch; justify-content:center; gap:4px; padding:4px; }
   .player-session-controls { justify-content:space-between; flex:none; height:44px; }
   .player-time { display:block; margin-right:auto; }
-  .player-options { justify-content:space-between; height:40px; gap:0; }
+  .player-options { justify-content:space-between; min-height:40px; height:auto; gap:0; flex-wrap:wrap; }
   .player-volume input { width:36px; margin-right:0; }
   .player-resolution select { width:64px; }
 }

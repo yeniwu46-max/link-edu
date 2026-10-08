@@ -1,0 +1,105 @@
+/* Original surfaces with additive pointer and transition effects. */
+.app-shell .classroom-review-page .review-button.primary { color:#fff3e9; }
+.app-shell {
+  --fx-violet: #b45cff;
+  --fx-orange: #ff7a18;
+  --fx-ease: cubic-bezier(.16,1,.3,1);
+}
+.app-shell:not(.protected-shell) .app-shell-bg-video {
+  transform: translate3d(var(--fx-bg-x,0px),var(--fx-bg-y,0px),0) scale(1.035);
+  transition: transform .65s var(--fx-ease);
+}
+.app-shell .fx-depth {
+  position: relative;
+  transform: perspective(1000px) rotateX(var(--fx-rx,0deg)) rotateY(var(--fx-ry,0deg)) translateY(var(--fx-lift,0px));
+  transform-origin: center;
+}
+.app-shell .fx-depth :is(.course,.resource-card-copy) { transform:translateZ(10px); }
+.fx-sheen {
+  position: absolute!important;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 4!important;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at var(--fx-light-x,50%) var(--fx-light-y,50%),#f4d6ff26,transparent 60%);
+  box-shadow: inset 0 1px 0 #e9c6ff40, inset 0 0 0 1px #c887ff22;
+  transition: opacity .22s ease;
+}
+.fx-hover > .fx-sheen, .fx-depth:focus-visible > .fx-sheen { opacity: 1; }
+.fx-reveal-pending { opacity: 0; }
+.app-shell .page-sweep-enter-active { animation: pageSweep .26s ease; }
+.app-shell .page-sweep-leave-active { animation: pageSweepOut .18s ease; }
+.app-shell :is(button,a,[role="button"]):focus-visible {
+  outline: 2px solid #d38bff;
+  outline-offset: 4px;
+}
+.app-shell :is(.nav-link,.collection-switch button,.resource-tabs button,.filter-rail button,.profile-btn) {
+  transition: background .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.app-shell :is(.primary,.camera-open-button,.camera-tools button,.transport button,.reset-layout):active {
+  transform: translateY(1px) scale(.975);
+}
+.resource-card-depth { display:block; transform-style:preserve-3d; border-radius:10px; }
+.resource-card-depth .resource-card-copy { transform:translateZ(10px); }
+.app-shell .resource-deck .draggable-resource-card { will-change:auto; }
+.app-shell .resource-deck .draggable-resource-card.is-dragging { will-change:transform; }
+.draggable-resource-card.is-dragging .resource-card-depth {
+  transform: none;
+}
+.app-shell .magnet { transition:transform .3s var(--fx-ease); }
+.app-shell :is(.profile-menu,.dash-sheet,.help-chat,.reader-dialog) {
+  animation: fx-panel-in .24s var(--fx-ease);
+}
+.app-shell .chart i { transform-origin:bottom; }
+.app-shell .fx-revealed .chart i { animation:fx-bar-in .55s var(--fx-ease) both; }
+.app-shell .camera-stage { position:relative; }
+.app-shell .camera-stage::after {
+  content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  border:1px solid #c487ff35;
+  box-shadow:inset 0 1px 0 #ffad7530,0 0 24px -16px #b45cff;
+  animation:fx-stage-light 6s ease-in-out infinite alternate;
+}
+@keyframes fx-panel-in { from { opacity:0; translate:0 6px; } to { opacity:1; translate:0 0; } }
+@keyframes fx-bar-in { from { scale:1 .1; opacity:.3; } to { scale:1 1; opacity:.8; } }
+@keyframes fx-stage-light { from { opacity:.4; } to { opacity:1; } }
+@property --fx-score-reveal { syntax:"<number>"; inherits:false; initial-value:1; }
+.app-shell .report-score-ring {
+  background:conic-gradient(var(--review-accent) calc(var(--score) * var(--fx-score-reveal)),#343332 0);
+}
+.app-shell .fx-revealed .report-score-ring { animation:fx-score-in .65s var(--fx-ease); }
+.app-shell .fx-revealed :is(.dimension-track,.modality-track) i {
+  transform-origin:left; animation:fx-line-in .5s var(--fx-ease);
+}
+@keyframes fx-score-in { from { --fx-score-reveal:0; } to { --fx-score-reveal:1; } }
+@keyframes fx-line-in { from { scale:.01 1; } to { scale:1 1; } }
+.app-shell.fx-paused *, .app-shell.fx-paused *::before, .app-shell.fx-paused *::after { animation-play-state:paused!important; }
+.app-shell.fx-reduced *, .app-shell.fx-reduced *::before, .app-shell.fx-reduced *::after { animation:none!important;transition:none!important; }
+.app-shell.fx-reduced .fx-depth,.app-shell.fx-reduced .magnet { transform:none!important; }
+.app-shell.fx-reduced .camera-lens { transform:none!important; }
+.app-shell.fx-reduced .fx-reveal-pending { opacity:1; }
+@media(max-width:900px) {
+  .app-shell:not(.protected-shell) .page-dashboard .continue { min-height:480px; }
+}
+@media(max-width:620px) {
+  .app-shell:not(.protected-shell) .page-dashboard .continue { min-height:430px; }
+  .page-dashboard .welcome>div { flex-wrap:wrap; row-gap:12px; }
+  .page-dashboard .welcome .learn-more { flex-shrink:0; }
+}
+@media (hover:hover) and (pointer:fine) {
+  .app-shell .fx-hover { border-color:#c684ff75; }
+  .app-shell :is(.nav-link,.profile-btn,.filter-rail button):hover { box-shadow:inset 0 1px #f2dcff25; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after {
+    animation:none!important; transition:none!important; scroll-behavior:auto!important;
+  }
+  .app-shell .fx-depth,.app-shell .magnet { transform:none!important; }
+  .fx-reveal-pending { opacity:1; }
+  .app-shell:not(.protected-shell) .app-shell-bg-video { transform:none; }
+}
+@media print {
+  .fx-sheen,.hero-avatar,.app-shell-bg-video { display:none!important; }
+  .fx-depth { transform:none!important; }
+  .fx-reveal-pending { opacity:1; }
+}

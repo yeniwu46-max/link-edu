@@ -4,6 +4,7 @@ import DraggableResourceCard from "../components/DraggableResourceCard.vue";
 import MarkdownReader from "../components/MarkdownReader.vue";
 import CourseResourceCatalog from "../components/CourseResourceCatalog.vue";
 import SplitTitle from "../components/fx/SplitTitle.vue";
+import ModelShowcase from "../components/fx/ModelShowcase.vue";
 import { libraryResources, libraryTabs } from "../data/libraryResources";
 import { boardCoverFor } from "../data/libraryBoardCovers";
 
@@ -132,23 +133,14 @@ onUnmounted(() => {
 
 <template>
   <div class="sparse-page resource-page">
-    <header class="page-head resource-head">
-      <div>
-        <p class="shiny-kicker">LIBRARY</p>
-        <SplitTitle text="资源库" />
-        <p class="page-lead">教学大纲、试讲案例与课堂素材。</p>
-      </div>
-      <div class="resource-summary" aria-label="资源数量">
-        <strong>{{ libraryResources.length }}</strong>
-        <span>份精选资料</span>
-      </div>
-    </header>
+<h1 class="sr-only">资源库</h1>
 
     <div class="page-scroll">
-    <div class="collection-switch" aria-label="资料来源">
+    <div class="resource-collection-row" data-tour="resources"><div class="collection-switch" aria-label="资料来源">
       <button type="button" :aria-pressed="collection === 'library'" @click="collection = 'library'">精选资料</button>
       <button type="button" :aria-pressed="collection === 'courses'" @click="collection = 'courses'">课程资源</button>
     </div>
+    <span class="resource-count">{{ libraryResources.length }} 份资料</span><ModelShowcase kind="archive" label="立体资料卡片" /></div>
     <CourseResourceCatalog v-if="collection === 'courses'" />
     <div v-if="collection === 'library'" class="resource-toolbar">
       <div class="resource-tabs" role="tablist" aria-label="资源分类">
@@ -168,10 +160,7 @@ onUnmounted(() => {
     </div>
 
     <section v-if="collection === 'library'" class="resource-deck" aria-label="可拖动资源卡片墙">
-      <div class="deck-instruction" aria-hidden="true">
-        <span>RESOURCE DESK</span>
-        <p>拖动调整位置 · 点击查看内容</p>
-      </div>
+
 
       <DraggableResourceCard
         v-for="item in visible"
@@ -186,10 +175,10 @@ onUnmounted(() => {
     <section v-if="collection === 'library'" class="resource-board" aria-label="分类资料浏览">
       <header class="resource-board__head">
         <div>
-          <p>BROWSE BY TOPIC</p>
+
           <h2>分类浏览</h2>
         </div>
-        <span>封面来自公开图库 · 点击卡片阅读</span>
+
       </header>
       <div class="resource-board__legend" aria-label="分类数量">
         <span v-for="column in boardColumns" :key="`legend-${column.category}`">

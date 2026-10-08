@@ -5,6 +5,7 @@ import { Refresh, Printer, ArrowUpRight, History } from '@vicons/tabler';
 import { api } from '../services/api';
 import { classroomDestination, formatReportDate, formatReportTime } from '../services/classroomReview.js';
 import ClassroomReport from '../components/ClassroomReport.vue';
+import ModelShowcase from '../components/fx/ModelShowcase.vue';
 import '../classroom.css';
 import '../classroom-review.css';
 const route=useRoute(), router=useRouter();
@@ -76,14 +77,15 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
 <template>
   <div class="classroom-review-page">
     <header class="review-masthead">
-      <div><p class="review-eyebrow">LINK / TEACHING REVIEW</p><h1>AI 评课<span>.</span></h1><p>把一节课，读成下一次进步的线索。</p></div>
+      <h1 class="sr-only">AI 评课</h1>
       <div class="review-page-actions no-print">
         <router-link class="review-button" to="/classroom">模拟课堂<ArrowUpRight aria-hidden="true" /></router-link>
         <button class="review-button" :disabled="loading || busy" @click="initialize"><Refresh aria-hidden="true" />刷新</button>
         <button v-if="room?.report && room.report_state!=='insufficient'" class="review-button" @click="printReport"><Printer aria-hidden="true" />打印 / PDF</button>
       </div>
     </header>
-    <div class="review-session-switch no-print">
+    <div class="review-session-switch no-print" data-tour="review">
+      <ModelShowcase kind="prism" label="多维评课棱镜" />
       <label for="review-session"><History aria-hidden="true" />历史课堂</label>
       <select id="review-session" :value="selectedId" :disabled="busy || loading || !endedHistory.length" @change="selectHistory">
         <option v-if="!endedHistory.some(item=>String(item.session_id)===selectedId)" :value="selectedId">{{ selectedId ? '课堂 #'+selectedId : '选择已结束的课堂' }}</option>

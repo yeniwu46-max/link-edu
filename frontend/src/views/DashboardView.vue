@@ -1,10 +1,8 @@
 <template>
   <div class="page-dashboard">
     <div class="dash-grid">
-      <section class="welcome">
-        <p>{{ greeting.kicker || greeting.periodEn }}</p>
+      <section class="welcome" data-tour="start">
         <h1>{{ greeting.title || `${greeting.periodZh}，${greeting.name}` }}</h1>
-        <span>{{ greeting.subtitle }}</span>
         <div>
           <LearnMoreButton @click="router.push('/training')">开始新训练</LearnMoreButton>
           <button type="button" @click="router.push('/courses')">浏览课程</button>
@@ -37,19 +35,7 @@
       </section>
 
       <section class="glass continue" v-if="continueTraining">
-        <video
-          ref="continueVideo"
-          class="continue-media"
-          src="/assets/hero-hair.mp4"
-          poster="/assets/hero-clean.png"
-          autoplay
-          muted
-          loop
-          playsinline
-          preload="auto"
-          aria-hidden="true"
-          @canplay="playContinueVideo"
-        ></video>
+        <HeroAvatar3D />
         <h3>继续训练</h3>
         <div class="course">
           <small>{{ continueTraining.category }}</small>
@@ -61,12 +47,12 @@
         <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
       </section>
       <section v-else class="glass continue continue-empty">
-        <img class="continue-media" src="/assets/hero-clean.png" alt="" aria-hidden="true" />
-        <h3>下一堂，从这里开始</h3>
+        <HeroAvatar3D />
+        <h3>模拟课堂</h3>
         <div class="course">
-          <small>AI 微格教学</small>
-          <h2>先临课，再上课。</h2>
-          <p>与虚拟学生互动，回看有据可查的课堂反馈。</p>
+
+          <h2>开始授课</h2>
+
         </div>
         <LearnMoreButton @click="router.push('/classroom')">进入模拟课堂</LearnMoreButton>
       </section>
@@ -265,7 +251,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -282,6 +268,9 @@ import {
 } from '../utils/dashboardState'
 import LearnMoreButton from '../components/LearnMoreButton.vue'
 import SummaryCard from '../components/SummaryCard.vue'
+import { useReducedMotion } from '../utils/useReducedMotion.js'
+const reducedMotion = useReducedMotion()
+const HeroAvatar3D = defineAsyncComponent(() => import('../components/fx/HeroAvatar3D.vue'))
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
@@ -289,7 +278,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const firstGreet = formatGreeting()
 const panel = ref(null)
-const continueVideo = ref(null)
 const heatRange = ref('week')
 const pickedDay = ref('')
 const journalBody = ref('')
@@ -365,7 +353,9 @@ const growthLineRows = computed(() => [...visibleGrowth.value].slice().reverse()
 const growthLineOption = computed(() => {
   const rows = growthLineRows.value
   return {
-    animationDuration: 700,
+    animation: !reducedMotion.value,
+    animationDuration: 450,
+    animationDurationUpdate: 250,
     grid: { left: 8, right: 16, top: 32, bottom: 8, containLabel: true },
     tooltip: {
       trigger: 'axis',
@@ -455,14 +445,6 @@ function formatLastTrained(value) {
 function resumeTraining() {
   const courseId = continueTraining.value?.course_id
   router.push(courseId ? { path: '/training', query: { courseId } } : '/training')
-}
-
-function playContinueVideo() {
-  const video = continueVideo.value
-  if (!video || document.visibilityState !== 'visible') return
-  video.muted = true
-  const playback = video.play()
-  if (playback && typeof playback.catch === 'function') playback.catch(() => {})
 }
 
 function openPanel(name) {
@@ -555,13 +537,9 @@ async function loadDashboard() {
 
 onMounted(() => {
   loadDashboard()
-  playContinueVideo()
-  document.addEventListener('visibilitychange', playContinueVideo)
   window.addEventListener('link-settings', refreshGreeting)
 })
 onUnmounted(() => {
-  document.removeEventListener('visibilitychange', playContinueVideo)
-  continueVideo.value?.pause()
   window.removeEventListener('link-settings', refreshGreeting)
 })
 

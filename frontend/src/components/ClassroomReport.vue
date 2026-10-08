@@ -95,7 +95,7 @@ function regenerate(){
       <section class="report-overview review-panel" aria-labelledby="report-heading">
         <div class="report-intro"><p class="review-eyebrow">01 / LESSON PORTRAIT</p><h2 id="report-heading">一节课的教学剖面</h2><p>结论有出处，进步有线索。</p><span class="report-method-tag"><ShieldCheck aria-hidden="true" />AI 辅助评价 · 非标准化测评</span></div>
         <div class="report-score-block">
-          <div class="report-score-ring" :style="{'--score':(view.overall??0)+'%'}"><div><strong>{{ view.overall ?? '—' }}</strong><span>综合参考分 / 100</span></div></div>
+          <div :key="view.overall" class="report-score-ring" :style="{'--score':(view.overall??0)+'%'}"><div><strong>{{ view.overall ?? '—' }}</strong><span>综合参考分 / 100</span></div></div>
           <p><b>{{ view.scored }}</b> / 6 个维度已评分</p>
         </div>
         <div class="report-overview-note"><h3>如何读这份报告</h3><p>综合分沿用已保存报告，仅汇总有证据的维度。环形图使用 0–100 分量程，不表示达标率或置信概率。</p><p>未评分不等于 0 分；不同证据覆盖的课堂，不宜直接比较综合分。</p></div>
@@ -112,7 +112,7 @@ function regenerate(){
           <div class="dimension-chart" role="group" aria-label="六维评分，量程 0 至 100">
             <div class="dimension-axis" aria-hidden="true"><span>0</span><span>50</span><span>100</span></div>
             <button v-for="d in view.dimensions" :key="d.key" class="dimension-row" :class="{selected:selectedKey===d.key,unscored:d.score===null}" :aria-pressed="selectedKey===d.key" :aria-label="d.label+'：'+(d.score===null?'暂不评分':d.score+' 分')" @click="selectedKey=d.key">
-              <span>{{ d.label }}</span><span class="dimension-track" aria-hidden="true"><i v-if="d.score!==null" :style="{width:d.score+'%'}" /></span><b>{{ d.score ?? '—' }}</b>
+              <span>{{ d.label }}</span><span class="dimension-track" aria-hidden="true"><i v-if="d.score!==null" :key="d.score" :style="{width:d.score+'%'}" /></span><b>{{ d.score ?? '—' }}</b>
             </button>
             <p class="review-caption">— 暂不评分 · 分数为 AI 判断，不是置信概率</p>
           </div>
@@ -174,7 +174,7 @@ function regenerate(){
     </section>
     <section v-if="view.hasReport && motion?.sample_count" class="review-panel report-motion">
       <div class="report-section-title"><div><p class="review-eyebrow">04 / OBSERVABILITY</p><h2><Focus2 aria-hidden="true" />先看证据质量，再谈教态</h2></div><span>动作摘要 · {{ motion.observed_samples }} 个可观察样本</span></div>
-      <div class="modality-grid"><div v-for="(m,key) in motion.modalities" :key="key"><header><span>{{ modalityLabels[key] || key }}</span><b>{{ m.observed_samples }} / {{ m.total_samples }}</b></header><div class="modality-track" :aria-label="(modalityLabels[key]||key)+'可观察样本 '+m.observed_samples+' / '+m.total_samples"><i :style="{width:ratio(m)+'%'}" /></div><small>可观察样本 / 采样总数</small></div></div>
+      <div class="modality-grid"><div v-for="(m,key) in motion.modalities" :key="key"><header><span>{{ modalityLabels[key] || key }}</span><b>{{ m.observed_samples }} / {{ m.total_samples }}</b></header><div class="modality-track" :aria-label="(modalityLabels[key]||key)+'可观察样本 '+m.observed_samples+' / '+m.total_samples"><i :key="ratio(m)" :style="{width:ratio(m)+'%'}" /></div><small>可观察样本 / 采样总数</small></div></div>
       <p class="review-caption">采样可观察率不是教态得分，也不是整课时长占比。面部几何不用于推断情绪、性格或自信程度。</p>
       <details class="report-fold"><summary>查看动作线索与检测边界</summary>
         <p v-if="motion.status!=='observed'">有效动作证据不足，不能据此给出教态评分。</p>

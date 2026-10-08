@@ -1,21 +1,14 @@
 <template>
   <div class="sparse-page page-growth">
-    <header class="page-head growth-head">
-      <div>
-        <p class="shiny-kicker">TRAJECTORY</p>
-        <h1 class="split-title">成长档案</h1>
-        <p class="page-lead">回顾每次练习，发现教学进步。</p>
-      </div>
-      <router-link class="ghost-link growth-head__link" to="/ai-review">查看评课 →</router-link>
-    </header>
+<h1 class="sr-only">成长档案</h1>
 
     <div class="page-scroll">
-      <p class="growth-alert">
+      <details class="growth-alert"><summary>历史规则评分 · 查看来源</summary>
         以下轨迹保留旧演示 / 规则评分。真实 AI 课堂按证据覆盖评价，不与此分数直接比较。
         <router-link to="/ai-review">查看模拟课堂评课 →</router-link>
-      </p>
-      <section class="growth-practice glass" aria-label="模拟课堂复练任务">
-        <div class="growth-records__head"><div><h2>模拟课堂复练</h2><p>按课堂证据选择目标，下一节核对目标行为是否出现</p></div><router-link class="ghost-link" to="/ai-review">查看课堂报告 →</router-link></div>
+      </details>
+      <section class="growth-practice glass" aria-label="模拟课堂复练任务" data-tour="growth">
+        <div class="growth-records__head"><div><h2>模拟课堂复练</h2></div><router-link class="ghost-link" to="/ai-review">查看课堂报告 →</router-link></div>
         <p v-if="practiceError" class="dock-hint" role="alert">{{ practiceError }}</p>
         <ul v-else-if="practicePlans.length" class="growth-practice-list">
           <li v-for="plan in practicePlans.slice(0,6)" :key="plan.id">
@@ -30,8 +23,9 @@
       </section>
 
       <div class="growth-dash">
-        <section class="growth-chart-panel glass" aria-label="得分趋势">
+        <section ref="chartPanel" class="growth-chart-panel glass" aria-label="得分趋势">
           <div class="growth-chart-panel__head">
+            <ModelShowcase kind="orbit" label="成长轨道模型" />
             <div>
               <h2>得分趋势</h2>
               <p>{{ rangeLabel }}</p>
@@ -44,7 +38,8 @@
           </div>
           <p v-if="loadError" class="dock-hint" role="alert">{{ loadError }}</p>
           <p v-else-if="!points.length" class="dock-hint">当前范围暂无训练评分。</p>
-          <VChart v-else class="growth-line" :option="lineOption" autoresize />
+          <VChart v-else-if="chartSeen" class="growth-line" :option="lineOption" autoresize />
+          <div v-else class="growth-line" aria-hidden="true"></div>
         </section>
 
         <section class="growth-heat-panel glass" aria-label="训练日历">
@@ -140,7 +135,7 @@
               <div class="growth-records__head">
                 <div>
                   <h2>训练日志</h2>
-                  <p>接口已归档的短记，只读展示</p>
+
                 </div>
               </div>
               <ul v-if="visibleJournals.length" class="growth-journal-list">
@@ -149,7 +144,7 @@
                   <p>{{ item.body }}</p>
                 </li>
               </ul>
-              <p v-else class="dock-hint">暂无训练日志。完成训练后可在后续版本写入一句复盘。</p>
+              <p v-else class="dock-hint">暂无训练日志。</p>
             </div>
           </section>
 
@@ -199,11 +194,16 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import ModelShowcase from '../components/fx/ModelShowcase.vue'
+import { useReducedMotion, useMotionReveal } from '../utils/useReducedMotion.js'
 import { fetchGrowth } from '../services/dashboard'
 import { api } from '../services/api'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
+const reducedMotion = useReducedMotion()
+const chartPanel = ref(null)
+const chartSeen = useMotionReveal(chartPanel)
 const router = useRouter()
 const range = ref('30d')
 const points = ref([])
@@ -318,7 +318,9 @@ const lineOption = computed(() => {
     ? selectedPointIndex.value
     : Math.max(scores.length - 1, 0)
   return {
-    animationDuration: 800,
+    animation: !reducedMotion.value,
+    animationDuration: 450,
+    animationDurationUpdate: 250,
     legend: {
       top: 0,
       right: 0,

@@ -30,7 +30,7 @@ const props = defineProps({
   progress: Number,
   timeLabel: String,
 });
-const emit = defineEmits(["video", "toggle", "retry", "volume", "resolution"]);
+const emit = defineEmits(["video", "toggle", "prepare", "fullscreen-target", "retry", "volume", "resolution"]);
 const container = ref(null),
   video = ref(null),
   canvas = ref(null),
@@ -186,6 +186,7 @@ function draw() {
 }
 function restore() {
   expanded.value = fallback.value = false;
+  emit('fullscreen-target', null);
   if (previousOverflow !== undefined) {
     document.body.style.overflow = previousOverflow;
     previousOverflow = undefined;
@@ -210,6 +211,7 @@ async function fullscreen() {
     document.body.style.overflow = "hidden";
   }
   await nextTick();
+  emit('fullscreen-target', container.value);
   container.value.querySelector('[aria-label="退出全屏"]')?.focus();
   draw();
 }
@@ -219,7 +221,7 @@ function changed() {
 }
 function keys(e) {
   // Native dialog owns Escape/Tab while open, including projected record windows.
-  if (settingsOpen.value || e.target?.closest?.('dialog[open]')) return;
+  if (settingsOpen.value || e.target?.closest?.('dialog[open], .help-dock')) return;
   if (!expanded.value) return;
   if (e.key === "Escape") {
     e.preventDefault();
@@ -288,12 +290,12 @@ onUnmounted(() => {
       />
       <canvas ref="canvas" aria-hidden="true" />
       <div v-if="!enabled" class="camera-placeholder">
-        <span class="camera-lens" aria-hidden="true"><Video /></span>
+        <span class="camera-lens" aria-hidden="true"><i class="camera-lens__orbit" /><i class="camera-lens__orbit second" /><Video /></span>
         <strong>{{ disabled ? '本次课堂已结束' : '你的课堂，即将开始' }}</strong>
-        <span id="camera-preview-hint">{{ disabled ? '设备已关闭，记录已保留' : cameraConsent ? '预览取景 · 不开启麦克风或计时' : expanded ? '退出全屏后勾选摄像头授权，即可预览' : '勾选摄像头授权，即可预览' }}</span>
+        <span id="camera-preview-hint">{{ disabled ? '设备已关闭，记录已保留' : cameraConsent ? '预览取景 · 不开启麦克风或计时' : '完成课前准备，开启你的授课画面' }}</span>
         <button v-if="!disabled" type="button" class="class-btn camera-open-button"
-          :disabled="!cameraConsent || cameraBusy || !previewAllowed" :aria-busy="cameraBusy"
-          aria-describedby="camera-preview-hint" @click="emit('toggle')"><Video aria-hidden="true" />{{ cameraBusy ? '正在开启摄像头…' : '打开摄像头' }}</button>
+          :disabled="cameraBusy || !previewAllowed" :aria-busy="cameraBusy"
+          aria-describedby="camera-preview-hint" @click="emit(cameraConsent ? 'toggle' : 'prepare')"><Video aria-hidden="true" />{{ cameraBusy ? '正在开启摄像头…' : cameraConsent ? '打开摄像头' : '准备开课' }}</button>
       </div>
       <div
         v-if="captions && enabled"
@@ -376,7 +378,12 @@ onUnmounted(() => {
 .motion-frame .camera-placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:64px 16px 16px; text-align:center; gap:12px; }
 .camera-placeholder strong { font-size:clamp(16px,2vw,22px); font-weight:550; color:var(--class-ink); letter-spacing:.04em; }
 .camera-placeholder > span:not(.camera-lens) { font-size:12px; color:var(--class-muted); }
-.camera-lens { display:grid; place-items:center; position:relative; width:64px; height:64px; margin-bottom:8px; border:1px solid #ff7a1833; border-radius:20px; background:var(--class-surface); color:var(--class-orange-text); }
+.camera-lens { display:grid; place-items:center; position:relative; width:68px; height:68px; margin-bottom:14px; border:1px solid #d7a8ff66; border-radius:21px; background:linear-gradient(140deg,#553a67,#17101fc9); color:#ffc299; transform:perspective(400px) rotateX(10deg) rotateY(-14deg); box-shadow:6px 8px 0 #21122e,14px 18px 40px #b45cff22,inset 0 1px 2px #f5dbff70; transition:transform .45s cubic-bezier(.16,1,.3,1); }
+.camera-placeholder:hover .camera-lens { transform:perspective(400px) rotateX(-6deg) rotateY(12deg) translateY(-3px); }
+.camera-lens__orbit { position:absolute; width:144px; height:92px; border:1px solid #bd7eff66; border-radius:50%; transform:rotateX(60deg) rotateZ(-25deg); pointer-events:none; transition:transform .55s; }
+.camera-lens__orbit.second { width:122px; height:132px; border-color:#ff9c6844; transform:rotateY(62deg) rotateZ(25deg); }
+.camera-placeholder:hover .camera-lens__orbit { transform:rotateX(52deg) rotateZ(20deg); }
+.camera-placeholder:hover .camera-lens__orbit.second { transform:rotateY(55deg) rotateZ(-20deg); }
 .camera-lens svg { width:28px; height:28px; }
 .camera-lens::after { content:""; position:absolute; inset:-8px; border:1px solid #ff7a181a; border-radius:28px; animation:lens-pulse 4s ease-in-out infinite; }
 .camera-open-button svg { width:18px; height:18px; }
