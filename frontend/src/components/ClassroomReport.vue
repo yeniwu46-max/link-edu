@@ -85,6 +85,14 @@ function regenerate(){
     <button class="review-button no-print" @click="showEvidence(view.events,'录像与课堂记录')">录像与课堂记录</button>
     <p v-if="view.hasReport && room.report?.data_readiness?.dimension_eligibility?.posture===false" class="review-inline-alert" role="status">动作或场景证据不足，本报告仅评价其他有证据的维度，教态不评分。</p>
     <p v-if="room.report_state==='failed'" class="review-inline-alert" role="alert">{{ room.report_error || '报告生成失败，可在下方重试。' }}</p>
+    <section class="review-panel report-video-panel" aria-labelledby="report-video-heading">
+      <div class="report-section-title">
+        <div><p class="review-eyebrow">VIDEO REPLAY</p><h2 id="report-video-heading">课堂视频回放</h2></div>
+        <span>自主复盘 · 点击证据可定位时间</span>
+      </div>
+      <p class="review-caption">先看课堂原始记录，再阅读 AI 反馈。你可以自行播放、拖动进度条，或从下方证据入口跳转到对应时间。</p>
+      <ClassroomReplay :room="room" :event="null" />
+    </section>
     <section v-if="room.report_state==='insufficient'" class="report-blocked review-panel">
       <ShieldCheck aria-hidden="true" /><h2>这节课的证据，还不足以形成评课</h2><p>本次未生成 AI 评课报告，也不会用替代分数填补缺项。</p>
       <ul><li v-for="reason in room.report_readiness?.reasons || [room.report_error || '请核对课堂采集记录。']" :key="reason">{{ reason }}</li></ul>
