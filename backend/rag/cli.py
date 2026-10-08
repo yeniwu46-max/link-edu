@@ -36,6 +36,7 @@ def main(argv=None):
     reindex = sub.add_parser('reindex')
     reindex.add_argument('ids', nargs='*', type=int)
     reindex.add_argument('--all', action='store_true', help='重建全部；默认只重建模型签名过期的文档')
+    sub.add_parser('graph-rebuild', help='仅重建图谱元数据，不调用 Embedding')
     query = sub.add_parser('query')
     query.add_argument('text')
     query.add_argument('--top-k', type=int)
@@ -79,6 +80,9 @@ def main(argv=None):
                     print(f'[重建] #{document.id} {document.title}: {document.chunk_count} 个切片')
                 except (ParseError, EmbeddingError) as error:
                     print(f'[失败] #{document.id} {document.title}: {error}', file=sys.stderr)
+            return 0
+        if args.command == 'graph-rebuild':
+            _print(kb.rebuild_graph_metadata())
             return 0
         if args.command == 'query':
             _print(kb.query(args.text, generate=args.answer, top_k=args.top_k))

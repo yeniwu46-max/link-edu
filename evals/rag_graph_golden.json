@@ -1,0 +1,49 @@
+[
+  {
+    "kind": "multi_hop",
+    "query": "学生认为分母4比2大所以四分之一更大，怎样用纸片纠正并追问？",
+    "expect": {"title_contains": "学生误解", "text_contains": "同样大小纸片"},
+    "check_top": 5
+  },
+  {
+    "kind": "multi_hop",
+    "query": "四分之一比分之一大，如何从分母误解联系到平均分？",
+    "expect": {"title_contains": "学生误解", "text_contains": "四分之一更大"},
+    "check_top": 5
+  },
+  {
+    "kind": "direct",
+    "query": "平均分成若干份后，每一份怎样表示？",
+    "expect": {"title_contains": "平均分", "text_contains": "平均分成若干份"},
+    "check_top": 3
+  },
+  {
+    "kind": "direct",
+    "query": "分子和分母分别表示什么？",
+    "expect": {"title_contains": "分子分母", "text_contains": "分母表示"},
+    "check_top": 3
+  },
+  {
+    "kind": "multi_hop",
+    "query": "同一整体的单位分数比较建立在什么教学基础上？",
+    "expect": {"title_contains": "平均分", "text_contains": "平均分的份数越多"},
+    "check_top": 5
+  },
+  {
+    "kind": "multi_hop",
+    "query": "怎样用同大小纸片呈现单位分数依赖的等分基础？",
+    "expect": {"title_contains": "平均分", "text_contains": "平均分成若干份"},
+    "check_top": 5
+  },
+  {
+    "kind": "multi_hop",
+    "query": "四分之一更大的误解如何联系到课堂提问追问？",
+    "expect": {"title_contains": "学生误解", "text_contains": "小明可以追问"},
+    "check_top": 5
+  },
+  {
+    "kind": "irrelevant",
+    "query": "区块链智能合约 Solidity 漏洞审计",
+    "expect_irrelevant": true
+  }
+]

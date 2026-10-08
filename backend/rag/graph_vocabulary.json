@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "entities": [
+    {"id": "concept:equal_partition", "kind": "concept", "label": "平均分", "aliases": ["平均分", "等分", "平均分成"]},
+    {"id": "concept:fraction_meaning", "kind": "concept", "label": "分数意义", "aliases": ["分数意义", "几分之一", "分子", "分母"]},
+    {"id": "concept:unit_fraction", "kind": "concept", "label": "单位分数", "aliases": ["单位分数", "四分之一", "二分之一", "1/4", "1/2"]},
+    {"id": "misconception:denominator_order", "kind": "misconception", "label": "分母越大分数越大", "aliases": ["分母越大分数越大", "分母4比2大", "四分之一更大", "分母大"]},
+    {"id": "technique:equal_paper", "kind": "teaching_technique", "label": "同一整体等分比较", "aliases": ["同样大小纸片", "同一整体", "二等分和四等分", "纸片"]},
+    {"id": "skill:questioning", "kind": "teaching_skill", "label": "提问与追问", "aliases": ["提问", "追问", "候答", "用自己的话说明"]},
+    {"id": "phase:guided_practice", "kind": "teaching_phase", "label": "引导练习", "aliases": ["引导比较", "练习", "新例子验证"]},
+    {"id": "rubric:interaction", "kind": "rubric_dimension", "label": "课堂互动", "aliases": ["课堂互动", "互动设计", "学生回应"]},
+    {"id": "stage:primary", "kind": "stage_subject", "label": "小学", "aliases": ["小学", "小学数学"]}
+  ],
+  "relation_rules": [
+    {"from": "misconception:denominator_order", "to": "technique:equal_paper", "type": "addresses", "cues": ["教师可以用同样大小纸片", "引导比较一份"]},
+    {"from": "technique:equal_paper", "to": "concept:equal_partition", "type": "teaches", "cues": ["平均分", "等分"]},
+    {"from": "technique:equal_paper", "to": "skill:questioning", "type": "includes", "cues": ["追问", "引导比较"]},
+    {"from": "skill:questioning", "to": "rubric:interaction", "type": "supports", "cues": ["学生回应", "用自己的话说明"]},
+    {"from": "concept:unit_fraction", "to": "concept:equal_partition", "type": "depends_on", "cues": ["平均分", "整体"]}
+  ]
+}

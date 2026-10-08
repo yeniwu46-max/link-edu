@@ -1,8 +1,11 @@
 """KnowledgeBase facade: the only entry point routes, CLI, and other LINK modules should call."""
 import hashlib
+import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 from flask import current_app
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
@@ -13,6 +16,7 @@ from rag.cleaning import clean_text
 from rag.embeddings import EmbeddingError, build_embedder
 from rag.generation import GenerationError, ProviderLLM, grounded_answer
 from rag.graph_meta import build_graph_extra
+from rag.graph_index import KnowledgeGraphIndex
 from rag.governance import document_is_expired, log_audit
 from rag.hybrid import ChunkBM25Index, rrf_merge
 from rag.models import KnowledgeChunk, KnowledgeDocument
@@ -24,6 +28,7 @@ from rag.settings import CATEGORIES, load_settings
 from rag.vector_store import build_store
 
 MAX_QUERY_CHARS = 2000
+logger = logging.getLogger(__name__)
 
 
 class DuplicateDocument(ValueError):
@@ -59,10 +64,13 @@ class KnowledgeBase:
         self.chunker = Chunker(settings.chunk_target_chars, settings.chunk_max_chars,
                                settings.chunk_overlap_chars, settings.chunk_min_chars)
         self._bm25 = ChunkBM25Index(self.embedder.signature)
+        self._graph = KnowledgeGraphIndex(self.embedder.signature, settings.graph_max_depth,
+                                          settings.graph_max_expansions)
 
     def _invalidate_indexes(self):
         self.store.invalidate()
         self._bm25.invalidate()
+        self._graph.invalidate()
 
     # ---------- ingestion ----------
 
@@ -90,7 +98,8 @@ class KnowledgeBase:
             if self.settings.parent_context_enabled:
                 extra['parent_summary'] = summaries.get(tuple(chunk.heading_path or []))
             if self.settings.graph_meta_enabled:
-                extra.update(build_graph_extra(document.title, chunk.heading_path, tags))
+                extra.update(build_graph_extra(document.title, chunk.heading_path, tags, chunk.text,
+                                               document_id=document.id))
             db.session.add(KnowledgeChunk(
                 document_id=document.id, ordinal=ordinal, kind=chunk.kind, text=chunk.text,
                 heading_path=chunk.heading_path, page_start=chunk.page_start, page_end=chunk.page_end,
@@ -235,6 +244,26 @@ class KnowledgeBase:
             (KnowledgeDocument.embedding_model != self.embedder.signature)
             | KnowledgeDocument.embedding_model.is_(None)).all()
 
+    def rebuild_graph_metadata(self):
+        """Refresh graph JSON only; this does not parse files or call the embedding provider."""
+        documents = KnowledgeDocument.query.filter_by(status='ready').order_by(KnowledgeDocument.id).all()
+        updated = 0
+        for document in documents:
+            chunks = KnowledgeChunk.query.filter_by(document_id=document.id).order_by(KnowledgeChunk.ordinal)
+            for chunk in chunks:
+                extra = dict(chunk.extra or {})
+                if self.settings.graph_meta_enabled:
+                    extra.update(build_graph_extra(document.title, chunk.heading_path, document.tags, chunk.text,
+                                                   document_id=document.id))
+                else:
+                    extra.pop('graph', None)
+                chunk.extra = extra
+                updated += 1
+            document.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.session.commit()
+        self._invalidate_indexes()
+        return {'documents': len(documents), 'chunks': updated}
+
     def delete(self, document):
         path = self.settings.storage_dir / document.storage_path
         doc_id = document.id
@@ -267,7 +296,7 @@ class KnowledgeBase:
     # ---------- retrieval & generation ----------
 
     def retrieve(self, query, *, top_k=None, categories=None, document_ids=None, min_score=None,
-                 hybrid=None, rerank=None, rewrite=None):
+                 hybrid=None, rerank=None, rewrite=None, graph=None):
         raw = clean_text(query)[:MAX_QUERY_CHARS]
         if not raw:
             raise ValueError('检索内容不能为空')
@@ -282,6 +311,7 @@ class KnowledgeBase:
         threshold = self.settings.min_score if min_score is None else float(min_score)
         use_hybrid = self.settings.hybrid_enabled if hybrid is None else bool(hybrid)
         use_rerank = self.settings.rerank_enabled if rerank is None else bool(rerank)
+        use_graph = self.settings.graph_enabled if graph is None else bool(graph)
         started = time.perf_counter()
 
         vector = self.embedder.embed_query(embed_text)
@@ -295,11 +325,24 @@ class KnowledgeBase:
             fused = rrf_merge(vector_ranked, bm25_ranked, k=self.settings.rrf_k)
         else:
             bm25_scores = {}
-            fused = vector_ranked
+            bm25_ranked = []
+
+        graph_result = {'ranked': [], 'paths': {}, 'diagnostics': {
+            'seed_entity_count': 0, 'expanded_entity_count': 0, 'candidate_count': 0, 'elapsed_ms': 0.0}}
+        if use_graph:
+            try:
+                graph_result = self._graph.search(
+                    raw, [chunk_id for chunk_id, _ in [*vector_ranked, *bm25_ranked]],
+                    top_k=fetch_k, categories=categories, document_ids=document_ids)
+            except Exception:
+                logger.exception('RAG graph retrieval failed; falling back to vector/BM25 retrieval')
+                graph_result['diagnostics'].update(error='graph_retrieval_failed', fallback=True)
+        fused = rrf_merge(vector_ranked, bm25_ranked, graph_result['ranked'], k=self.settings.rrf_k)
 
         ordered_ids = [cid for cid, _ in fused[:fetch_k]]
         if not ordered_ids:
-            return self._empty_retrieval(raw, text, embed_text, k, threshold, use_hybrid, use_rerank, started)
+            return self._empty_retrieval(raw, text, embed_text, k, threshold, use_hybrid, use_rerank,
+                                         started, use_graph, graph_result['diagnostics'])
 
         rows = {c.id: c for c in KnowledgeChunk.query.options(joinedload(KnowledgeChunk.document))
                 .filter(KnowledgeChunk.id.in_(ordered_ids))}
@@ -311,13 +354,19 @@ class KnowledgeBase:
             if document_is_expired(chunk.document):
                 continue
             rrf_score = next((s for cid, s in fused if cid == chunk_id), vector_scores.get(chunk_id, 0))
-            gate_score = vector_scores.get(chunk_id, rrf_score)
+            vector_score = vector_scores.get(chunk_id)
+            if vector_score is None:
+                stored = np.frombuffer(chunk.embedding, dtype=np.float32)
+                if stored.shape[0] == vector.shape[0]:
+                    vector_score = float(stored @ vector)
+            gate_score = vector_score if vector_score is not None else 0.0
             hit = self._hit_from_chunk(
                 chunk, gate_score,
-                vector_score=vector_scores.get(chunk_id),
+                vector_score=vector_score,
                 bm25_score=bm25_scores.get(chunk_id),
             )
             hit['fusion_score'] = round(float(rrf_score), 6)
+            hit['graph_paths'] = graph_result['paths'].get(chunk_id, [])
             hits.append(hit)
 
         if use_rerank and hits:
@@ -342,6 +391,7 @@ class KnowledgeBase:
                 'hybrid': use_hybrid,
                 'rerank': use_rerank,
                 'query_rewrite': mode,
+                'graph': {'enabled': use_graph, **graph_result['diagnostics']},
                 'embedding_model': self.embedder.signature,
                 'semantic_embedding': self.embedder.semantic,
                 'vector_backend': self.store.backend,
@@ -349,7 +399,8 @@ class KnowledgeBase:
             },
         }
 
-    def _empty_retrieval(self, raw, text, embed_text, k, threshold, hybrid, rerank, started):
+    def _empty_retrieval(self, raw, text, embed_text, k, threshold, hybrid, rerank, started,
+                         graph=False, graph_diagnostics=None):
         return {
             'query': raw,
             'rewritten_query': text if text != raw else None,
@@ -363,6 +414,7 @@ class KnowledgeBase:
                 'hybrid': hybrid,
                 'rerank': rerank,
                 'query_rewrite': self.settings.query_rewrite,
+                'graph': {'enabled': graph, **(graph_diagnostics or {})},
                 'embedding_model': self.embedder.signature,
                 'semantic_embedding': self.embedder.semantic,
                 'vector_backend': self.store.backend,
@@ -423,6 +475,7 @@ class KnowledgeBase:
             'hybrid_enabled': self.settings.hybrid_enabled,
             'rerank_enabled': self.settings.rerank_enabled,
             'query_rewrite': self.settings.query_rewrite,
+            'graph': {'enabled': self.settings.graph_enabled, **self._graph.stats()},
         }
 
 

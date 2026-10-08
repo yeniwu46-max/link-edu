@@ -34,4 +34,5 @@
 - **检索**：向量 Top-K + `RAG_MIN_SCORE`，返回章节/页码/相似度  
 - **问答**：`POST /api/rag/query`，强制引用编号，证据不足不调用 LLM  
 - **评课**：`POST /api/rag/evaluate`，按指标检索理论依据 + 逐指标 grounded 状态  
-- **课堂报告**：`gather_report_references()` = JSON BM25 + `kb:<chunk_id>` 向量片段  
+- **课堂报告**：`gather_report_references()` = JSON BM25 + `kb:<chunk_id>` 向量片段
+- **GraphRAG（默认关闭）**：受控实体与原文 cue 关系扩展候选，返回可追溯路径；`python -m rag.cli graph-rebuild` 更新图元数据，不重算 Embedding
