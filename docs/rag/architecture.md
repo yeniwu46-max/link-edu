@@ -92,6 +92,15 @@
 4. **门控**：`relevant` 依据向量余弦分与 `RAG_MIN_SCORE`；RRF 分仅用于排序（`fusion_score`）。
 5. **入库增强**：节级 `parent_summary` 写入 `extra`；轻量实体/关系写入 `extra.graph`；`valid_until` 过期文档不参与检索。
 
+### GraphRAG 检索（功能开关，默认关闭）
+
+- `backend/rag/graph_vocabulary.json` 定义版本化实体、别名和人工审核的关系规则；每条规则须在当前切片中找到精确 cue 才能生成边。
+- `extra.graph` 保存 `schema_version`、实体与关系。关系证据保留原文 cue；图索引加载时再次校验 cue，避免无来源的边进入召回。
+- `KnowledgeGraphIndex` 从查询命中的实体及向量/BM25 种子实体出发，最多扩展 `RAG_GRAPH_MAX_DEPTH` 层和 `RAG_GRAPH_MAX_EXPANSIONS` 条边，过滤 inactive、过期和越界分类/文档。
+- 图候选与向量/BM25 使用 RRF 融合，再交给现有重排。图分数不会代替向量相关性门槛；无足够相关证据仍拒答。命中会带 `graph_paths`，每条关系标明 `source_chunk_id` 与支持原文 cue。
+- 设置 `RAG_GRAPH_ENABLED=true` 开启默认图检索，或在 `/api/rag/retrieve`、`/api/rag/query` 请求中传 `{"graph": true}` 单次试用。默认保持关闭。
+- 更新图谱元数据无需重新计算向量：在 backend 目录运行 `python -m rag.cli graph-rebuild`。实体词表和人工审核关系调整后执行此命令。
+
 异步入库：`RAG_ASYNC_INGEST` 或表单 `async=1`，后台线程执行 `finish_ingest`；前端 `/knowledge` 页可上传、预览切片、试检索。
 
 语料治理字段：`content_version`、`license_note`、`valid_until`、`last_audited_at`；审计表 `kb_audit_logs`（`GET /api/rag/audit`）。

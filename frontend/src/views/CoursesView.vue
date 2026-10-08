@@ -1,17 +1,11 @@
 <template>
   <div class="sparse-page page-courses">
-    <header class="page-head">
-      <p class="shiny-kicker">COURSE DECK</p>
-      <h1 class="split-title">课程中心</h1>
-      <p class="page-lead">九项教学技能，从专项研习到课堂实践。</p>
-      <p v-if="query && !loading" class="course-search-status" role="status">
-        搜索“{{ query }}” · {{ filtered.length }} 个结果
-      </p>
-    </header>
+<h1 class="sr-only">课程中心</h1>
 
     <div class="page-scroll">
     <div class="course-layout">
-      <aside class="filter-rail glass" aria-label="课程分类">
+      <aside class="filter-rail glass" aria-label="课程分类" data-tour="courses">
+        <ModelShowcase kind="book" label="立体课程书册" />
         <button
           v-for="item in filters"
           :key="item.id"
@@ -22,6 +16,7 @@
       </aside>
 
       <div class="course-main">
+        <p v-if="query && !loading" class="course-search-status" role="status">搜索“{{ query }}” · {{ filtered.length }} 个结果</p>
         <p v-if="loading" class="course-search-feedback" role="status">正在加载课程…</p>
         <div v-else-if="courseError" class="course-search-feedback" role="alert">
           <span>{{ courseError }}</span>
@@ -64,7 +59,7 @@
         <section class="mooc-extend" aria-label="慕课延伸">
           <header class="mooc-extend__head">
             <div>
-              <p class="shiny-kicker">MOOC EXTEND</p>
+
               <h2>慕课延伸</h2>
             </div>
             <p>外链需平台账号 · 开课学期可能变化 · 非正式国标</p>
@@ -123,6 +118,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Magnet from '../components/fx/Magnet.vue'
+import ModelShowcase from '../components/fx/ModelShowcase.vue'
 import SpotlightPane from '../components/fx/SpotlightPane.vue'
 import { featuredMoocs, moocForCourse } from '../data/moocCourses'
 import { fetchCourses } from '../services/dashboard'

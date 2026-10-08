@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import { parse, compileScript } from '@vue/compiler-sfc'
 import { transformSync } from 'esbuild'
 import * as vue from 'vue'
+import { useReducedMotion, useMotionReveal } from '../src/utils/useReducedMotion.js'
 
 const source = readFileSync(new URL('../src/views/GrowthView.vue', import.meta.url), 'utf8')
 
@@ -20,6 +21,8 @@ function createGrowth(fetchGrowth) {
   const { code } = transformSync(compileScript(descriptor, { id: 'growth-sync-test' }).content, { format: 'cjs' })
   const navigation = []
   const imports = {
+    '../components/fx/ModelShowcase.vue': {},
+    '../utils/useReducedMotion.js': { useReducedMotion, useMotionReveal },
     vue: { ...vue, onMounted() {}, watch() {} },
     'vue-router': { useRouter: () => ({ push: target => navigation.push(target) }) },
     'echarts/core': { use() {} },

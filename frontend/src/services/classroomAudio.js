@@ -1,7 +1,8 @@
 export const STUDENT_PLAYBACK_RATE = 1.2;
 
 export class ClassroomAudio {
-  constructor(send, onLevel, onPlayback = () => {}) {
+  constructor(send, onLevel, onPlayback = () => {}, { playbackRate = STUDENT_PLAYBACK_RATE } = {}) {
+    this.playbackRate = playbackRate;
     this.send = send;
     this.onLevel = onLevel;
     this.onPlayback = onPlayback;
@@ -31,6 +32,7 @@ export class ClassroomAudio {
   async start() {
     this.ctx = new AudioContext();
     await this.ctx.resume();
+    if (this.disposed) throw new Error("Audio disposed");
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -44,6 +46,10 @@ export class ClassroomAudio {
       throw new Error("Audio disposed");
     }
     await this.ctx.audioWorklet.addModule("/classroom-audio.js");
+    if (this.disposed) {
+      this.stream.getTracks().forEach((t) => t.stop());
+      throw new Error("Audio disposed");
+    }
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.capture = new AudioWorkletNode(this.ctx, "classroom-pcm");
     this.capture.port.onmessage = ({ data }) => {
@@ -95,7 +101,7 @@ export class ClassroomAudio {
       samples[i] = view.getInt16(i * 2, true) / 32768;
     const node = this.ctx.createBufferSource();
     node.buffer = buffer;
-    node.playbackRate.value = STUDENT_PLAYBACK_RATE;
+    node.playbackRate.value = this.playbackRate;
     node.connect(this.outputGain);
     const start = Math.max(this.ctx.currentTime + 0.01, this.endAt);
     if (this.first) {
@@ -119,7 +125,7 @@ export class ClassroomAudio {
     }
     node.start(start);
     // Buffers retain the provider's sample rate; only student playback runs faster.
-    this.endAt = start + buffer.duration / STUDENT_PLAYBACK_RATE;
+    this.endAt = start + buffer.duration / this.playbackRate;
     this.nodes.add(node);
     node.onended = () => {
       this.nodes.delete(node);

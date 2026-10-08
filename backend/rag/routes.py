@@ -11,7 +11,7 @@ from rag.embeddings import EmbeddingError
 from rag.evaluation import evaluate_lesson
 from rag.models import KnowledgeChunk, KnowledgeDocument
 from rag.parsing import ParseError
-from rag.governance import KnowledgeAuditLog, log_audit
+from rag.governance import KnowledgeAuditLog, document_is_expired, log_audit
 from rag.jobs import schedule_ingest
 from rag.service import DuplicateDocument, get_kb
 from rag.settings import CATEGORIES, FILE_TYPES
@@ -91,6 +91,9 @@ def _tags(value):
 
 
 def _filters(data):
+    graph = data.get('graph')
+    if graph is not None and not isinstance(graph, bool):
+        raise ValueError('graph 必须是布尔值')
     return {
         'top_k': data.get('top_k'),
         'categories': _categories(data.get('categories')),
@@ -99,6 +102,7 @@ def _filters(data):
         'hybrid': data.get('hybrid'),
         'rerank': data.get('rerank'),
         'rewrite': data.get('rewrite'),
+        'graph': graph,
     }
 
 
@@ -312,7 +316,8 @@ def list_chunks(document_id):
 @jwt_required()
 def get_chunk(chunk_id):
     chunk = db.session.get(KnowledgeChunk, chunk_id)
-    if chunk is None or not chunk.document.is_active:
+    if (chunk is None or not chunk.document.is_active or chunk.document.status != 'ready'
+            or document_is_expired(chunk.document)):
         return jsonify(message='切片不存在'), 404
     return jsonify(chunk=chunk.to_dict(include_extra=True), document=chunk.document.to_dict())
 
@@ -375,4 +380,3 @@ def evaluate():
         return jsonify(message=str(error)), 400
     except EmbeddingError as error:
         return _service_error(error)
-

@@ -40,7 +40,10 @@ export function createClassroomPainter(snapshot) {
       const image=images.get(presentation.src);
       ctx.fillStyle='#191e2a';ctx.fillRect(x,488,392,220);
       const bob=s.reducedMotion?0:Math.sin(performance.now()/750+i)*2;
-      if(image?.complete && image.naturalWidth)ctx.drawImage(image,x+10,518+bob,175,175);
+      const frame=s.studentFrame, slot=frame?.slots?.[id];
+      if(frame?.canvas?.width && slot?.width && slot?.height) {
+        ctx.drawImage(frame.canvas,slot.x,slot.y,slot.width,slot.height,x+10,518,175,175);
+      } else if(image?.complete && image.naturalWidth)ctx.drawImage(image,x+10,518+bob,175,175);
       ctx.fillStyle='#fff';ctx.font='20px sans-serif';ctx.fillText({ming:'小明',yu:'小雨',lin:'小林'}[id],x+206,680);
       ctx.font='16px sans-serif';ctx.fillStyle='#b9c4d7';ctx.fillText(presentation.label,x+206,704);
       if(r?.text && !['idle','failed'].includes(r.phase) && performance.now()<hideAt) {

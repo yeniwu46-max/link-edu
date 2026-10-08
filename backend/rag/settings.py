@@ -86,6 +86,9 @@ class RagSettings:
     query_rewrite: str
     parent_context_enabled: bool
     graph_meta_enabled: bool
+    graph_enabled: bool
+    graph_max_depth: int
+    graph_max_expansions: int
     async_ingest_default: bool
 
     @property
@@ -148,5 +151,8 @@ def load_settings():
         query_rewrite=rewrite,
         parent_context_enabled=_bool('RAG_PARENT_CONTEXT', True),
         graph_meta_enabled=_bool('RAG_GRAPH_META', True),
+        graph_enabled=_bool('RAG_GRAPH_ENABLED', False),
+        graph_max_depth=_int('RAG_GRAPH_MAX_DEPTH', 2, 1, 3),
+        graph_max_expansions=_int('RAG_GRAPH_MAX_EXPANSIONS', 32, 1, 128),
         async_ingest_default=_bool('RAG_ASYNC_INGEST', True),
     )

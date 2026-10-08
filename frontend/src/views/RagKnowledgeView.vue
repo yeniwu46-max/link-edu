@@ -1,13 +1,17 @@
 <template>
   <div class="page-rag">
-    <section class="glass rag-hero">
-      <h1>知识库</h1>
+    <details class="glass rag-hero"><summary>知识库状态</summary>
+      <h1 class="sr-only">知识库</h1>
       <p v-if="status">
         已索引 {{ status.indexed_chunks }} 条切片 · 混合检索
         {{ status.hybrid_enabled ? '开' : '关' }} · 精排 {{ status.rerank_enabled ? '开' : '关' }}
+        <template v-if="status.graph?.initialized">
+          · 图谱 {{ status.graph.entity_count }} 个实体 / {{ status.graph.relation_count }} 条关系
+        </template>
+        <template v-else>· 图谱索引尚未加载</template>
       </p>
       <p v-else-if="loadError" class="rag-error">{{ loadError }}</p>
-    </section>
+    </details>
 
     <div class="rag-columns" v-if="canManage">
       <section class="glass rag-panel">
@@ -49,13 +53,37 @@
             问句
             <textarea v-model="trialQuery" rows="3" placeholder="例如：提问后应留多少候答时间？" />
           </label>
+          <label class="rag-toggle">
+            <input v-model="graphEnabled" type="checkbox" />
+            启用图谱扩展（试验）
+          </label>
           <button type="submit" :disabled="!trialQuery.trim() || retrieving">检索</button>
         </form>
+        <p v-if="trialError" class="rag-error" role="alert">{{ trialError }}</p>
+        <p v-if="trialRetrieval?.relevant_count === 0" class="rag-hint" role="status">
+          当前知识库暂无充分依据。以下候选未达到相关性门槛，不能作为回答依据。
+        </p>
+        <p v-else-if="trialRetrieval" class="rag-hint" role="status">
+          {{ trialRetrieval.relevant_count }} 条候选通过相关性门槛。
+        </p>
+        <p v-if="trialDiagnostics?.fallback" class="rag-hint" role="status">图谱扩展暂不可用，已回退到常规检索。</p>
+        <p v-if="trialDiagnostics?.enabled" class="rag-hint">
+          图检索种子 {{ trialDiagnostics.seed_entity_count }} · 扩展 {{ trialDiagnostics.expanded_entity_count }} ·
+          {{ trialDiagnostics.elapsed_ms }} ms
+        </p>
         <ul v-if="trialHits.length" class="rag-hits">
           <li v-for="hit in trialHits" :key="hit.chunk_id">
             <strong>{{ hit.document?.title }}</strong>
             <span>{{ hit.section }} · {{ hit.similarity }}</span>
+            <small class="rag-relevance">{{ hit.relevant ? '通过相关性门槛' : '未达到相关性门槛' }}</small>
             <p>{{ hit.text.slice(0, 180) }}…</p>
+            <div v-for="(path, index) in hit.graph_paths || []" :key="`${hit.chunk_id}-${index}`" class="rag-graph-path">
+              <span>{{ formatGraphPath(path) }}</span>
+              <span>（{{ path.relations.map(relation => relation.type).join(' / ') }}）</span>
+              <button v-for="sourceId in path.source_chunk_ids" :key="sourceId" type="button" @click="previewEvidence(sourceId)">
+                查看依据 #{{ sourceId }}
+              </button>
+            </div>
           </li>
         </ul>
       </section>
@@ -96,7 +124,7 @@
       </header>
       <ul v-if="previewChunks.length">
         <li v-for="chunk in previewChunks" :key="chunk.id">
-          <small>#{{ chunk.ordinal }} {{ chunk.section }}</small>
+          <small>切片 #{{ chunk.id }} · 序号 {{ chunk.ordinal + 1 }} · {{ chunk.section }}</small>
           <p>{{ chunk.text }}</p>
           <pre v-if="chunk.extra?.parent_summary">{{ chunk.extra.parent_summary }}</pre>
         </li>
@@ -109,6 +137,7 @@
 import { onMounted, ref } from 'vue'
 import {
   deleteRagDocument,
+  fetchRagChunk,
   fetchRagStatus,
   listRagChunks,
   listRagDocuments,
@@ -126,6 +155,10 @@ const uploading = ref(false)
 const uploadMessage = ref('')
 const trialQuery = ref('')
 const trialHits = ref([])
+const trialDiagnostics = ref(null)
+const trialRetrieval = ref(null)
+const trialError = ref('')
+const graphEnabled = ref(false)
 const retrieving = ref(false)
 const previewDoc = ref(null)
 const previewChunks = ref([])
@@ -175,11 +208,17 @@ async function onUpload() {
 async function onRetrieve() {
   retrieving.value = true
   trialHits.value = []
+  trialError.value = ''
+  trialRetrieval.value = null
+  trialDiagnostics.value = null
   try {
-    const data = await trialRetrieve({ query: trialQuery.value.trim(), top_k: 5 })
+    const data = await trialRetrieve({ query: trialQuery.value.trim(), top_k: 5, graph: graphEnabled.value })
     trialHits.value = data.hits || []
+    trialDiagnostics.value = data.retrieval?.graph || null
+    trialRetrieval.value = data.retrieval || null
+    await refresh()
   } catch (error) {
-    loadError.value = error.response?.data?.message || '检索失败'
+    trialError.value = error.response?.data?.message || '检索失败'
   } finally {
     retrieving.value = false
   }
@@ -190,6 +229,25 @@ async function preview(doc) {
   const data = await listRagChunks(doc.id, { limit: 30 })
   previewChunks.value = data.items || []
   chunkDialog.value?.showModal()
+}
+
+async function previewEvidence(chunkId) {
+  trialError.value = ''
+  try {
+    const data = await fetchRagChunk(chunkId)
+    previewDoc.value = data.document
+    previewChunks.value = [data.chunk]
+    chunkDialog.value?.showModal()
+  } catch (error) {
+    trialError.value = error.response?.data?.message || '依据原文暂不可用，请重新检索。'
+  }
+}
+
+function formatGraphPath(path) {
+  return path.entities.reduce((text, entity, index) => {
+    const arrow = path.relations[index - 1]?.reverse ? ' ← ' : ' → '
+    return text + (index ? arrow : '') + (entity.label || entity.id)
+  }, '')
 }
 
 function closePreview() {
@@ -235,6 +293,10 @@ onMounted(refresh)
   gap: 0.25rem;
   font-size: 0.85rem;
 }
+.rag-form label.rag-toggle {
+  flex-direction: row;
+  align-items: center;
+}
 .rag-form input,
 .rag-form select,
 .rag-form textarea {
@@ -265,6 +327,35 @@ onMounted(refresh)
   padding-bottom: 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+.rag-hits > li > strong,
+.rag-hits > li > span {
+  display: block;
+}
+.page-rag button,
+.rag-dialog button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  background: #34304b;
+  color: #f4f1ff;
+  cursor: pointer;
+}
+.page-rag button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rag-graph-path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  font-size: 0.8rem;
+}
+.rag-relevance {
+  display: block;
+  margin-top: 0.25rem;
+}
 .rag-hint,
 .rag-error {
   font-size: 0.85rem;
@@ -283,6 +374,10 @@ onMounted(refresh)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.rag-dialog pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 button.danger {
   color: #f87171;

@@ -1,0 +1,11 @@
+{
+  "model": "Cesium Man",
+  "author": "Cesium",
+  "copyright": "2017 Cesium",
+  "license": "CC-BY-4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "repository": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "commit": "edc7c9e67c639d230715049ee31f9a96a6babbbe",
+  "source": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/CesiumMan/glTF-Binary/CesiumMan.glb",
+  "modifications": "Runtime material replacement removes the original branded texture. Purple/orange lights, a wireframe overlay, camera framing and animation playback are adapted for LINK. Geometry and rig are imported from the source model."
+}

@@ -75,6 +75,25 @@ python -m pytest tests/test_rag_golden.py -q
 
 根据 Top3 相似度分布调整 **`RAG_MIN_SCORE`**（语义默认约 0.40，local 约 0.12）。评课场景可对 `categories` / `document_ids` 限域。
 
+### GraphRAG
+
+```bash
+cd backend
+python -m rag.cli graph-rebuild       # 仅刷新 extra.graph，不调用 Embedding
+cd ..
+python scripts/rag_eval_graph.py      # 对比 graph off/on，不调用 LLM
+```
+
+图谱词表和已审核关系规则位于 `backend/rag/graph_vocabulary.json`。评测未达标前保持 `RAG_GRAPH_ENABLED=false`；试检索请求可以单次传 `graph: true`，页面会显示图路径及可打开的来源切片。出现异常时，GraphRAG 会记录后端日志并退回向量/BM25 检索。
+
+评测支持 `--report <本机私有路径.json>`，保存每题切片 ID、排名、相关性、路径、MRR@5 与耗时。基础黄金集脚本强制 `graph=False`；图谱脚本在同一黄金集、同一排名截断上比较直接问题，并把无答案失败、缺失预期来源、空路径及无效边计入最终判定。两者都拒绝启用会调用 LLM 的 HyDE 改写。
+
+图缓存按实际图谱内容、分类和失效日期生成指纹，避免 MySQL 秒级时间戳漏掉连续重建。每次图检索会读取图谱输入以核对指纹；扩大语料规模前应测量这部分开销。来源原文接口会拒绝已停用、未就绪或过期的切片。异常回退时 `retrieval.graph.error=graph_retrieval_failed`、`fallback=true`，界面显示回退提示。
+
+本机验收先确认实际生效的 `DATABASE_URL`（进程环境变量可能覆盖 `.env`），备份数据库与 `RAG_STORAGE_DIR`，在独立恢复库校验恢复结果，再执行重建。不要仅凭配置默认值推断当前使用 MySQL。图谱重建前后应比较切片正文、非图元数据与向量摘要，确保未被更改。
+
+2026-10-08 本机验收尚未达到开启条件，见 [验收报告](graphrag-local-acceptance-2026-10-08.md)。关闭请求级开关可立即回退；保持环境配置 `RAG_GRAPH_ENABLED=false`，修改环境配置后重启对应进程。
+
 ## 6. 部署与备份
 
 - 配置模板：`deploy/runtime.env.example`、`backend/.env.example`。

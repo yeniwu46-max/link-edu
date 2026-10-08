@@ -1,12 +1,14 @@
 <script setup>
 import { computed } from 'vue';
 import NumberFlow, { NumberFlowGroup } from '@number-flow/vue';
+import { useReducedMotion } from '../utils/useReducedMotion.js';
+const reducedMotion = useReducedMotion();
 const props = defineProps({ seconds: {type:Number, default:600} });
 const remaining = computed(() => Math.max(0, Math.ceil(Number(props.seconds) || 0)));
 const minutes = computed(() => Math.floor(remaining.value / 60));
 const seconds = computed(() => remaining.value % 60);
 const format = {minimumIntegerDigits:2, maximumFractionDigits:0, useGrouping:false};
-const timing = {duration:350, easing:'ease-out'};
+const timing = computed(() => ({duration:reducedMotion.value ? 0 : 350, easing:'ease-out'}));
 </script>
 <template>
   <div class="classroom-countdown" :class="{urgent:remaining <= 30}" role="timer"

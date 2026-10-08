@@ -1,15 +1,9 @@
 <template>
   <div class="sparse-page profile-page" :class="`profile-page--${page}`">
-    <header class="page-head growth-head">
-      <div>
-        <p class="shiny-kicker">{{ kicker }}</p>
-        <SplitTitle :text="pageTitle" />
-        <p class="page-lead">{{ pageLead }}</p>
-        <p v-if="profileError" class="dock-hint" role="alert">{{ profileError }}</p>
-      </div>
-    </header>
+<h1 class="sr-only">{{ pageTitle }}</h1>
+    <p v-if="profileError" class="dock-hint" role="alert">{{ profileError }}</p>
 
-    <div class="page-scroll">
+    <div ref="contentScroll" class="page-scroll" data-tour="profile">
     <!-- 个人中心：身份、等级、徽章、最近训练 -->
     <div v-if="page === 'center'" class="profile-stack">
       <section class="identity-card">
@@ -85,7 +79,8 @@
     <!-- 设置：只做系统操作 -->
     <div v-else-if="page === 'settings'" class="settings-stack">
       <section class="settings-block">
-        <h3>课堂设置</h3>
+        <h3>使用引导</h3>
+        <button type="button" @click="startTour">重新查看新手引导</button>
         <p>摄像头、音量与字幕可在课堂内调整。</p>
         <router-link to="/classroom">前往模拟课堂 →</router-link>
       </section>
@@ -177,9 +172,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import SplitTitle from '../components/fx/SplitTitle.vue'
+import { startTour } from '../utils/onboarding.js'
 import { addJournal, fetchFeedbacks, fetchProfile, saveProfile } from '../services/dashboard'
 import { useAuthStore } from '../stores/auth'
 import { loadSettings, openHelpChat, resetSettings, saveSettings } from '../utils/settings'
@@ -188,6 +183,7 @@ import { journalSubmitErrorMessage } from '../utils/dashboardState'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const contentScroll = ref(null)
 const saved = ref(false)
 const saveError = ref('')
 const profileError = ref('')
@@ -223,20 +219,10 @@ const page = computed(() => {
   if (tab === 'settings' || tab === 'contact') return tab
   return 'center'
 })
-const kicker = computed(() => ({
-  center: 'PROFILE',
-  settings: 'SETTINGS',
-  contact: 'CONTACT',
-}[page.value]))
 const pageTitle = computed(() => ({
   center: '个人中心',
   settings: '设置',
   contact: '联系我们',
-}[page.value]))
-const pageLead = computed(() => ({
-  center: form.school || profile.value.school || '记录你的教学成长。',
-  settings: '管理显示偏好与账号。',
-  contact: '使用帮助与问题记录。',
 }[page.value]))
 const initial = computed(() => (form.name || profile.value.name || '临').slice(0, 1))
 const roleLabel = computed(() => (form.role === 'teacher' ? '指导教师' : '师范生'))
@@ -244,6 +230,7 @@ const badges = computed(() => profile.value.badges || [])
 const recent = computed(() => profile.value.recent_feedbacks || [])
 
 watch(() => route.query.tab, () => {
+  nextTick(() => { if (contentScroll.value) contentScroll.value.scrollTop = 0 })
   saved.value = false
   saveError.value = ''
   profileError.value = ''

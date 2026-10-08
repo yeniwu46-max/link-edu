@@ -5,6 +5,7 @@ import { parse, compileScript } from '@vue/compiler-sfc'
 import { transformSync } from 'esbuild'
 import * as vue from 'vue'
 import * as dashboardState from '../src/utils/dashboardState.js'
+import { useReducedMotion } from '../src/utils/useReducedMotion.js'
 
 const { descriptor } = parse(readFileSync(new URL('../src/views/DashboardView.vue', import.meta.url), 'utf8'))
 const { code } = transformSync(compileScript(descriptor, { id: 'dashboard-test' }).content, { format: 'cjs' })
@@ -29,6 +30,7 @@ function createDashboard(overrides = {}) {
     '../stores/auth': { useAuthStore: () => ({ user: { name: 'Test User' } }) },
     '../utils/greeting': { formatGreeting: () => ({ title: 'Hello', name: 'Test User' }) },
     '../utils/dashboardState': dashboardState,
+    '../utils/useReducedMotion.js': { useReducedMotion },
     '../components/LearnMoreButton.vue': {},
     '../components/SummaryCard.vue': {},
   }

@@ -15,6 +15,8 @@ const ProfileView = () => import('./views/ProfileView.vue')
 const RagKnowledgeView = () => import('./views/RagKnowledgeView.vue')
 import { useAuthStore } from './stores/auth'
 import './styles.css'
+import './ambient-effects.css'
+import './functional-ui.css'
 
 const router = createRouter({
   history: createWebHistory(),

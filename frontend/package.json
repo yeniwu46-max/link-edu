@@ -7,11 +7,14 @@
     "test": "node --test tests/*.test.js tests/*.test.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "node ../scripts/sync-assistant-guide.mjs",
+    "predev": "node ../scripts/sync-assistant-guide.mjs"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
     "@number-flow/vue": "^0.5.2",
+    "@pixiv/three-vrm": "3.5.5",
     "@vicons/tabler": "^0.13.0",
     "@vueuse/core": "^14.4.0",
     "axios": "^1.7.9",

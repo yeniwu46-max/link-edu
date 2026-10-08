@@ -1,17 +1,13 @@
 <template>
-  <main class="dashboard app-shell" :class="{ immersive: immersive, 'protected-shell': protectedShell }">
-    <video
+  <main v-ambient-ui class="dashboard app-shell" :class="{ immersive: immersive, 'protected-shell': protectedShell }">
+    <AmbientVideo
       v-if="!immersive && !protectedShell"
       class="app-shell-bg-video"
-      src="/assets/login-bg.mp4"
+      source="/assets/login-bg-lite.mp4"
+      fallback-source="/assets/login-bg.mp4"
       poster="/assets/login-bg.png"
-      autoplay
-      muted
-      loop
-      playsinline
-      preload="metadata"
       aria-hidden="true"
-    ></video>
+    />
     <div v-if="!immersive && !protectedShell" class="app-shell-bg-shade" aria-hidden="true"></div>
     <Aurora />
     <aside class="sidebar">
@@ -33,7 +29,11 @@
 
     <section class="workspace" :class="{ 'workspace--immersive': immersive }">
       <header v-if="!immersive" class="topbar">
-        <span>{{ crumb }}</span>
+        <span class="page-crumb">{{ crumb }}</span>
+        <select class="mobile-page-nav" aria-label="切换页面" :value="route.path" @change="router.push($event.target.value)">
+          <option v-if="!nav.some(item => item.to === route.path)" :value="route.path" disabled>{{ crumb }}</option>
+          <option v-for="item in nav" :key="item.to" :value="item.to">{{ item.label }}</option>
+        </select>
         <form class="cir-search" role="search" @submit.prevent="goSearch">
           <svg class="cir-search__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/>
@@ -81,21 +81,27 @@
     </section>
 
     <HelpChat />
+    <OnboardingTour />
   </main>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, shallowRef, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from '../components/BrandMark.vue'
 import HelpChat from '../components/HelpChat.vue'
+import OnboardingTour from '../components/OnboardingTour.vue'
 import Aurora from '../components/fx/Aurora.vue'
+import AmbientVideo from '../components/fx/AmbientVideo.vue'
+import { ambientUi as vAmbientUi } from '../utils/ambientUi.js'
 import { useAuthStore } from '../stores/auth'
 import { buildSearchLocation } from '../utils/navigation'
+import { classroomHelpKey } from '../utils/classroomHelpContext.js'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+provide(classroomHelpKey, shallowRef(null))
 const search = ref('')
 const menuOpen = ref(false)
 

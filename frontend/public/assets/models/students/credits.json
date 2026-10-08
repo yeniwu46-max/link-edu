@@ -1,0 +1,53 @@
+{
+  "author": "Kenney",
+  "pack": "Mini Characters 1.0",
+  "source": "https://kenney.nl/assets/mini-characters",
+  "license": "CC0-1.0",
+  "archiveSha256": "9e1d48e6d7b8479ebbe84df71eb5bd8e1b3f0da546dea641890dccc8a02d0999",
+  "adaptations": [
+    "Retain static, idle and emote-yes; remove unused animation data.",
+    "Runtime holographic surfaces, lighting, classroom poses and speaking gestures."
+  ],
+  "assets": [
+    {
+      "file": "character-male-a.glb",
+      "originalSha256": "77572792bfe2773b715b8cd8e18644b52b3e1f155fe10450254b50f9c364382a",
+      "sha256": "9d6ec18ef581a0294e30631d336f1d64e066b33ddbaaefbe8a5da95767015a06",
+      "bytes": 129948,
+      "clips": [
+        "static",
+        "idle",
+        "emote-yes"
+      ]
+    },
+    {
+      "file": "character-female-b.glb",
+      "originalSha256": "2288438e7baf9acc91a870c82dc00d66710bb486592cfc3474ef8ed93a03863a",
+      "sha256": "7ea6dcd79d3e8ffa0c2bae22bcbb51cbdade989d84c3632be347a0fadc0715d3",
+      "bytes": 135148,
+      "clips": [
+        "static",
+        "idle",
+        "emote-yes"
+      ]
+    },
+    {
+      "file": "character-male-e.glb",
+      "originalSha256": "cd76681090ce29861b055b0f8b2bdcf84bfccc4ca816f428df42a9bb76d6e1b6",
+      "sha256": "4f6f3974d9fe2732f33fa6db5aa726284894d2cf226712818d2fabf674631b0e",
+      "bytes": 125756,
+      "clips": [
+        "static",
+        "idle",
+        "emote-yes"
+      ]
+    },
+    {
+      "file": "aid-glasses.glb",
+      "originalSha256": "adb8bb84ba24413068e28a800ccb8cc50060c77dc28df4cdddaee6c4d30b6289",
+      "sha256": "88960c855175e69ee9ad9fbc09bb72193420060908c966772c54ca822f07b5fb",
+      "bytes": 6788,
+      "clips": []
+    }
+  ]
+}

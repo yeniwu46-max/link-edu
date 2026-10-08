@@ -4,7 +4,7 @@ import { createBubbleRetention } from '../services/classroomBubble.js';
 import { studentPresentation } from '../services/classroomStudent.js';
 const props = defineProps({
   student: Object, raised: Boolean, speaking: Boolean, level: Number,
-  understanding: String, reply: Object, compact: Boolean, interactionState: String,
+  understanding: String, reply: Object, compact: Boolean, interactionState: String, modelState: String, instructionsId: String,
 });
 defineEmits(['select']);
 const bubble = ref(null), visibleReply = ref(null);
@@ -20,13 +20,15 @@ watch(() => visibleReply.value?.text, async () => {
 </script>
 
 <template>
-  <div class="student-interaction" :class="{ compact, 'has-reply': visibleReply, speaking }"
+  <div class="student-interaction" :class="{ compact, 'has-reply': visibleReply, speaking, 'is-3d': modelState === 'ready' }"
+    :data-student="student.id" :data-renderer="modelState"
     :style="{ '--student-accent': colors[student.id] || colors.lin }">
     <button type="button" class="student-card"
       :class="{ speaking, raised: presentation.pose === 'raised', thinking: reply?.phase === 'thinking' }"
       :aria-label="student.name + (raised ? '举手了，点击点名' : '，可用语音点名')"
+      :aria-describedby="modelState === 'ready' ? instructionsId : undefined"
       @click="$emit('select', student.id)">
-      <span class="student-sprite-wrap">
+      <span class="student-sprite-wrap" :data-student-viewport="modelState ? student.id : undefined">
         <!-- Preload both poses so the first reply cannot flash a missing image. -->
         <img v-for="pose in ['listening', 'raised']" :key="pose"
           class="student-sprite" :class="{ visible: presentation.pose === pose }"
@@ -63,6 +65,7 @@ watch(() => visibleReply.value?.text, async () => {
 .student-sprite-wrap { position:relative; display:block; width:148px; height:128px; flex-shrink:1; min-height:0; }
 .student-sprite { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transform-origin:50% 94%; pointer-events:none; }
 .student-sprite.visible { opacity:1; animation:student-breathe 4s ease-in-out infinite; }
+.is-3d .student-sprite { opacity:0 !important; animation:none !important; }
 .raised .student-sprite.visible { animation:student-wave 2.4s ease-in-out infinite; }
 .speaking .student-sprite.visible { animation:student-talk 1.2s ease-in-out infinite; }
 .student-name { display:flex; align-items:center; gap:8px; height:20px; }

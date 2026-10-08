@@ -99,6 +99,7 @@ function openCard(event) {
     @click="openCard"
     @dragstart.prevent
   >
+    <span class="resource-card-depth">
     <span
       class="resource-cover"
       :class="showFileCover ? 'is-file' : `theme-${item.coverTheme}`"
@@ -136,6 +137,7 @@ function openCard(event) {
       <span class="resource-card-foot">
         {{ item.format }}<b>{{ item.pages ? `${item.pages} 页` : "点击阅读" }}</b>
       </span>
+    </span>
     </span>
   </button>
 </template>

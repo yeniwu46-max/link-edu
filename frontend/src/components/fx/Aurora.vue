@@ -4,10 +4,11 @@
 
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
+import { subscribeMotionPreferences } from '../../utils/motionPreferences.js'
 
 const canvasRef = ref(null)
 let raf = 0
-let running = true
+let policy, unsubscribe, lastPaint = 0
 
 function paint(ctx, width, height, t) {
   ctx.clearRect(0, 0, width, height)
@@ -29,42 +30,50 @@ function paint(ctx, width, height, t) {
 }
 
 function loop(now) {
-  if (!running) return
+  raf = 0
+  if (!policy?.visible || policy.reducedMotion) return
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
-  paint(ctx, canvas.width, canvas.height, now)
+  if (ctx && now - lastPaint >= 1000 / 30) {
+    paint(ctx, canvas.width, canvas.height, now)
+    lastPaint = now
+  }
   raf = requestAnimationFrame(loop)
 }
 
 function resize() {
   const canvas = canvasRef.value
   if (!canvas) return
-  const parent = canvas.parentElement
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const width = parent?.clientWidth || window.innerWidth
-  const height = parent?.clientHeight || window.innerHeight
-  canvas.width = Math.floor(width * dpr)
-  canvas.height = Math.floor(height * dpr)
+  const width = window.innerWidth
+  const height = window.innerHeight
+  const scale = Math.min(1, 960 / width)
+  canvas.width = Math.floor(width * scale)
+  canvas.height = Math.floor(height * scale)
   canvas.style.width = `${width}px`
   canvas.style.height = `${height}px`
+  const ctx = canvas.getContext('2d')
+  if (ctx && policy?.reducedMotion) paint(ctx, canvas.width, canvas.height, 0)
 }
 
 onMounted(() => {
   resize()
   window.addEventListener('resize', resize)
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
-  if (reduce.matches) {
+  unsubscribe = subscribeMotionPreferences(next => {
+    policy = next
+    cancelAnimationFrame(raf)
+    raf = 0
     const canvas = canvasRef.value
     const ctx = canvas?.getContext('2d')
-    if (ctx && canvas) paint(ctx, canvas.width, canvas.height, 0)
-    return
-  }
-  raf = requestAnimationFrame(loop)
+    if (!next.visible) return
+    if (next.reducedMotion) {
+      if (ctx && canvas) paint(ctx, canvas.width, canvas.height, 0)
+    } else raf = requestAnimationFrame(loop)
+  })
 })
 
 onUnmounted(() => {
-  running = false
+  unsubscribe?.()
   cancelAnimationFrame(raf)
   window.removeEventListener('resize', resize)
 })
