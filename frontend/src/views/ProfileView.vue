@@ -78,6 +78,11 @@
 
     <!-- 设置：只做系统操作 -->
     <div v-else-if="page === 'settings'" class="settings-stack">
+      <section class="settings-block appearance-settings">
+        <h3>界面风格</h3>
+        <p>随时切换，选择会保存在当前浏览器。</p>
+        <ThemeSwitcher cards />
+      </section>
       <section class="settings-block">
         <h3>使用引导</h3>
         <button type="button" @click="startTour">重新查看新手引导</button>
@@ -179,6 +184,7 @@ import { addJournal, fetchFeedbacks, fetchProfile, saveProfile } from '../servic
 import { useAuthStore } from '../stores/auth'
 import { loadSettings, openHelpChat, resetSettings, saveSettings } from '../utils/settings'
 import { journalSubmitErrorMessage } from '../utils/dashboardState'
+import ThemeSwitcher from '../components/ThemeSwitcher.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -310,13 +316,13 @@ async function save() {
 
 function setSetting(key, value) {
   settings[key] = value
-  persistSettings()
+  persistSettings({ [key]: value })
 }
 
-function persistSettings() {
+function persistSettings(partial) {
   settingsError.value = ''
   try {
-    saveSettings({ ...settings })
+    saveSettings(partial)
   } catch {
     settingsError.value = '设置保存失败，请检查浏览器存储权限后重试。'
   }
