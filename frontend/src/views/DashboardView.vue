@@ -35,7 +35,8 @@
       </section>
 
       <section class="glass continue" v-if="continueTraining">
-        <HeroAvatar3D />
+        <HeroAvatar3D v-if="!isAcademy" />
+        <AcademyStudents v-else />
         <h3>继续训练</h3>
         <div class="course">
           <small>{{ continueTraining.category }}</small>
@@ -47,7 +48,8 @@
         <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
       </section>
       <section v-else class="glass continue continue-empty">
-        <HeroAvatar3D />
+        <HeroAvatar3D v-if="!isAcademy" />
+        <AcademyStudents v-else />
         <h3>模拟课堂</h3>
         <div class="course">
 
@@ -269,6 +271,10 @@ import {
 import LearnMoreButton from '../components/LearnMoreButton.vue'
 import SummaryCard from '../components/SummaryCard.vue'
 import { useReducedMotion } from '../utils/useReducedMotion.js'
+import AcademyStudents from '../components/AcademyStudents.vue'
+import { useUiTheme, useChartColors } from '../utils/uiTheme.js'
+const { isAcademy } = useUiTheme()
+const chartColor = useChartColors()
 const reducedMotion = useReducedMotion()
 const HeroAvatar3D = defineAsyncComponent(() => import('../components/fx/HeroAvatar3D.vue'))
 
@@ -359,37 +365,37 @@ const growthLineOption = computed(() => {
     grid: { left: 8, right: 16, top: 32, bottom: 8, containLabel: true },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: '#120f16',
-      borderColor: 'rgba(255,255,255,.16)',
-      textStyle: { color: '#f4f2f6' },
+      backgroundColor: chartColor('#120f16'),
+      borderColor: chartColor('rgba(255,255,255,.16)'),
+      textStyle: { color: chartColor('#f4f2f6') },
     },
     xAxis: {
       type: 'category',
       data: rows.map((item) => (item.time ? `${item.date} ${item.time}` : item.date)),
       boundaryGap: false,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,.16)' } },
-      axisLabel: { color: '#9d97a3', hideOverlap: true },
+      axisLine: { lineStyle: { color: chartColor('rgba(255,255,255,.16)') } },
+      axisLabel: { color: chartColor('#9d97a3'), hideOverlap: true },
     },
     yAxis: {
       type: 'value',
       min: 60,
       max: 100,
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,.08)' } },
-      axisLabel: { color: '#9d97a3' },
+      splitLine: { lineStyle: { color: chartColor('rgba(255,255,255,.08)') } },
+      axisLabel: { color: chartColor('#9d97a3') },
     },
     series: [
       {
         type: 'line',
         data: rows.map((item) => ({
           value: item.overall_score,
-          itemStyle: { color: item.id === growthFocus.value ? '#ff7a18' : '#b45cff' },
+          itemStyle: { color: item.id === growthFocus.value ? chartColor('#ff7a18') : chartColor('#b45cff') },
         })),
         smooth: false,
         symbol: 'circle',
         symbolSize: 10,
-        lineStyle: { width: 2, color: '#b45cff' },
-        areaStyle: { color: 'rgba(180,92,255,.12)' },
+        lineStyle: { width: 2, color: chartColor('#b45cff') },
+        areaStyle: { color: chartColor('rgba(180,92,255,.12)') },
       },
     ],
   }

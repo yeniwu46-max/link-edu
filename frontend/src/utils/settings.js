@@ -1,6 +1,7 @@
 const KEY = 'link_settings'
 
 export const SETTING_DEFAULTS = {
+  uiTheme: 'classic',
   cameraDefault: false,
   mode: 'fragment',
   scene: '导入',

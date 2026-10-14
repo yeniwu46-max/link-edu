@@ -7,6 +7,7 @@ import * as vue from 'vue'
 
 import * as reviewErrors from '../src/utils/aiReviewErrors.js'
 import * as reviewState from '../src/utils/aiReviewState.js'
+import * as uiTheme from '../src/utils/uiTheme.js'
 
 const source = readFileSync(new URL('../src/views/AiReviewView.vue', import.meta.url), 'utf8')
 const { descriptor } = parse(source)
@@ -52,6 +53,7 @@ function createReview({ ask: askOverride, generate: generateOverride } = {}) {
     '../services/trainingReplayStore': { getRecording: async () => null },
     '../utils/aiReviewErrors': reviewErrors,
     '../utils/aiReviewState': reviewState,
+    '../utils/uiTheme.js': uiTheme,
     '../utils/settings': { loadSettings: () => ({ showDemoBadge: true }) },
   }
   const module = { exports: {} }

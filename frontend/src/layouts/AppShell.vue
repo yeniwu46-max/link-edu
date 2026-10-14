@@ -1,15 +1,15 @@
 <template>
-  <main v-ambient-ui class="dashboard app-shell" :class="{ immersive: immersive, 'protected-shell': protectedShell }">
+  <main v-ambient-ui="!isAcademy" class="dashboard app-shell" :class="{ immersive: immersive, 'protected-shell': protectedShell }">
     <AmbientVideo
-      v-if="!immersive && !protectedShell"
+      v-if="!immersive && !protectedShell && !isAcademy"
       class="app-shell-bg-video"
       source="/assets/login-bg-lite.mp4"
       fallback-source="/assets/login-bg.mp4"
       poster="/assets/login-bg.png"
       aria-hidden="true"
     />
-    <div v-if="!immersive && !protectedShell" class="app-shell-bg-shade" aria-hidden="true"></div>
-    <Aurora />
+    <div v-if="!immersive && !protectedShell && !isAcademy" class="app-shell-bg-shade" aria-hidden="true"></div>
+    <Aurora v-if="!isAcademy" />
     <aside class="sidebar">
       <BrandMark />
       <nav aria-label="主导航">
@@ -20,9 +20,10 @@
           class="nav-link"
           :class="{ active: isActive(item.to) }"
           :aria-current="isActive(item.to) ? 'page' : undefined"
-        >{{ item.label }}</router-link>
+        ><svg v-if="isAcademy" class="academy-nav-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path :d="item.icon" /></svg>{{ item.label }}</router-link>
       </nav>
       <div class="side-bottom">
+        <p v-if="isAcademy" class="academy-motto">先临课<br />再上课<small>把每一次练习，变成经验。</small></p>
         <button type="button" @click="logout">退出登录</button>
       </div>
     </aside>
@@ -48,6 +49,7 @@
           />
           <kbd class="cir-search__kbd">Enter</kbd>
         </form>
+        <ThemeSwitcher />
         <div class="profile">
           <button
             class="profile-btn"
@@ -93,12 +95,15 @@ import HelpChat from '../components/HelpChat.vue'
 import OnboardingTour from '../components/OnboardingTour.vue'
 import Aurora from '../components/fx/Aurora.vue'
 import AmbientVideo from '../components/fx/AmbientVideo.vue'
+import ThemeSwitcher from '../components/ThemeSwitcher.vue'
+import { useUiTheme } from '../utils/uiTheme.js'
 import { ambientUi as vAmbientUi } from '../utils/ambientUi.js'
 import { useAuthStore } from '../stores/auth'
 import { buildSearchLocation } from '../utils/navigation'
 import { classroomHelpKey } from '../utils/classroomHelpContext.js'
 
 const route = useRoute()
+const { isAcademy } = useUiTheme()
 const router = useRouter()
 const auth = useAuthStore()
 provide(classroomHelpKey, shallowRef(null))
@@ -106,13 +111,13 @@ const search = ref('')
 const menuOpen = ref(false)
 
 const nav = [
-  { label: '工作台', to: '/dashboard' },
-  { label: '课程中心', to: '/courses' },
-  { label: '教学训练', to: '/classroom' },
-  { label: 'AI 评课', to: '/ai-review' },
-  { label: '成长档案', to: '/growth' },
-  { label: '资源库', to: '/resources' },
-  { label: '知识库', to: '/knowledge' },
+  { label: '工作台', to: '/dashboard', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
+  { label: '课程中心', to: '/courses', icon: 'M12 5C9 3 6 3 3 4v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1zm0 0v15' },
+  { label: '教学训练', to: '/classroom', icon: 'M3 3h18v15H3zM10 7l5 3.5-5 3.5zM8 21h8m-4-3v3' },
+  { label: 'AI 评课', to: '/ai-review', icon: 'M4 3v17h17M9 15V9m5 6V5m5 10v-5' },
+  { label: '成长档案', to: '/growth', icon: 'M3 20l8-8 4 3 6-11m-6 0h6v6' },
+  { label: '资源库', to: '/resources', icon: 'M3 7V3h7l3 3h8v14H3z' },
+  { label: '知识库', to: '/knowledge', icon: 'M12 3l9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5' },
 ]
 
 const crumb = computed(() => {
