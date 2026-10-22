@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onBeforeUnmount, watch } from 'vue';
-import { ChartBar, ArrowUpRight, Focus2, ListDetails, ShieldCheck, Bulb, Photo, Refresh } from '@vicons/tabler';
+import { ChartBar, ArrowUpRight, Focus2, ListDetails, ShieldCheck, Bulb, Photo, Refresh, Printer } from '@vicons/tabler';
 import { api } from '../services/api';
 import { buildReview, formatReportTime as time, formatReportDate } from '../services/classroomReview.js';
 import { fetchRagChunk } from '../services/rag.js';
@@ -8,7 +8,7 @@ import { eventLabel, eventText } from '../services/classroomStatus.js';
 import ClassroomDialog from './ClassroomDialog.vue';
 import ClassroomReplay from './ClassroomReplay.vue';
 const props=defineProps({room:Object,busy:Boolean});
-const emit=defineEmits(['regenerate','plans-created']);
+const emit=defineEmits(['regenerate','plans-created','refresh','print']);
 const view=computed(()=>buildReview(props.room));
 const selectedKey=ref('clarity');
 const selected=computed(()=>view.value.dimensions.find(d=>d.key===selectedKey.value)||view.value.dimensions[0]);
@@ -25,6 +25,19 @@ const sources=computed(()=>props.room.report?.sources||[]);
 const behaviorLabels={teacher_question:'教师提问',student_response:'学生完整回应',question_response:'提问与回应',teacher_followup:'教师追问',teacher_feedback:'教师反馈',teacher_summary:'课堂小结',post_question_silence:'提问后的静默间隔',board_observation:'可见板书',board_speech_context:'板书与授课发言',motion_speech_context:'动作与授课发言'};
 const behaviors=computed(()=>props.room.behavior_analysis?.segments||[]);
 function behaviorEvents(segment){return view.value.events.filter(event=>segment.event_ids?.includes(event.id));}
+function evidenceExplanation(event){
+  const text=eventText(event);
+  const messages={
+    teacher:'这是一条教师课堂表达记录，可用于核对讲解、提问或反馈是否在该时间点发生。',
+    student:'这是一条学生回应记录，可用于判断学生是否有参与、回应是否完整，以及教师是否继续追问。',
+    vision:'这是一条画面观察记录，用于说明该时刻检测到的可见板书、动作或课堂场景信息。',
+    playback:'这是一条课堂播放记录，可用于核对学生回应是否被完整播放。',
+    teacher_question:'这是一条教师提问事件，可用于分析问题设计和课堂互动。',
+    student_state_transition:'这是一次模拟学生状态变化，表示课堂互动后虚拟学生的理解状态发生了更新。'
+  };
+  return messages[event.type]||'这是一条已保存的课堂事件，建议结合视频画面和前后文一起复核。';
+}
+function dimensionViz(key){return {clarity:'bars',pace:'columns',interaction:'donut',posture:'meter',questioning:'steps',structure:'radar'}[key]||'bars';}
 const transitions=computed(()=>view.value.events.filter(event=>event.type==='student_state_transition'));
 const studentNames={ming:'小明',yu:'小雨',lin:'小林'};
 const plans=computed(()=>props.room.practice_plans||[]);
@@ -90,8 +103,12 @@ function regenerate(){
       <ul><li v-for="reason in room.report_readiness?.reasons || [room.report_error || '请核对课堂采集记录。']" :key="reason">{{ reason }}</li></ul>
       <p class="review-caption">{{ room.report_readiness?.notice }}</p>
     </section>
-    <template v-if="view.hasReport">
+    <div v-if="view.hasReport" class="report-workspace">
+      <div class="report-main-column">
       <p v-if="room.report_state!=='completed'" class="review-inline-alert">以下保留的是上一版报告，本次尚未生成成功。</p>
+      <section class="review-panel report-video-panel" aria-labelledby="report-video-heading">
+        <ClassroomReplay :room="room" :event="null" />
+      </section>
       <section class="report-overview review-panel" aria-labelledby="report-heading">
         <div class="report-intro"><p class="review-eyebrow">01 / LESSON PORTRAIT</p><h2 id="report-heading">一节课的教学剖面</h2><p>结论有出处，进步有线索。</p><span class="report-method-tag"><ShieldCheck aria-hidden="true" />AI 辅助评价 · 非标准化测评</span></div>
         <div class="report-score-block">
@@ -100,11 +117,12 @@ function regenerate(){
         </div>
         <div class="report-overview-note"><h3>如何读这份报告</h3><p>综合分沿用已保存报告，仅汇总有证据的维度。环形图使用 0–100 分量程，不表示达标率或置信概率。</p><p>未评分不等于 0 分；不同证据覆盖的课堂，不宜直接比较综合分。</p></div>
       </section>
-      <div class="report-metrics" aria-label="课堂记录统计">
-        <div><span>教师转写</span><strong>{{ view.metrics.transcripts }}<small>段</small></strong></div>
-        <div><span>学生生成</span><strong>{{ view.metrics.replies }}<small>条</small></strong></div>
-        <div><span>确认完整播放</span><strong>{{ view.metrics.completed }}<small>次</small></strong></div>
-        <div><span>视觉采样记录</span><strong>{{ view.metrics.visual }}<small>条</small></strong></div>
+      </div>
+      <div class="report-detail-column">
+      <div class="report-actions-panel no-print">
+        <router-link class="review-button" to="/classroom">模拟课堂<ArrowUpRight aria-hidden="true" /></router-link>
+        <button class="review-button" :disabled="busy" @click="emit('refresh')"><Refresh aria-hidden="true" />刷新</button>
+        <button v-if="room?.report && room.report_state!=='insufficient'" class="review-button" @click="emit('print')"><Printer aria-hidden="true" />打印 / PDF</button>
       </div>
       <section class="review-panel report-profile" aria-labelledby="profile-heading">
         <div class="report-section-title"><div><p class="review-eyebrow">02 / DIMENSIONS</p><h2 id="profile-heading"><ChartBar aria-hidden="true" />六维证据解读</h2></div><span>点击维度，展开判断依据</span></div>
@@ -135,9 +153,18 @@ function regenerate(){
             </details>
           </div>
         </div>
+        <div class="dimension-detail-stack" aria-label="六个评课维度的详细说明">
+          <article v-for="(d,index) in view.dimensions" :key="`detail-${d.key}`" class="dimension-detail-card" :class="{unscored:d.score===null}">
+            <div class="dimension-detail-visual" :class="`viz-${dimensionViz(d.key)}`">
+              <div class="dimension-detail-ring" :style="{'--score':`${d.score??0}%`}"><strong>{{ d.score ?? '—' }}</strong><span>/100</span></div>
+              <div class="dimension-detail-bar"><i v-if="d.score!==null" :style="{width:`${d.score}%`}" /><span>{{ d.score===null?'暂无可评分证据':`${d.score} 分` }}</span></div>
+              <div class="dimension-viz-shape" aria-hidden="true"><i v-for="n in 5" :key="n" :style="{ '--n': n, '--score': `${d.score??0}%` }" /></div>
+            </div>
+            <div class="dimension-detail-copy"><span class="review-eyebrow">0{{ index+1 }} / DIMENSION</span><h3>{{ d.label }}</h3><p>{{ d.reason }}</p><small>课堂证据 {{ d.evidence.length }} 条 · 教学依据 {{ d.sources.length }} 项</small><button class="review-button no-print" :disabled="!d.evidence.length" @click="showEvidence(d.evidence,d.label+' · 证据')">查看课堂证据 <ArrowUpRight aria-hidden="true" /></button></div>
+          </article>
+        </div>
         <div class="report-print-dimensions"><section v-for="d in view.dimensions" :key="d.key"><h3>{{ d.label }} · {{ d.score ?? '暂不评分' }}</h3><p>{{ d.reason }}</p><small>事件引用：{{ d.evidence.map(e=>'#'+e.id+' '+time(e.at_ms)).join('；') || '无' }}</small></section></div>
       </section>
-    </template>
     <section class="review-panel report-evidence-map" aria-labelledby="evidence-heading">
       <div class="report-section-title"><div><p class="review-eyebrow">{{ view.hasReport?'03':'01' }} / EVIDENCE MAP</p><h2 id="evidence-heading"><ListDetails aria-hidden="true" />课堂证据时间线</h2></div><button class="review-button no-print" @click="showEvidence(view.events,'全部课堂记录')">全部 {{ view.events.length }} 条<ArrowUpRight aria-hidden="true" /></button></div>
       <p class="review-caption">每个刻度是一条事件；密度不代表质量或持续时长。完整播放需关联学生回复，并排除失败、取消与打断。</p>
@@ -223,11 +250,13 @@ function regenerate(){
       <summary><Refresh aria-hidden="true" />补充证据 / 重新评课</summary>
       <div class="correction-form"><label for="report-objection">补充说明（可选，不会直接加分）</label><textarea id="report-objection" v-model="objection" maxlength="2000" rows="3" placeholder="例如：02:15 我已更正前面的表述，请结合该段重新核对。" /><button class="review-button" :disabled="busy" @click="regenerate">{{ busy?'请求中…':view.hasReport?'重新评课':room.report_state==='failed'?'重试生成':'生成报告' }}</button><small>仅主动确认后调用 AI，会消耗授课额度。成功后更新报告。</small></div>
     </details>
+      </div>
+    </div>
     <footer class="report-footer">LINK · 每一份判断，都应回到课堂本身。<span>教师自主复核 · AI 辅助成长</span></footer>
     <ClassroomDialog v-model="drawerOpen" :title="drawerTitle">
       <ClassroomReplay v-if="drawerOpen" :room="room" :event="playbackEvent" />
       <div class="report-evidence-drawer"><p class="review-caption">本节课堂原始记录 · {{ evidence.length }} 条</p><label class="evidence-search">查找证据<input v-model="filter" type="search" placeholder="关键词、事件编号或时间" /></label>
-        <ol><li v-for="e in filtered" :key="e.id" :id="'review-evidence-'+e.id"><header><span>{{ eventLabel(e) }}</span><button class="review-button" :aria-label="'回放 '+time(e.at_ms)+' 的课堂证据'" @click="playbackEvent=e"><time>{{ time(e.at_ms) }}</time></button><small>#{{ e.id }}</small></header><p>{{ eventText(e) }}</p><small v-if="e.type==='student'">生成文字；是否完整播放请核对同一 reply_id 的播放记录。</small><button v-if="e.type==='vision'" class="review-button" @click="showImage(e)"><Photo aria-hidden="true" />查看截图</button><details><summary>原始事件数据</summary><pre>{{ JSON.stringify(e,null,2) }}</pre></details></li></ol>
+        <ol><li v-for="e in filtered" :key="e.id" :id="'review-evidence-'+e.id"><header><span>{{ eventLabel(e) }}</span><button class="review-button" :aria-label="'回放 '+time(e.at_ms)+' 的课堂证据'" @click="playbackEvent=e"><time>{{ time(e.at_ms) }}</time></button><small>#{{ e.id }}</small></header><p class="evidence-main-text">{{ eventText(e) }}</p><div class="evidence-explanation"><strong>这条证据说明</strong><p>{{ evidenceExplanation(e) }}</p><div class="evidence-facts"><span>课堂时间 {{ time(e.at_ms) }}</span><span>事件类型 {{ eventLabel(e) }}</span><span v-if="e.data?.student_id">对象 {{ e.data.student_id }}</span></div></div><button v-if="e.type==='vision'" class="review-button" @click="showImage(e)"><Photo aria-hidden="true" />查看课堂截图</button></li></ol>
         <p v-if="!filtered.length">没有匹配的记录。</p>
       </div>
     </ClassroomDialog>

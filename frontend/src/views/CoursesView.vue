@@ -4,17 +4,6 @@
 
     <div class="page-scroll">
     <div class="course-layout">
-      <aside class="filter-rail glass" aria-label="课程分类" data-tour="courses">
-        <ModelShowcase kind="book" label="立体课程书册" />
-        <button
-          v-for="item in filters"
-          :key="item.id"
-          type="button"
-          :class="{ active: filter === item.id }"
-          @click="filter = item.id"
-        >{{ item.label }}</button>
-      </aside>
-
       <div class="course-main">
         <p v-if="query && !loading" class="course-search-status" role="status">搜索“{{ query }}” · {{ filtered.length }} 个结果</p>
         <p v-if="loading" class="course-search-feedback" role="status">正在加载课程…</p>
@@ -118,7 +107,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Magnet from '../components/fx/Magnet.vue'
-import ModelShowcase from '../components/fx/ModelShowcase.vue'
 import SpotlightPane from '../components/fx/SpotlightPane.vue'
 import { featuredMoocs, moocForCourse } from '../data/moocCourses'
 import { fetchCourses } from '../services/dashboard'
@@ -132,20 +120,7 @@ const detail = ref(null)
 const loading = ref(true)
 const courseError = ref('')
 const query = computed(() => normalizeSearchQuery(route.query.q))
-
-const filters = [
-  { id: 'all', label: '全部' },
-  { id: '专项01', label: '导入' },
-  { id: '专项02', label: '板书' },
-  { id: '专项03', label: '演示' },
-  { id: '专项04', label: '讲解' },
-  { id: '专项05', label: '提问' },
-  { id: '专项06', label: '强化' },
-  { id: '专项07', label: '结束' },
-  { id: '专项08', label: '组织' },
-  { id: '专项09', label: '变化' },
-  { id: '综合', label: '综合' },
-]
+watch(() => route.query.courseFilter, value => { filter.value = String(value || 'all') }, { immediate:true })
 
 const filtered = computed(() => {
   return filterCourses(courses.value, query.value, filter.value)

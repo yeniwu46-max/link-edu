@@ -30,6 +30,15 @@
     <section class="workspace" :class="{ 'workspace--immersive': immersive }">
       <header v-if="!immersive" class="topbar">
         <span class="page-crumb">{{ crumb }}</span>
+        <div v-if="route.path === '/courses'" class="course-filter-menu" @click.stop>
+          <button type="button" class="course-filter-menu__trigger" aria-controls="course-filter-menu" :aria-expanded="courseFilterOpen" @click="courseFilterOpen=!courseFilterOpen">
+            <ModelShowcase kind="book" label="课程分类" :interactive="false" />
+            <span>{{ courseFilterLabel }}</span><em>{{ courseFilterOpen ? '⌃' : '⌄' }}</em>
+          </button>
+          <div v-if="courseFilterOpen" id="course-filter-menu" class="course-filter-menu__panel" role="menu">
+            <button v-for="item in courseFilters" :key="item.id" type="button" role="menuitemradio" :aria-checked="courseFilter===item.id" :class="{active:courseFilter===item.id}" @click="setCourseFilter(item.id)">{{ item.label }}</button>
+          </div>
+        </div>
         <select class="mobile-page-nav" aria-label="切换页面" :value="route.path" @change="router.push($event.target.value)">
           <option v-if="!nav.some(item => item.to === route.path)" :value="route.path" disabled>{{ crumb }}</option>
           <option v-for="item in nav" :key="item.to" :value="item.to">{{ item.label }}</option>
@@ -93,6 +102,7 @@ import HelpChat from '../components/HelpChat.vue'
 import OnboardingTour from '../components/OnboardingTour.vue'
 import Aurora from '../components/fx/Aurora.vue'
 import AmbientVideo from '../components/fx/AmbientVideo.vue'
+import ModelShowcase from '../components/fx/ModelShowcase.vue'
 import { ambientUi as vAmbientUi } from '../utils/ambientUi.js'
 import { useAuthStore } from '../stores/auth'
 import { buildSearchLocation } from '../utils/navigation'
@@ -104,6 +114,15 @@ const auth = useAuthStore()
 provide(classroomHelpKey, shallowRef(null))
 const search = ref('')
 const menuOpen = ref(false)
+const courseFilterOpen = ref(false)
+const courseFilters = [
+  { id:'all', label:'全部课程' }, { id:'专项01', label:'导入' }, { id:'专项02', label:'板书' },
+  { id:'专项03', label:'演示' }, { id:'专项04', label:'讲解' }, { id:'专项05', label:'提问' },
+  { id:'专项06', label:'强化' }, { id:'专项07', label:'结束' }, { id:'专项08', label:'组织' },
+  { id:'专项09', label:'变化' }, { id:'综合', label:'综合' },
+]
+const courseFilter = computed(() => String(route.query.courseFilter || 'all'))
+const courseFilterLabel = computed(() => courseFilters.find(item=>item.id===courseFilter.value)?.label || '课程分类')
 
 const nav = [
   { label: '工作台', to: '/dashboard' },
@@ -150,6 +169,15 @@ function logout() {
 
 function closeMenu() {
   menuOpen.value = false
+  courseFilterOpen.value = false
+}
+
+function setCourseFilter(value) {
+  const query={...route.query}
+  if(value==='all')delete query.courseFilter
+  else query.courseFilter=value
+  router.replace({path:route.path,query})
+  courseFilterOpen.value=false
 }
 
 watch(() => route.query.q, (value) => {
