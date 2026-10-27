@@ -20,6 +20,9 @@ function createDashboard(overrides = {}) {
   }
   const router = { push: mock.fn() }
   const imports = {
+    '../components/PaperTitle.vue': {},
+    '../components/PixelClassPreview.vue': {},
+    '../utils/uiVersion.js': { useUiVersion: () => ({ isStudio: vue.ref(true) }) },
     vue: { ...vue, onMounted() {}, onUnmounted() {} },
     'vue-router': { useRouter: () => router },
     'echarts/core': { use() {} },

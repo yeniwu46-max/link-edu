@@ -3,7 +3,7 @@
     <header class="review-legacy-toolbar">
       <div>
 
-        <h1 class="sr-only">AI 评课</h1>
+        <PaperTitle text="课堂回响" legacy-text="AI 评课" />
         <p class="page-lead">{{ current?.course_title || '最近一次片段教学' }} · {{ report.mode_label || '评课报告' }}</p>
       </div>
       <span v-if="showDemoBadge" class="review-badge">演示评分</span>
@@ -417,6 +417,7 @@
 </template>
 
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
 import { useChartColors } from '../utils/uiTheme.js'
 const chartColor = useChartColors()
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'

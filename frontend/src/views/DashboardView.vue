@@ -1,9 +1,12 @@
 <template>
-  <div class="page-dashboard">
+  <div class="page-dashboard" :aria-busy="dashboardStatus === 'loading'">
     <div class="dash-grid">
       <section class="welcome" data-tour="start">
-        <h1>{{ greeting.title || `${greeting.periodZh}，${greeting.name}` }}</h1>
-        <div>
+        <div class="welcome-copy">
+          <PaperTitle :text="greeting.title || `${greeting.periodZh}，${greeting.name}`" legacy-visible />
+          <p>备好一堂课，练习一次，再回看自己的进步。</p>
+        </div>
+        <div class="welcome-actions">
           <LearnMoreButton @click="router.push('/training')">开始新训练</LearnMoreButton>
           <button type="button" @click="router.push('/courses')">浏览课程</button>
         </div>
@@ -17,6 +20,7 @@
       >
         <template v-if="dashboardStatus === 'loading'">
           <strong>正在加载工作台</strong>
+          <p>正在整理你的课程与训练记录…</p>
         </template>
         <template v-else>
           <strong>工作台数据未加载</strong>
@@ -25,6 +29,7 @@
         </template>
       </section>
 
+      <template v-if="dashboardStatus === 'ready'">
       <section class="glass weekly" role="button" tabindex="0" @click="openPanel('weekly')" @keydown.enter="openPanel('weekly')" @keydown.space.prevent="openPanel('weekly')">
         <h3>本周训练</h3>
         <strong>{{ weekly.sessions }}<small> 次</small></strong>
@@ -35,7 +40,8 @@
       </section>
 
       <section class="glass continue" v-if="continueTraining">
-        <HeroAvatar3D v-if="!isAcademy" />
+        <PixelClassPreview v-if="isStudio" />
+        <HeroAvatar3D v-else-if="!isAcademy" />
         <AcademyStudents v-else />
         <h3>继续训练</h3>
         <div class="course">
@@ -48,13 +54,14 @@
         <LearnMoreButton @click="resumeTraining">继续训练</LearnMoreButton>
       </section>
       <section v-else class="glass continue continue-empty">
-        <HeroAvatar3D v-if="!isAcademy" />
+        <PixelClassPreview v-if="isStudio" />
+        <HeroAvatar3D v-else-if="!isAcademy" />
         <AcademyStudents v-else />
         <h3>模拟课堂</h3>
         <div class="course">
 
-          <h2>开始授课</h2>
-
+          <h2>把准备，变成课堂。</h2>
+          <p class="classroom-intro">和三名虚拟学生一起，练习提问、讲解与课堂互动。</p>
         </div>
         <LearnMoreButton @click="router.push('/classroom')">进入模拟课堂</LearnMoreButton>
       </section>
@@ -72,33 +79,35 @@
       <section v-else class="glass feedback feedback-empty">
         <h3>课堂反馈</h3>
         <span class="feedback-empty-mark" aria-hidden="true">↗</span>
-        <strong>让每次练习<br>都有回响。</strong>
-        <p>从课堂证据出发，发现优势与下一步。</p>
+        <template v-if="isStudio"><strong>练习之后，<br>看见进步。</strong><p>完成一次模拟授课后，在这里查看课堂反馈。</p></template>
+        <template v-else><strong>让每次练习<br>都有回响。</strong><p>从课堂证据出发，发现优势与下一步。</p></template>
+
         <router-link to="/ai-review">查看 AI 评课 →</router-link>
       </section>
 
       <section class="glass entries">
         <h3>快捷入口</h3>
         <div>
-          <article v-for="entry in quickEntries" :key="entry.title">
-            <i>{{ entry.icon }}</i>
+          <article v-for="entry in availableEntries" :key="entry.title">
+            <i aria-hidden="true">{{ entry.icon }}</i>
             <h3>{{ entry.title }}</h3>
             <p>{{ entry.description }}</p>
+
             <button type="button" :aria-label="`进入${entry.title}`" @click="router.push(entry.route || '/courses')">›</button>
           </article>
-          <p v-if="!quickEntries.length" class="dashboard-empty">暂无可用入口。</p>
         </div>
       </section>
 
       <section class="glass growth" role="button" tabindex="0" @click="openPanel('growth')" @keydown.enter="openPanel('growth')" @keydown.space.prevent="openPanel('growth')">
         <h3>成长轨迹 · 历史训练</h3>
-        <p v-if="!growthTrajectory.length" class="dashboard-empty">暂无历史训练评分</p>
+        <p v-if="!growthTrajectory.length" class="dashboard-empty">每次练习，都会留下足迹。完成训练后，在这里回看成长记录。</p>
         <div v-else class="chart">
           <i v-for="(score, index) in growthTrajectory" :key="index" :style="{ height: `${score}%` }">
             <b>{{ score }}</b>
           </i>
         </div>
       </section>
+      </template>
     </div>
 
     <div v-if="panel" class="help-mask" @click="panel = null"></div>
@@ -253,6 +262,10 @@
 </template>
 
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
+import PixelClassPreview from '../components/PixelClassPreview.vue'
+import { useUiVersion } from '../utils/uiVersion.js'
+const { isStudio } = useUiVersion()
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
@@ -282,7 +295,7 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
 
 const router = useRouter()
 const auth = useAuthStore()
-const firstGreet = formatGreeting()
+const firstGreet = formatGreeting(auth.user?.name || '同学')
 const panel = ref(null)
 const heatRange = ref('week')
 const pickedDay = ref('')
@@ -305,7 +318,7 @@ const greeting = ref({
   title: firstGreet.title,
   periodEn: firstGreet.periodEn,
   periodZh: firstGreet.periodZh,
-  name: '林晓',
+  name: auth.user?.name || '同学',
   subtitle: '准备好开始今天的模拟课堂了吗？',
   role_label: '师范生',
 })
@@ -321,6 +334,13 @@ const weekly = ref({
 const continueTraining = ref(null)
 const aiFeedback = ref(null)
 const quickEntries = ref([])
+// Navigation stays useful for a new account; training data is never synthesized.
+const availableEntries = computed(() => quickEntries.value.length ? quickEntries.value : [
+  { title: '课程中心', icon: '▤', description: '挑选一项教学技能', route: '/courses' },
+  { title: '教学资源', icon: '▧', description: '查阅教案与实操清单', route: '/resources' },
+  { title: '成长档案', icon: '↗', description: '回看训练与反思', route: '/growth' },
+  { title: '知识书架', icon: '▥', description: '查看教学参考资料', route: '/knowledge' },
+])
 const growthTrajectory = ref([])
 const corrections = [
   { id: 'pace_ok', label: '节奏其实正常，没有赶课' },
@@ -424,7 +444,7 @@ const dayHint = computed(() => {
 })
 
 function applyGreeting(data) {
-  const name = data?.name || greeting.value.name || '林晓'
+  const name = data?.name || auth.user?.name || greeting.value.name || '同学'
   const formatted = formatGreeting(name)
   greeting.value = {
     ...(data || greeting.value),

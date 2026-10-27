@@ -60,6 +60,7 @@ REPORT_SYSTEM = (
     'source_ids 只能引用 references 中的 id；给分必须同时有 event_ids（课堂事实），不得仅凭 source_ids 给分。'
     'at_ms是场次开始后的毫秒时间戳；看不清/无人/低置信度不是教态质量证据。'
     'student是生成的回复文字，不保证完整播放；结合playback和interrupt区分实际完成与打断。'
+    'trigger=manual_click的学生发言来自界面人工邀请；interaction_kind标明提问或反驳，不算学生自主发起或教师语音提问。'
     '未确认playback_completed或有失败/打断的学生文字，只能描述未完成交流，不能证明已完成互动。'
     '注意平均分与同一整体，考虑老师的自我纠错；教师异议须重新审查证据，不能直接加分。'
     'motion_evidence是服务端从本地动作摘要形成的观察与启发式建议，不是已校准教育量表或预定分数。'

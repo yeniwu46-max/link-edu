@@ -22,7 +22,7 @@ backend/instance/
 backend/private/
 .pytest_cache/
 artifacts/private/
-frontend/public/models/
+# Browser inference assets are versioned so a fresh checkout contains runtime models.
 .playwright-cli/
 output/playwright/
 artifacts/library-pdf-review/
@@ -31,3 +31,4 @@ output/pixel-characters/
 # Local delivery bundles can contain private configuration and participant data.
 /output/
 /tmp/
+!/docs/design/20261022/acceptance/*.log

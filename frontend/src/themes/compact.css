@@ -1,0 +1,76 @@
+/* Compact studio layout is opt-in; the original UI keeps its stylesheet. */
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .topbar { min-height:42px; margin-bottom:8px; justify-content:flex-end; gap:10px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .page-crumb { display:none; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .workspace { min-height:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .page-dashboard { height:100%; min-height:0; overflow:auto; padding-bottom:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { height:100%; min-height:0; max-width:none; padding:0; gap:12px; grid-template-columns:minmax(260px,1.1fr) minmax(250px,1fr) minmax(210px,.8fr); grid-template-rows:auto 40px minmax(170px,1fr) minmax(120px,.68fr); grid-template-areas:"welcome welcome welcome" "weekly weekly weekly" "continue entries feedback" "continue growth feedback"; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome { min-height:56px; padding:0; display:flex; flex-wrap:nowrap; align-items:center; justify-content:space-between; gap:16px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome > .paper-title { flex:1; margin:0; padding:0; font-size:28px!important; line-height:1.25; max-width:none; min-width:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome > div { flex:none; display:flex; align-items:center; gap:14px; margin:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome button { margin:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .weekly { min-height:0; padding:8px 16px; display:flex; align-items:center; gap:18px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .weekly :is(h3,strong,span) { margin:0; font-size:14px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .weekly strong { font-size:20px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .weekly .spark { display:none; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid > .glass { min-height:0; min-width:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue { padding:20px; overflow:auto; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue h3 { margin:0; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .course { margin-top:auto; position:relative; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .course h2 { font-size:26px; margin:12px 0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .pixel-class-preview { min-height:0; height:42%; max-height:210px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries { padding:16px; display:flex; flex-direction:column; overflow:hidden; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries > h3 { margin:0 0 10px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries > div { flex:1; min-height:0; grid-template-rows:repeat(2,minmax(58px,1fr)); gap:8px; overflow:auto; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries article { padding:10px; min-height:58px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries article i { font-size:20px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries article h3 { font-size:14px; margin:6px 0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback { padding:18px; overflow:auto; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback h3 { margin:0 0 14px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback .score { font-size:56px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback p { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback-empty strong { font-size:26px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback-empty-mark { font-size:52px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .growth { padding:16px; overflow:auto; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .growth h3 { margin:0 0 10px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .growth .chart { height:calc(100% - 36px); min-height:60px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dashboard-status { position:absolute; z-index:4; top:110px; left:30%; right:15%; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .page-scroll { padding-bottom:20px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .workspace { position:relative; padding:0!important; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .topbar { position:absolute; z-index:8; top:18px; right:20px; margin:0; padding:0; gap:8px; background:transparent!important; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .profile-btn > span { display:none; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen :is(.page-frame,.page-slot) { height:100%; border-radius:0; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .page-slot > * { height:100%; }
+@media(max-width:1000px) {
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 40px minmax(240px,1fr) minmax(180px,.8fr); grid-template-areas:"welcome welcome" "weekly weekly" "continue entries" "feedback growth"; }
+}
+@media(max-width:700px) {
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome { flex-wrap:wrap; gap:8px; padding:0 0 6px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome > .paper-title { font-size:24px!important; flex-basis:100%; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { height:auto; min-height:100%; grid-template-columns:1fr 1fr; grid-template-rows:auto 40px 230px 190px 150px; grid-template-areas:"welcome welcome" "weekly weekly" "continue continue" "entries feedback" "growth growth"; gap:8px; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue { min-height:0!important; padding:16px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .pixel-class-preview { position:absolute; right:10px; width:56%; height:180px; bottom:10px; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries,html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback { padding:10px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .feedback-empty strong { font-size:20px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .entries > div { grid-template-columns:1fr; grid-template-rows:none; grid-auto-rows:minmax(56px,auto); }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .topbar { top:12px; right:12px; left:12px; justify-content:flex-end; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .mobile-page-nav { margin-right:auto; }
+}
+@media(max-height:590px) and (min-width:701px) { html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { height:auto; min-height:520px; } }
+.assistant-style { display:flex; gap:6px; padding:8px 16px; }
+.assistant-style button { border:1px solid #a78ab777; border-radius:16px; background:transparent; color:inherit; padding:6px 18px; }
+.assistant-style button[aria-pressed=true] { background:#c4a5df; color:#31213d; }
+html[data-ui-theme] .app-shell.studio-ui .classroom-page.screen-first { display:flex; flex-direction:column; padding-bottom:0; overflow:auto; }
+html[data-ui-theme] .app-shell.studio-ui .screen-first .camera-stage { flex:1; min-height:0; }
+html[data-ui-theme] .app-shell.studio-ui .screen-first .classroom-camera:not(.expanded) { height:100%; min-height:0; }
+html[data-ui-theme] .app-shell.studio-ui .screen-first .dialogue-scene-heading { padding:2px 8px 8px; min-height:44px; }
+html[data-ui-theme] .app-shell.studio-ui .screen-first .classroom-services { flex:none; }
+html[data-ui-theme] .app-shell.studio-ui .dialogue-layout .classroom-workspace { min-height:220px; }
+html[data-ui-theme] .app-shell.studio-ui .continue .pixel-class-preview { position:absolute; top:65px; left:18px; right:auto; bottom:auto; width:calc(100% - 36px); height:140px; display:flex; align-items:center; justify-content:center; }
+html[data-ui-theme] .app-shell.studio-ui .continue .pixel-class-preview .pixel-sprite { width:clamp(70px,7vw,100px); height:clamp(70px,7vw,100px); }
+html[data-ui-theme] .app-shell.studio-ui .continue > h3 { top:20px; left:20px; }
+@media(max-width:700px) {
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .workspace:has(.screen-first) { height:calc(100dvh - 20px); overflow:hidden; min-height:0; }
+ html[data-ui-theme] .app-shell.studio-ui .screen-first .dialogue-layout .classroom-workspace { min-height:260px; }
+ html[data-ui-theme] .app-shell.studio-ui .screen-first .camera-stage { min-height:480px; }
+ html[data-ui-theme] .app-shell.studio-ui .continue .pixel-class-preview { width:50%; left:auto; right:0; top:50px; }
+ html[data-ui-theme] .app-shell.studio-ui .continue .pixel-class-preview .pixel-sprite { width:60px; height:60px; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .topbar { height:auto; min-height:38px; flex-wrap:nowrap; padding:0; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .topbar .theme-switcher { flex-basis:auto; order:0; }
+ html[data-ui-theme] .app-shell.studio-ui .topbar .cir-search { display:none; }
+}
+@media(max-height:590px) { html[data-ui-theme] .app-shell.studio-ui .screen-first .camera-stage { flex:none; min-height:480px; } }
+
+/* Give the preview its own space when a real course has a long title. */
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue { justify-content:flex-start; gap:12px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue > h3 { position:static; order:0; flex:none; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .pixel-class-preview { position:relative; inset:auto; order:1; width:100%; flex:1 0 80px; height:auto; min-height:80px; max-height:160px; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .course { order:2; margin:0; width:100%; max-width:none; flex:none; }
+html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .learn-more { order:3; margin-top:auto; flex:none; }
+@media(max-width:700px) {
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; gap:8px; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue > h3 { grid-area:1/1/2/3; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .pixel-class-preview { grid-area:2/2/4/3; height:100%; min-height:0; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .course { grid-area:2/1/3/2; min-height:0; overflow:auto; max-height:100%; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .course h2 { font-size:18px; margin:6px 0; }
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .learn-more { grid-area:3/1/4/2; margin:0; }
+}

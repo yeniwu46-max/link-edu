@@ -149,11 +149,11 @@
           </div>
 
           <div class="roles">
-            <button type="button" :class="{ active: role === 'student' }" @click="selectRole('student', $event)">师范生</button>
-            <button type="button" :class="{ active: role === 'teacher' }" @click="selectRole('teacher', $event)">指导教师</button>
+            <button type="button" :aria-pressed="role === 'student'" :class="{ active: role === 'student' }" @click="selectRole('student', $event)">师范生</button>
+            <button type="button" :aria-pressed="role === 'teacher'" :class="{ active: role === 'teacher' }" @click="selectRole('teacher', $event)">指导教师</button>
           </div>
 
-          <form class="login-form" @submit.prevent="submit">
+          <form id="account-form" class="login-form" :aria-busy="loading" @submit.prevent="submit">
             <label v-if="authMode === 'register'" class="login-field">
               <span>姓名</span>
               <input v-model="name" type="text" autocomplete="name" placeholder="请输入真实姓名" />
@@ -164,7 +164,7 @@
             </label>
             <label class="login-field">
               <span>密码</span>
-              <input v-model="password" type="password" autocomplete="current-password" placeholder="请输入登录密码" />
+              <input v-model="password" type="password" :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'" placeholder="请输入登录密码" />
             </label>
             <label v-if="authMode === 'register'" class="login-field">
               <span>确认密码</span>
@@ -176,7 +176,7 @@
             <a href="#" @click.prevent="showForgotPassword">忘记密码？</a>
           </div>
 
-          <button class="login-submit motion-control" type="button" :disabled="loading" @click="submit">
+          <button class="login-submit motion-control" type="submit" form="account-form" :disabled="loading">
             {{ buttonLabel }}
           </button>
 

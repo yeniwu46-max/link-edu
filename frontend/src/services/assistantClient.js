@@ -1,16 +1,16 @@
 // Transport owns no classroom records; every payload is scoped to one assistant session.
 import { ClassroomAudio } from './classroomAudio.js'
 export class AssistantClient {
-  constructor({api,onEvent,Audio=ClassroomAudio,Socket=WebSocket}) { this.api=api;this.onEvent=onEvent;this.Audio=Audio;this.Socket=Socket;this.epoch=0;this.cancelled=new Set() }
+  constructor({api,onEvent,Audio=ClassroomAudio,Socket=WebSocket}) { this.api=api;this.onEvent=onEvent;this.Audio=Audio;this.Socket=Socket;this.style='warm';this.epoch=0;this.cancelled=new Set() }
   send(type,payload={}) { if(this.socket?.readyState===1&&this.session)this.socket.send(JSON.stringify({type,session_id:this.session,...payload})) }
-  async start(mode='text') {
-    this.stop();const epoch=this.epoch;this.mode=mode
+  async start(mode='text',style=this.style) {
+    this.stop();const epoch=this.epoch;this.mode=mode;this.style=style==='calm'?'calm':'warm'
     this.onEvent({type:'state',state:'connecting'})
     try {
       const cap=(await this.api.get('/assistant/capabilities',{skipBusy:true,timeout:8000})).data
       if(epoch!==this.epoch)return false
       if(!cap[mode+'_available'])throw new Error(cap.message||'助手服务未配置，可使用下方的使用帮助')
-      const {data}=await this.api.post('/assistant/ticket',{mode},{skipBusy:true,timeout:8000})
+      const {data}=await this.api.post('/assistant/ticket',{mode,style:this.style},{skipBusy:true,timeout:8000})
       if(epoch!==this.epoch)return false
       await new Promise((resolve,reject)=>{
         const url=new URL('/api/assistant/live',location.href);url.protocol=url.protocol==='https:'?'wss:':'ws:'
@@ -21,7 +21,7 @@ export class AssistantClient {
         socket.onmessage=({data:raw})=>{
           if(epoch!==this.epoch)return
           let event;try{event=JSON.parse(raw)}catch{return}
-          if(event.type==='ready'){this.session=event.session_id;clearTimeout(timer);this.rejectConnect=null;resolve();return}
+          if(event.type==='ready'){this.session=event.session_id;clearTimeout(timer);this.rejectConnect=null;this.send('style',{style:this.style});resolve();return}
           if(event.type==='error'&&!this.session){clearTimeout(timer);reject(new Error(event.message));return}
           this.receive(event)
         }
@@ -49,6 +49,7 @@ export class AssistantClient {
     else if(event.type==='error'){this.audio?.cancel(this.turn);this.onEvent(event)}
     else this.onEvent(event)
   }
+  setStyle(style){this.style=style==='calm'?'calm':'warm';this.send('style',{style:this.style})}
   interrupt(){if(this.turn){this.cancelled.add(this.turn);this.audio?.cancel(this.turn)}this.send('cancel');this.onEvent({type:'state',state:this.mode==='voice'?'listening':'idle'})}
   stop(){this.epoch++;this.rejectConnect?.();this.rejectConnect=null;this.send('stop');this.session=null;this.turn=null;this.cancelled.clear();const socket=this.socket;this.socket=null;if(socket){socket.onclose=null;socket.close()}const audio=this.audio;this.audio=null;audio?.close();this.onEvent({type:'level',level:0})}
 }

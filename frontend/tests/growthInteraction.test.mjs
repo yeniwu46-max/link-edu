@@ -22,6 +22,7 @@ function createGrowth(fetchGrowth) {
   const { code } = transformSync(compileScript(descriptor, { id: 'growth-sync-test' }).content, { format: 'cjs' })
   const navigation = []
   const imports = {
+    '../components/PaperTitle.vue': {},
     '../components/fx/ModelShowcase.vue': {},
     '../utils/useReducedMotion.js': { useReducedMotion, useMotionReveal },
     '../utils/uiTheme.js': uiTheme,

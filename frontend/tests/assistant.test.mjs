@@ -28,3 +28,11 @@ test('closing during capabilities prevents a late connection',async()=>{let reso
 test('permission rejection releases resources and reports text alternative',async()=>{class Denied extends Audio{async start(){throw Object.assign(new Error('denied'),{name:'NotAllowedError'})}}const{client,events}=setup({Audio:Denied});assert.equal(await client.start('voice'),false);assert.ok(events.some(e=>e.message?.includes('文字')));assert.ok(Audio.all.at(-1).closed)})
 test('missing credits/config never opens socket',async()=>{const n=Socket.all.length;const{client,events}=setup({api:{get:async()=>({data:{voice_available:false,message:'额度不可用'}})}});assert.equal(await client.start('voice'),false);assert.equal(Socket.all.length,n);assert.equal(events.at(-1).message,'额度不可用')})
 test('tour completion isolates user and version; storage denial is harmless',()=>{const map=new Map(),storage={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};saveTour(1,'skipped',storage);assert.equal(tourSeen(1,storage),true);assert.equal(tourSeen(2,storage),false);assert.match(tourKey(1),/2026-10-1/);assert.doesNotThrow(()=>saveTour(2,'completed',{setItem(){throw Error()}}))})
+test('style travels in ticket, updates without replacing microphone or interrupting the turn',async()=>{
+ const posted=[];const{client}=setup({api:{...api,post:async(path,body)=>{posted.push(body);return{data:{ticket:'style'}}}}});
+ await client.start('voice');assert.equal(posted[0].style,'warm');
+ const audio=client.audio,socket=client.socket,epoch=client.epoch;client.turn='current';
+ client.setStyle('calm');assert.equal(client.audio,audio);assert.equal(client.socket,socket);assert.equal(client.epoch,epoch);assert.equal(client.turn,'current');
+ assert.equal(socket.sent.at(-1).type,'style');assert.equal(socket.sent.at(-1).style,'calm');client.stop();
+ await client.start('text');assert.equal(posted.at(-1).style,'calm');client.stop();
+})

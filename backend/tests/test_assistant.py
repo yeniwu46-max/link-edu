@@ -13,14 +13,14 @@ import pytest
 
 def test_ticket_one_use_expiry_and_account_isolation(monkeypatch):
     r=AssistantRegistry();token=r.issue(1,'voice');other=r.issue(2,'text')
-    assert r.consume(token)==(1,'voice') and r.consume(token) is None
-    assert r.consume(other)==(2,'text')
+    assert r.consume(token)==(1,'voice','warm') and r.consume(token) is None
+    assert r.consume(other)==(2,'text','warm')
     token=r.issue(1,'voice');now=time.monotonic();monkeypatch.setattr(time,'monotonic',lambda:now+46)
     assert r.consume(token) is None
 
 def test_new_ticket_invalidates_previous_for_same_user():
     r=AssistantRegistry();old=r.issue(1,'text');new=r.issue(1,'voice')
-    assert r.consume(old) is None and r.consume(new)==(1,'voice')
+    assert r.consume(old) is None and r.consume(new)==(1,'voice','warm')
 
 def test_assistant_json_handles_partial_unicode_and_rejects_bad_sources():
     draft=AssistantDraft();source=json.dumps({'text':'分数😀','source_ids':['kb:1']},ensure_ascii=True)
@@ -40,7 +40,7 @@ def test_routes_require_auth_and_configuration(app,monkeypatch):
     assert client.post('/api/assistant/ticket',headers=header,json={'mode':'voice'}).status_code==503
     result=client.post('/api/assistant/ticket',headers=header,json={'mode':'text'})
     assert result.status_code==200 and result.headers['Cache-Control']=='no-store'
-    assert app.extensions['assistant_registry'].consume(result.json['ticket'])==(user.id,'text')
+    assert app.extensions['assistant_registry'].consume(result.json['ticket'])==(user.id,'text','warm')
     assert client.post('/api/assistant/ticket',headers=header,json=[]).status_code==400
     assert Classroom.query.count()==ClassroomEvent.query.count()==0
 

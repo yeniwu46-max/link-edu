@@ -1,0 +1,9 @@
+{
+  "name": "LINK pixel classroom cast",
+  "created": "2026-10-22",
+  "production": "Generated with OpenAI image_gen for this project; original character brief supplied by the user.",
+  "reference": "docs/design/20261022/pixel/turnarounds.png",
+  "layout": { "columns": 4, "rows": 3 },
+  "students": ["listening", "blink", "reading", "writing", "thinking", "raised", "answering", "speaking", "nod", "confused", "happy", "turn"],
+  "assistant": ["idle", "blink", "listening", "thinking", "wave", "presenting", "answering", "speaking", "nod", "confused", "happy", "turn"]
+}

@@ -17,6 +17,7 @@ function toggleMute(volume) {
 <template>
   <div class="player-console">
     <div class="lesson-progress" aria-hidden="true"><span :style="{ width: `${progress}%` }" /></div>
+    <div class="player-layout-row"><slot name="layout" /></div>
     <div class="camera-bar" role="group" aria-label="课堂播放控制">
       <div class="player-session-controls">
         <slot name="transport" />
@@ -44,6 +45,8 @@ function toggleMute(volume) {
 </template>
 <style scoped>
 .player-console { flex:none; position:relative; background:var(--class-surface); }
+.player-layout-row { display:flex; justify-content:flex-end; padding:6px 12px 0; }
+.player-layout-row:empty { display:none; }
 .lesson-progress { height:2px; overflow:hidden; background:var(--line); }
 .lesson-progress span { display:block; height:100%; background:var(--orange); transition:width .35s linear; }
 .camera-bar { display:flex; justify-content:space-between; align-items:center; gap:12px; height:56px; padding:0 12px; }

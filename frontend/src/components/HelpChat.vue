@@ -8,13 +8,16 @@ import { classroomHelpKey } from '../utils/classroomHelpContext.js'
 import { useHelpPosition } from '../utils/useHelpPosition.js'
 import { startTour } from '../utils/onboarding.js'
 import { useAuthStore } from '../stores/auth.js'
+import { loadSettings, saveSettings } from '../utils/settings.js'
 import faqs from '../data/systemGuide.json'
 import DigitalHuman from './DigitalHuman.vue'
 import '../help-chat.css'
 const context=inject(classroomHelpKey,ref(null)),auth=useAuthStore()
 const fab=ref(null),panel=ref(null),logRef=ref(null),fullscreenTarget=ref(null)
 const open=ref(false),mode=ref('bot'),query=ref(''),draft=ref(''),sending=ref(false),voice=ref(false),status=ref('idle'),level=ref(0),notice=ref(''),partial=ref('')
-const messages=ref([{role:'bot',text:'我是 LINK 助手。可以帮你使用系统，也能依据知识库回答教学问题。'}])
+const style=ref(loadSettings().assistantStyle)
+function changeStyle(value){style.value=value;client.setStyle(value);try{saveSettings({assistantStyle:value})}catch{notice.value='偏好无法保存，本次会话仍使用已选风格'}}
+const messages=ref([{role:'bot',text:'我是阿贝贝老师，很高兴陪你一起备课。有教学或系统使用问题，随时来找我。'}])
 const {fabStyle,panelStyle,onFabDown,onPanelDown,suppressClick,clampAll}=useHelpPosition(fab,panel)
 const target=computed(()=>context.value?.target||fullscreenTarget.value||'body')
 const inLesson=computed(()=>Boolean(context.value))
@@ -42,7 +45,7 @@ function switchMode(value){stopVoice();mode.value=value;if(value==='human')notic
 function answer(item){messages.value.push({role:'bot',text:item.a,sources:[{id:'system:'+item.id,title:item.q,source:'LINK 功能说明'}]})}
 function replay(){if(context.value?.active){notice.value='结束授课后可以重新查看导览';return}close();startTour()}
 function runAction(key){if(key==='call'){answer(faqs.find(x=>x.id==='students'));return}const action=context.value?.actions?.[key];if(action){close();nextTick(action)}}
-async function startVoice(){if(context.value?.active)return;notice.value='';voice.value=true;mode.value='bot';if(!await client.start('voice'))voice.value=false}
+async function startVoice(){if(context.value?.active)return;notice.value='';voice.value=true;mode.value='bot';if(!await client.start('voice',style.value))voice.value=false}
 async function send(){
  const text=draft.value.trim();if(!text||sending.value||status.value==='connecting')return
  sending.value=true;draft.value='';notice.value=''
@@ -50,13 +53,13 @@ async function send(){
   if(mode.value==='human'){
    await addJournal({entry_date:new Date().toISOString().slice(0,10),body:`[帮助/问题记录] ${text}`});messages.value.push({role:'bot',text:'问题已保存到你的训练日志。'})
   }else{
-   const ok=client.session||await client.start('text');if(!ok){draft.value=text;return}
+   const ok=client.session||await client.start('text',style.value);if(!ok){draft.value=text;return}
    client.interrupt();client.send('text',{text})
   }
  }catch(error){draft.value=text;notice.value=mode.value==='human'?'问题保存失败：'+journalSubmitErrorMessage(error):'发送失败，请稍后重试'}finally{sending.value=false}
 }
 async function saveConversation(){
- if(sending.value)return;const lines=messages.value.filter(m=>m.turn&&m.complete!==false&&m.text).slice(-12).map(m=>`${m.role==='user'?'我':'LINK'}：${m.text}`)
+ if(sending.value)return;const lines=messages.value.filter(m=>m.turn&&m.complete!==false&&m.text).slice(-12).map(m=>`${m.role==='user'?'我':'阿贝贝老师'}：${m.text}`)
  if(!lines.length){notice.value='暂无可保存的问答';return}sending.value=true
  try{await addJournal({entry_date:new Date().toISOString().slice(0,10),body:'[助手问答]\n'+lines.join('\n')});notice.value='问答已保存到训练日志'}catch(error){notice.value=journalSubmitErrorMessage(error)}finally{sending.value=false}
 }
@@ -74,11 +77,12 @@ onUnmounted(()=>{stopVoice();window.removeEventListener('link-help',openFromEven
 </script>
 <template>
 <Teleport :to="target"><div class="help-dock" :class="{'in-lesson':inLesson,'lesson-active':context?.active}">
- <button ref="fab" class="help-fab digital-human-fab" type="button" :style="fabStyle" data-tour="assistant" @pointerdown="onFabDown" @click="toggle" aria-label="打开 LINK 数字人助手，可拖动调整位置" aria-controls="link-help-panel" :aria-expanded="open" aria-haspopup="dialog"><DigitalHuman :state="status" :level="level" :quiet="context?.active" /></button>
- <span v-if="!open&&!context?.active&&!fabStyle.left" class="help-fab__hint" aria-hidden="true">LINK 助手</span>
- <Transition name="assistant-panel"><section v-if="open" id="link-help-panel" ref="panel" class="help-chat" :style="panelStyle" role="dialog" aria-label="LINK 数字人助手" @keydown.esc.stop.prevent="close">
-  <header class="help-chat__bar" @pointerdown="onPanelDown"><div><strong>LINK 助手</strong><p role="status">{{ statusText }}</p></div><button type="button" class="close-x" aria-label="关闭小助手" @click="close">×</button></header>
+ <button ref="fab" class="help-fab digital-human-fab" type="button" :style="fabStyle" data-tour="assistant" @pointerdown="onFabDown" @click="toggle" aria-label="打开 阿贝贝老师，可拖动调整位置" aria-controls="link-help-panel" :aria-expanded="open" aria-haspopup="dialog"><DigitalHuman :state="status" :level="level" :quiet="context?.active" /></button>
+ <span v-if="!open&&!context?.active&&!fabStyle.left" class="help-fab__hint" aria-hidden="true">阿贝贝老师</span>
+ <Transition name="assistant-panel"><section v-if="open" id="link-help-panel" ref="panel" class="help-chat" :style="panelStyle" role="dialog" aria-label="阿贝贝老师" @keydown.esc.stop.prevent="close">
+  <header class="help-chat__bar" @pointerdown="onPanelDown"><div><strong>阿贝贝老师</strong><p role="status">{{ statusText }}</p></div><button type="button" class="close-x" aria-label="关闭小助手" @click="close">×</button></header>
   <div class="help-chat__guide"><p>{{ guidance }}</p><div class="help-chat__shortcuts"><template v-if="inLesson"><button v-for="item in shortcuts" :key="item.key" type="button" @click="runAction(item.key)">{{ item.label }}</button></template><button type="button" :disabled="context?.active" @click="replay">新手引导</button></div></div>
+  <div class="assistant-style" role="group" aria-label="阿贝贝老师语言风格"><button type="button" :aria-pressed="style==='warm'" @click="changeStyle('warm')">温暖</button><button type="button" :aria-pressed="style==='calm'" @click="changeStyle('calm')">冷静</button></div>
   <div class="help-chat__tools"><input v-model="query" type="search" aria-label="搜索使用帮助" placeholder="查找使用帮助…"/><button type="button" :aria-pressed="mode==='bot'" @click="switchMode('bot')">问答</button><button type="button" :aria-pressed="mode==='human'" @click="switchMode('human')">记录问题</button></div>
   <div v-if="mode==='bot'" class="help-voice"><button v-if="!voice" type="button" :disabled="context?.active||status==='connecting'" @click="startVoice">开始语音对话</button><template v-else><button @click="stopVoice()">结束语音</button><button v-if="['speaking','thinking'].includes(status)" @click="client.interrupt()">停止回答</button></template><details><summary>语音与隐私</summary><p>点击开始后需授权麦克风，语音和问题将发送至系统已配置的语音及模型服务。默认中文，最多5分钟，静默60秒结束；对话默认不保存，可主动记录。授课期间仅支持文字。</p></details></div>
   <div v-if="query&&mode==='bot'" class="help-chat__matches"><button v-for="item in matches" :key="item.id" @click="answer(item)">{{ item.q }}</button><p v-if="!matches.length">没有找到匹配的帮助内容，可在下方提问。</p></div>

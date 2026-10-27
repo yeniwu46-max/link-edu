@@ -1,6 +1,6 @@
 <template>
   <div class="sparse-page page-growth">
-<h1 class="sr-only">成长档案</h1>
+<PaperTitle text="每一步，都算数" legacy-text="成长档案" />
 
     <div class="page-scroll">
       <details class="growth-alert"><summary>历史规则评分 · 查看来源</summary>
@@ -187,6 +187,7 @@
 </template>
 
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
 import { useChartColors } from '../utils/uiTheme.js'
 const chartColor = useChartColors()
 import { computed, onMounted, ref, watch } from 'vue'

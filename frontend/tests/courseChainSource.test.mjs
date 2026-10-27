@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { parseCourseId } from '../src/utils/navigation.js'
 import { featuredMoocs, moocByStage, moocForCourse } from '../src/data/moocCourses.js'
 
-const courses = await readFile(new URL('../src/views/CoursesView.vue', import.meta.url), 'utf8')
+const courses = await readFile(new URL('../src/views/CourseDeskView.vue', import.meta.url), 'utf8')
 const training = await readFile(new URL('../src/views/TrainingView.vue', import.meta.url), 'utf8')
 
 test('course id parser rejects malformed and non-positive ids', () => {

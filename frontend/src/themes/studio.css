@@ -1,0 +1,47 @@
+/* Shared paper-and-stationery language; application state and data stay in page components. */
+.app-shell.studio-ui { --studio-paper:#fff1dd; --studio-lilac:#c8ade0; --studio-orange:#ffc376; }
+.app-shell.studio-ui .sidebar { background:#241d2dee; border-right-color:#b89bc62b; }
+.app-shell.studio-ui .nav-link { border-radius:12px; margin:3px 0; transition:background .2s,transform .2s; }
+.app-shell.studio-ui .nav-link.active { background:#b99ad626; color:#ffd18c; box-shadow:inset 3px 0 #f8c17b; }
+.app-shell.studio-ui .topbar { background:transparent; }
+.app-shell.studio-ui .page-frame { min-width:0; }
+.app-shell.studio-ui :is(.page-dashboard,.page-growth,.profile-page,.page-rag,.resource-page,.review-page,.classroom-review-page) { --violet:#bd9cda; }
+.app-shell.studio-ui :is(.page-growth,.profile-page,.resource-page,.review-page) > .paper-title { flex:none; }
+.app-shell.studio-ui :is(.page-dashboard,.page-growth,.profile-page,.page-rag,.resource-page) .glass { border-radius:18px 24px 24px 8px; border-color:#d4b7dc2a; box-shadow:3px 4px 0 #a381b31c; }
+.app-shell.studio-ui .welcome { padding-top:10px; }
+.app-shell.studio-ui .welcome .paper-title { max-width:100%; font-size:clamp(38px,3.7vw,60px); }
+.app-shell.studio-ui .welcome .paper-title__text { display:inline; max-width:none; line-height:inherit; color:inherit; }
+.app-shell.studio-ui .welcome .paper-title__letter { display:inline-block; max-width:none; line-height:inherit; color:inherit; }
+.app-shell.studio-ui .welcome .paper-title__accent { color:#cdb3e4; }
+.app-shell.studio-ui .welcome { align-items:flex-start; }
+.app-shell.studio-ui .welcome > .paper-title { flex:1 1 100%; min-width:0; }
+.app-shell.studio-ui .welcome button,.app-shell.studio-ui .reset-layout { border-radius:20px; }
+.app-shell.studio-ui .page-growth .growth-chart-panel,.app-shell.studio-ui .page-growth .growth-heat-panel { border-top:3px solid #c7acde66; }
+.app-shell.studio-ui .resource-tabs button,.app-shell.studio-ui .collection-switch button { border-radius:10px 10px 3px 3px; }
+.app-shell.studio-ui .resource-tabs button.active { background:#c5a5df; color:#302137; }
+.app-shell.studio-ui .review-masthead { align-items:center; flex-wrap:wrap; gap:18px; }
+.app-shell.studio-ui .review-masthead .paper-title { margin:0; }
+.app-shell.studio-ui .classroom-page > .paper-title { font-size:clamp(32px,3vw,48px); flex:none; margin:0 0 10px; }
+.classroom-course-context { display:flex; align-items:center; justify-content:space-between; gap:16px; color:var(--class-muted); padding:0 3px 12px; font-size:13px; flex:none; }
+.classroom-course-context a { color:var(--class-orange-text); white-space:nowrap; }
+[data-ui-theme="academy"] .app-shell.studio-ui .sidebar { background:#e5edf9; }
+[data-ui-theme="academy"] .app-shell.studio-ui .nav-link.active { background:#cddced; color:#244a77; box-shadow:inset 3px 0 #587bb2; }
+[data-ui-theme="academy"] .app-shell.studio-ui :is(.page-dashboard,.page-growth,.profile-page,.page-rag,.resource-page) .glass { border-color:#b8cbe2; box-shadow:3px 4px 0 #7191b014; }
+[data-ui-theme="academy"] .app-shell.studio-ui .resource-tabs button.active { background:#cbdcf1; color:#25446d; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-search { background:#eef4fd!important; border-color:#a6bddb; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-search input { background:transparent!important; color:#344e6e!important; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-directory-toggle { background:#e8f0fa!important; color:#294769!important; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-selection { background:#e2ebf7; color:#283e5c; border-color:#b9cce2; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-selection small,
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-selection__progress span { color:#536a85; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-secondary { background:#eff5fc; color:#365779; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .desk-selection__title select { background:#eff5fc; color:#365779; }
+html[data-ui-theme="academy"] .app-shell.studio-ui:not(.protected-shell) .sidebar .nav-link.active { color:#244a77; background:#f3f8ff; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .paper-title { --paper-face:#324d70; --paper-edge:#b5cce5; color:#324d70; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .paper-title__accent { color:#567bac; }
+html[data-ui-theme="academy"] .app-shell.studio-ui .welcome .paper-title { font-size:clamp(38px,3.7vw,60px); }
+html[data-ui-theme="academy"] .app-shell.studio-ui .welcome .paper-title__accent { color:#567bac; }
+@media(max-width:700px) { .app-shell.studio-ui .welcome .paper-title { font-size:32px; } .app-shell.studio-ui .classroom-page > .paper-title { font-size:28px; } .classroom-course-context { align-items:flex-start; font-size:12px; } }
+@media(max-width:700px) { html[data-ui-theme="academy"] .app-shell.studio-ui .welcome .paper-title { font-size:32px; } }
+@media(prefers-reduced-motion:reduce) { .app-shell.studio-ui .nav-link { transition:none; } }
+@media print { .paper-title { color:#27354c!important; font-size:28px!important; } .paper-title__letter { text-shadow:none!important; color:inherit!important; } }

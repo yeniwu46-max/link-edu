@@ -3,6 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { motionLabels } from '../services/motionFeatures.js';
 import ClassroomDialog from './ClassroomDialog.vue';
 import ClassroomPlayerBar from './ClassroomPlayerBar.vue';
+import ClassroomConversation from './ClassroomConversation.vue';
+import { useCameraWindow } from '../services/useCameraWindow.js';
 import { Video } from '@vicons/tabler';
 import {
   BODY_EDGES,
@@ -29,6 +31,7 @@ const props = defineProps({
   cameraNote: String,
   progress: Number,
   timeLabel: String,
+  messages: { type: Array, default: () => [] },
 });
 const emit = defineEmits(["video", "toggle", "prepare", "fullscreen-target", "retry", "volume", "resolution"]);
 const container = ref(null),
@@ -41,6 +44,13 @@ const expanded = ref(false),
   mirror = ref(false),
   now = ref(0);
 const settingsOpen = ref(false);
+let savedLayout = 'default';
+try { if (localStorage.getItem('classroom-layout') === 'conversation') savedLayout = 'conversation'; } catch {}
+const layout = ref(savedLayout), dialogue = computed(() => layout.value === 'conversation');
+const workspace = ref(null), frame = ref(null);
+const cameraWindow = useCameraWindow(workspace, frame, dialogue);
+const { position: cameraPosition } = cameraWindow;
+watch(layout, value => { try { localStorage.setItem('classroom-layout', value); } catch {} });
 defineExpose({openSettings: () => { settingsOpen.value = true; },
   recordingSnapshot:()=>({video:video.value,mirror:mirror.value,captions:captions.value,
     captionText:captionText.value,captionLabel:captionLabel.value})});
@@ -230,7 +240,7 @@ function keys(e) {
   if (e.key === "Tab") {
     const controls = [
       ...container.value.querySelectorAll(
-        "button:not(:disabled), input, select",
+        "button:not(:disabled), input, select, [tabindex='0']",
       ),
     ].filter((x) => x.getClientRects().length);
     const first = controls[0],
@@ -272,13 +282,21 @@ onUnmounted(() => {
   <div
     ref="container"
     class="classroom-camera"
-    :class="{ expanded, fallback }"
+    :class="{ expanded, fallback, 'dialogue-layout': dialogue }"
     :role="fallback ? 'dialog' : undefined"
     :aria-modal="fallback ? 'true' : undefined"
     aria-label="老师镜头"
     @keydown="keys"
   >
-    <div class="motion-frame">
+    <header v-if="dialogue" class="dialogue-scene-heading"><div><slot name="heading" /></div><slot name="timer" /></header>
+    <div ref="workspace" class="classroom-workspace">
+    <ClassroomConversation v-show="dialogue" :visible="dialogue" :messages="messages" />
+    <div ref="frame" class="motion-frame" :style="dialogue ? { left: `${cameraPosition.x}px`, top: `${cameraPosition.y}px` } : undefined">
+      <div v-if="dialogue" class="camera-window-heading">
+        <button type="button" class="camera-window-handle" aria-label="拖动教师小窗，方向键移动，Home 复位"
+          @pointerdown="cameraWindow.down" @pointermove="cameraWindow.pointer" @pointerup="cameraWindow.end" @pointercancel="cameraWindow.end" @lostpointercapture="cameraWindow.end" @keydown="cameraWindow.keys">⠿ <span>我的画面</span></button>
+        <button type="button" aria-label="复位教师小窗位置" title="位置复位" @click="cameraWindow.reset">↺</button>
+      </div>
       <header class="camera-scene-heading"><div class="scene-label"><slot name="heading"><h2>教师授课画面</h2></slot></div><slot name="timer" /></header>
       <video
         ref="video"
@@ -309,6 +327,8 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <div class="fullscreen-students" aria-label="课堂学生"><slot name="students" :presentation="dialogue ? 'column' : 'row'" /></div>
+    </div>
     <ClassroomPlayerBar :volume="volume" :resolution="resolution" :resolution-busy="resolutionBusy || disabled"
       :captions="captions" :expanded="expanded" :settings-open="settingsOpen" :progress="progress" :time-label="timeLabel"
       @volume="emit('volume', $event)" @resolution="emit('resolution', $event)" @captions="captions=$event"
@@ -316,8 +336,13 @@ onUnmounted(() => {
       <template #transport><slot name="transport" /></template>
       <template #actions><slot name="actions" /></template>
       <template #utilities><slot name="utilities" /></template>
+      <template #layout>
+        <div class="classroom-layout-switch" role="group" aria-label="课堂布局">
+          <button type="button" :aria-pressed="!dialogue" @click="layout='default'">默认布局</button>
+          <button type="button" :aria-pressed="dialogue" @click="layout='conversation'">对话布局</button>
+        </div>
+      </template>
     </ClassroomPlayerBar>
-    <div class="fullscreen-students" aria-label="课堂学生"><slot name="students" /></div>
     <ClassroomDialog v-model="settingsOpen" title="课堂设置">
     <h3>画面与声音</h3>
     <div class="camera-tools">
@@ -368,6 +393,42 @@ onUnmounted(() => {
 
 <style scoped>
 .classroom-camera { min-width:0; }
+.classroom-workspace { display:contents; }
+.fullscreen-students { order:2; }
+.classroom-camera :deep(.player-console) { order:1; }
+.classroom-layout-switch { display:flex; flex:none; padding:3px; gap:2px; border:1px solid var(--line); border-radius:8px; }
+.classroom-layout-switch button { padding:6px 8px; border:0; border-radius:5px; font-size:11px; white-space:nowrap; background:transparent; color:var(--class-muted); cursor:pointer; }
+.classroom-layout-switch button[aria-pressed=true] { color:var(--class-ink); background:color-mix(in srgb,var(--violet) 18%,var(--class-surface)); }
+.dialogue-scene-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 12px 16px; flex:none; color:var(--class-ink); }
+.dialogue-scene-heading > div { display:flex; gap:16px; align-items:center; }
+.classroom-camera.dialogue-layout .classroom-workspace { display:grid; grid-template-columns:minmax(0,1fr) clamp(240px,25vw,300px); grid-template-rows:minmax(0,1fr); gap:12px; position:relative; flex:1; min-height:0; overflow:hidden; }
+.dialogue-layout .classroom-conversation { grid-column:1; grid-row:1; }
+.classroom-camera.dialogue-layout .fullscreen-students { grid-column:2; grid-row:1; height:auto; min-height:0; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--class-surface); }
+.classroom-camera.dialogue-layout .motion-frame { position:absolute; z-index:5; width:240px; height:167px; min-height:0; flex:none; border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px #0004; }
+.dialogue-layout .motion-frame video,.dialogue-layout .motion-frame canvas { top:32px; height:calc(100% - 32px); }
+.dialogue-layout .motion-frame .camera-scene-heading,.dialogue-layout .motion-frame .camera-captions { display:none; }
+.camera-window-heading { position:absolute; top:0; left:0; right:0; display:flex; height:32px; background:var(--class-surface); color:var(--class-ink); z-index:3; }
+.camera-window-heading button { border:0; background:transparent; color:inherit; padding:0 10px; font-size:11px; cursor:pointer; }
+.camera-window-heading .camera-window-handle { flex:1; text-align:left; cursor:grab; touch-action:none; user-select:none; }
+.camera-window-handle:active { cursor:grabbing; }
+.dialogue-layout .motion-frame .camera-placeholder { top:32px; padding:8px; gap:8px; }
+.dialogue-layout .camera-placeholder .camera-lens,.dialogue-layout .camera-placeholder > span:not(.camera-lens) { display:none; }
+.dialogue-layout .camera-placeholder strong { font-size:12px; }
+.dialogue-layout .camera-open-button { padding:6px 10px; min-height:28px; font-size:11px; }
+.dialogue-layout :deep(.player-console) { margin-top:12px; }
+@media(min-width:701px) {
+  .dialogue-layout :deep(.student-stage) { min-height:0; }
+}
+@media(max-width:700px) {
+  .classroom-camera.dialogue-layout { height:calc(100dvh - 110px); min-height:490px; }
+  .classroom-camera.dialogue-layout.expanded { height:100dvh; }
+  .classroom-camera.dialogue-layout .classroom-workspace { grid-template-columns:minmax(0,1fr); grid-template-rows:174px minmax(140px,1fr); gap:8px; }
+  .classroom-camera.dialogue-layout .fullscreen-students { grid-column:1; grid-row:1; padding:6px; }
+  .dialogue-layout .classroom-conversation { grid-column:1; grid-row:2; }
+  .classroom-camera.dialogue-layout .motion-frame { width:160px; height:122px; }
+  .dialogue-scene-heading { padding:4px 6px 10px; }
+  .dialogue-scene-heading > div { gap:8px; font-size:11px; }
+}
 .camera-scene-heading { position:absolute; top:16px; left:20px; right:20px; z-index:2; display:flex; align-items:start; justify-content:space-between; gap:16px; pointer-events:none; color:var(--class-ink); }
 .scene-label { padding:8px 12px; border:1px solid #ffffff0d; border-radius:8px; background:#08090cc4; }
 .motion-frame { position:relative; height:clamp(240px, calc(100dvh - 500px), 680px); overflow:hidden; border-radius:12px 12px 0 0; background:#090a0e; }

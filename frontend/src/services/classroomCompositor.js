@@ -1,4 +1,6 @@
 import { studentPresentation } from './classroomStudent.js';
+import { pixelSource, frameRect, studentPixelFrame } from './pixelCharacters.js';
+import { studentMotionState } from './studentStageState.js';
 
 function lines(ctx,text,width,maxLines=3) {
   const rows=[''];
@@ -11,8 +13,8 @@ function lines(ctx,text,width,maxLines=3) {
 export function createClassroomPainter(snapshot) {
   const images=new Map();
   let terminalKey='',hideAt=Infinity;
-  for (const id of ['ming','yu','lin']) for (const pose of ['listening','raised']) {
-    const src=`/assets/students/${id}-${pose}.png`, image=new Image(); image.src=src; images.set(src,image);
+  for (const id of ['ming','yu','lin']) {
+    const image=new Image(); image.src=pixelSource(id); images.set(id,image);
   }
   return (ctx,canvas)=>{
     const s=snapshot(), {width:w,height:h}=canvas;
@@ -37,13 +39,16 @@ export function createClassroomPainter(snapshot) {
     ['ming','yu','lin'].forEach((id,i)=>{
       const x=24+i*420, r=s.reply?.studentId===id?s.reply:null;
       const presentation=studentPresentation(id,{raised:s.raised===id,speaking:s.playbackStudent===id,reply:r,interactionState:s.studentStates?.[id]?.interaction_state});
-      const image=images.get(presentation.src);
+      const image=images.get(id);
       ctx.fillStyle='#191e2a';ctx.fillRect(x,488,392,220);
-      const bob=s.reducedMotion?0:Math.sin(performance.now()/750+i)*2;
+      ctx.imageSmoothingEnabled=false;
       const frame=s.studentFrame, slot=frame?.slots?.[id];
       if(frame?.canvas?.width && slot?.width && slot?.height) {
         ctx.drawImage(frame.canvas,slot.x,slot.y,slot.width,slot.height,x+10,518,175,175);
-      } else if(image?.complete && image.naturalWidth)ctx.drawImage(image,x+10,518+bob,175,175);
+      } else if(image?.complete && image.naturalWidth) {
+        const source=frameRect(image,studentPixelFrame({...studentMotionState(id,s),failed:r?.phase==='failed'},{now:performance.now(),offset:i*5370,reduced:s.reducedMotion}));
+        ctx.drawImage(image,source.x,source.y,source.width,source.height,x+10,518,175,175);
+      }
       ctx.fillStyle='#fff';ctx.font='20px sans-serif';ctx.fillText({ming:'小明',yu:'小雨',lin:'小林'}[id],x+206,680);
       ctx.font='16px sans-serif';ctx.fillStyle='#b9c4d7';ctx.fillText(presentation.label,x+206,704);
       if(r?.text && !['idle','failed'].includes(r.phase) && performance.now()<hideAt) {

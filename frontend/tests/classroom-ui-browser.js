@@ -7,6 +7,7 @@ import '../src/styles.css'
 import '../src/classroom.css'
 import '../src/ambient-effects.css'
 import '../src/functional-ui.css'
+import '../src/themes/academy.css'
 const originalMedia=window.matchMedia.bind(window), reduce=new EventTarget()
 reduce.matches=false
 let hidden=false,unavailable=false,created=0,lost=0

@@ -1,10 +1,13 @@
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
+import { fetchCourses } from '../services/dashboard'
+import { parseCourseId } from '../utils/navigation.js'
 import { computed, inject, onMounted, onUnmounted, ref, watch, watchEffect, nextTick } from "vue";
 import { useRoute, useRouter, onBeforeRouteLeave } from "vue-router";
 import { api } from "../services/api";
 import { classroomLoadError, connectionSummary, budgetNotice, classroomStartBlockers } from "../services/classroomStatus.js";
 import { useClassroom } from "../services/useClassroom";
-import StudentStage3D from "../components/StudentStage3D.vue";
+import PixelStudentStage from "../components/PixelStudentStage.vue";
 import ClassroomPreparation from "../components/ClassroomPreparation.vue";
 import ClassroomCamera from "../components/ClassroomCamera.vue";
 import ClassroomCountdown from "../components/ClassroomCountdown.vue";
@@ -20,7 +23,24 @@ import { History, PlayerPlay, PlayerStop, PlayerPause, Video, VideoOff, Micropho
 import "../classroom.css";
 
 const route=useRoute(), router=useRouter(), live=useClassroom();
-const {room, capabilities, events, error, state, partial, students, activeStudent, raised, mouth,
+const selectedCourse = ref(null), courseContextError = ref(''), courseContextLoading = ref(false);
+let courseRequest = 0;
+watch(() => route.query.courseId, async value => {
+  const request = ++courseRequest;
+  selectedCourse.value = null; courseContextError.value = ''; courseContextLoading.value = false;
+  if (value === undefined) return;
+  const id = Array.isArray(value) ? null : parseCourseId(value);
+  if (!id) { courseContextError.value = '课程参数无效，请重新选课。'; return; }
+  courseContextLoading.value = true;
+  try {
+    const courses = await fetchCourses();
+    if (request !== courseRequest) return;
+    selectedCourse.value = courses.find(course => Number(course.id) === id) || null;
+    if (!selectedCourse.value) courseContextError.value = '课程不存在，请重新选课。';
+  } catch { if (request === courseRequest) courseContextError.value = '课程读取失败，请重新选课。'; }
+  finally { if (request === courseRequest) courseContextLoading.value = false; }
+}, { immediate: true });
+const {room, capabilities, events, messages, error, state, partial, students, activeStudent, raised, manualInteraction, mouth,
   pose, reply, playbackStudent, landmarks, motionStatus, handStatus, faceStatus, cameraEnabled,
   retryMotion, camera, elapsed, cloudVision, busy, send, refreshCapabilities, begin, reconnect,
   finish, load, regenerate, setVision, volume, setVolume, cameraResolution, cameraAdjusting,
@@ -71,7 +91,8 @@ watch(cameraConsent,allowed=>{if(!allowed && cameraEnabled.value && !active.valu
 const startBlockers=computed(()=>[...classroomStartBlockers({capabilities:capabilities.value,
   capabilitiesLoading:capabilitiesLoading.value,capabilitiesError:capabilitiesError.value,
   consent:consent.value,cameraConsent:cameraConsent.value,busy:busy.value,state:state.value}),
-  ...(practiceIssue.value ? [{code:'practice_plan',message:practiceIssue.value}] : [])]);
+  ...(practiceIssue.value ? [{code:'practice_plan',message:practiceIssue.value}] : []),
+  ...(courseContextError.value || courseContextLoading.value ? [{code:'course_context',message:courseContextError.value || '正在读取课程…'}] : [])]);
 const startHint=computed(()=>startBlockers.value.length ? startBlockers.value.map(r=>r.message).join('\n') :
   '已就绪，点击开始授课');
 const consentOnly=computed(()=>startBlockers.value.length>0 && startBlockers.value.every(r=>['audio_consent','camera_consent'].includes(r.code)));
@@ -130,8 +151,9 @@ async function resume(){
   await reconnect(consent.value,cameraConsent.value);
 }
 function selectStudent(id){
+  if(!['listening','speaking'].includes(state.value)){error.value="开始授课后可邀请学生互动。";return;}
   if(raised.value===id) send("select_student",{student_id:id});
-  else error.value="请用麦克风点名"+defaultStudents.find(s=>s.id===id).name+"。";
+  else send("student_interact",{student_id:id});
 }
 async function openSession(sid){
   if(busy.value || active.value) return;
@@ -172,7 +194,9 @@ onBeforeRouteLeave(()=>{
 
 <template>
   <div class="classroom-page camera-first screen-first">
-    <h1 class="sr-only">模拟课堂</h1>
+    <PaperTitle text="模拟授课" legacy-text="模拟课堂" />
+    <p v-if="courseContextError" class="class-alert" role="alert">{{ courseContextError }} <router-link to="/courses">返回选课</router-link></p>
+    <div v-if="selectedCourse" class="classroom-course-context"><span>训练技能 · {{ selectedCourse.title }}</span><router-link :to="{path:'/courses', query:{courseId:String(selectedCourse.id)}}">更换课程 ↗</router-link></div>
     <p v-if="error" class="class-alert" role="alert">{{ error }}<button aria-label="关闭提示" @click="error=''">×</button></p>
     <div v-if="quotaNotice || connectionIssue" class="class-notice" role="status"><span>{{ quotaNotice || '部分服务待处理，请检查连接设置。' }}</span><button class="text-action" @click="openSettings">查看设置</button></div>
     <p v-if="recordError" role="alert" class="class-alert">{{ recordError }}</p>
@@ -180,13 +204,13 @@ onBeforeRouteLeave(()=>{
       <ClassroomCamera ref="cameraRef" :enabled="cameraEnabled" :disabled="state==='ended'" :landmarks="landmarks"
         :camera-consent="cameraConsent" :camera-busy="busy" :preview-allowed="!active"
         :motion="pose" :face-status="faceStatus" :motion-status="motionStatus" :hand-status="handStatus"
-        :teacher-text="partial || latestTeacher" :reply="reply" :volume="volume" :resolution="cameraResolution"
+        :teacher-text="partial || latestTeacher" :reply="reply" :messages="messages" :volume="volume" :resolution="cameraResolution"
         :resolution-busy="cameraAdjusting || busy" :camera-note="cameraNote" :progress="progress" :time-label="timeLabel"
         @volume="setVolume" @resolution="setCameraResolution" @video="camera=$event" @retry="retryMotion" @toggle="requestPreview" @prepare="preparationOpen=true" @fullscreen-target="helpTarget=$event">
         <template #heading><span class="connection-label" :class="state"><i aria-hidden="true" />{{ stateLabel }}</span><p class="scene-topic">分数的初步认识</p></template>
         <template #timer><ClassroomCountdown :seconds="remaining" /></template>
-        <template #students>
-          <StudentStage3D ref="studentRef" :students="students.length ? students : defaultStudents"
+        <template #students="{ presentation }">
+          <PixelStudentStage ref="studentRef" :presentation="presentation" :students="students.length ? students : defaultStudents"
             :raised="raised" :playback-student="playbackStudent" :reply="reply" :level="mouth"
             :student-states="room?.students" :capturing="recordPhase==='recording'" @select="selectStudent" />
         </template>
@@ -201,7 +225,8 @@ onBeforeRouteLeave(()=>{
           </div>
         </template>
         <template #actions>
-          <ClassroomIconButton v-if="reply.phase==='failed' && !reply.replyId" label="重试学生回答" :disabled="state!=='listening'" @click="send('retry_generation')"><Refresh /></ClassroomIconButton>
+          <button v-if="manualInteraction" class="class-btn interaction-wait" aria-live="polite" @click="send('cancel_student_interact')">{{ (students.length ? students : defaultStudents).find(s=>s.id===manualInteraction.student_id)?.name }}等待接话 · 取消</button>
+          <ClassroomIconButton v-if="reply.phase==='failed' && !reply.replyId && !reply.manual" label="重试学生回答" :disabled="state!=='listening'" @click="send('retry_generation')"><Refresh /></ClassroomIconButton>
           <ClassroomIconButton label="打断学生" :disabled="!(activeStudent || ['thinking','generating','queued'].includes(reply.phase))" @click="send('cancel')"><HandStop /></ClassroomIconButton>
           <ClassroomIconButton :label="active ? '暂停课堂' : '关闭摄像头预览'" :disabled="!cameraEnabled || busy || state==='finishing'" @click="pauseLesson"><PlayerPause v-if="active" /><VideoOff v-else /></ClassroomIconButton>
         </template>

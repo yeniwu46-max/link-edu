@@ -58,7 +58,7 @@ test('helper is kept inside viewport after dragging or resize', () => {
   assert.deepEqual(boundHelpPosition({x:-10,y:900},{width:375,height:812},{width:56,height:56}),{x:12,y:744})
   assert.deepEqual(boundHelpPosition({x:1200,y:500},{width:700,height:500},{width:360,height:490}),{x:328,y:12})
 })
-test('recording reuses cached 3D viewports and falls back independently per student', () => {
+test('recording reuses cached pixel viewports and falls back independently per student', () => {
   const OriginalImage=globalThis.Image
   globalThis.Image=class {complete=true;naturalWidth=100;set src(x){this.source=x}}
   try {
@@ -68,7 +68,7 @@ test('recording reuses cached 3D viewports and falls back independently per stud
     paint(ctx,{width:1280,height:720})
     assert.equal(draws[0][0],frame)
     assert.deepEqual(draws[0].slice(1,5),[1,2,99,100])
-    assert.match(draws[1][0].source,/yu-listening/)
-    assert.match(draws[2][0].source,/lin-listening/)
+    assert.match(draws[1][0].source,/pixel\/yu.png/)
+    assert.match(draws[2][0].source,/pixel\/lin.png/)
   } finally {globalThis.Image=OriginalImage}
 })

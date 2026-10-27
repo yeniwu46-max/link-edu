@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classroomEntry } from '../src/services/classroomEntry.js';
 
-test('legacy entry goes directly to the real classroom, without claiming another lesson is supported', () => {
-  assert.deepEqual(classroomEntry({ query: { courseId: '9' } }), { path: '/classroom', query: {} });
+test('course entry retains the practice skill without auto-starting a classroom', () => {
+  assert.deepEqual(classroomEntry({ query: { courseId: '9', start: '1' } }), { path: '/classroom', query: { courseId:'9' } });
 });
 test('explicit eight minute entry keeps the duration, not an autostart instruction', () => {
   assert.deepEqual(classroomEntry({ query: { mode: 'fragment', start: '1' } }), {

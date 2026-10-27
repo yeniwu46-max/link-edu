@@ -32,6 +32,7 @@ function createReview({ ask: askOverride, generate: generateOverride } = {}) {
     removeItem() {},
   }
   const imports = {
+    '../components/PaperTitle.vue': {},
     vue: { ...vue, onMounted() {}, onUnmounted() {}, watch() {} },
     'vue-router': { useRoute: () => ({ query: {} }), useRouter: () => ({ replace() {}, push() {} }) },
     '@number-flow/vue': {},

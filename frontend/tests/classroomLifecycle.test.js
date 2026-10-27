@@ -260,3 +260,46 @@ test('failed reconnection returns to retryable state and releases both devices',
   assert.equal(f.live.busy.value,false);
   f.unmount.forEach(fn=>fn());
 });
+
+test('conversation consumes ordered socket events without stale sessions or duplicate transcripts clearing a new draft',async t=>{
+  const f=fixture(t); await f.live.begin('full',true,true);
+  const socket=f.sockets[0]; let seq=0;
+  const emit=async message=>socket.onmessage({data:JSON.stringify({session_id:1,seq:++seq,...message})});
+  await emit({type:'partial',text:'第一句草稿'});
+  assert.equal(f.live.messages.value[0].text,'第一句草稿');
+  const event={id:'t1',type:'transcript',at_ms:1000,data:{text:'第一句完整转写'}};
+  await emit({type:'event',event});
+  assert.equal(f.live.partial.value,'');
+  await emit({type:'partial',text:'第二句草稿'});
+  await emit({type:'event',event});
+  assert.equal(f.live.partial.value,'第二句草稿');
+  await emit({session_id:2,type:'partial',text:'其他课堂内容'});
+  assert.equal(f.live.messages.value.length,2);
+  assert.equal(f.live.messages.value[1].text,'第二句草稿');
+  socket.onclose();
+  assert.equal(f.live.messages.value[1].status,'disconnected');
+  assert.equal(f.live.partial.value,'');
+  f.api.get=async()=>({data:{session_id:1,state:'active',events:[event],elapsed:1}});
+  await f.live.load(1);
+  assert.equal(f.live.messages.value.length,2);
+  f.api.get=async()=>({data:{session_id:2,state:'ended',events:[],elapsed:0}});
+  await f.live.load(2);
+  assert.equal(f.live.messages.value.length,0);
+  f.unmount.forEach(fn=>fn());
+});
+
+test('manual interaction status preserves replacement through stale completion and clears on pause/disconnect',async t=>{
+ const f=fixture(t);await f.live.begin('full',true,true);const ws=f.sockets.at(-1);let seq=0;
+ const event=async message=>ws.onmessage({data:JSON.stringify({session_id:1,seq:++seq,...message})});
+ await event({type:'ready'});
+ f.live.send('student_interact',{student_id:'yu'});
+ assert.equal(ws.sent.at(-1).type,'student_interact');assert.ok(ws.sent.at(-1).event_id);
+ await event({type:'student_interaction',status:'queued',student_id:'ming',request_id:'first'});
+ await event({type:'student_interaction',status:'queued',student_id:'lin',request_id:'second'});
+ await event({type:'student_interaction',status:'completed',request_id:'first'});
+ assert.equal(f.live.manualInteraction.value.student_id,'lin');
+ await f.live.pauseCapture();assert.equal(f.live.manualInteraction.value,null);
+ await f.live.reconnect(true,true);const next=f.sockets.at(-1);
+ await next.onmessage({data:JSON.stringify({session_id:1,seq:1,type:'student_interaction',status:'queued',student_id:'yu',request_id:'third'})});
+ next.onclose();assert.equal(f.live.manualInteraction.value,null);
+})

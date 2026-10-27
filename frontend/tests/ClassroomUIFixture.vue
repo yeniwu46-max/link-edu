@@ -1,14 +1,46 @@
 <script setup>
 import ModelShowcase from '../src/components/fx/ModelShowcase.vue'
 import {ref,provide,shallowRef,nextTick,onUnmounted} from 'vue'
-import StudentStage3D from '../src/components/StudentStage3D.vue'
+import PixelStudentStage from '../src/components/PixelStudentStage.vue'
 import HelpChat from '../src/components/HelpChat.vue'
 import ClassroomCamera from '../src/components/ClassroomCamera.vue'
+import {createConversation} from '../src/services/classroomConversation.js'
 import AmbientVideo from '../src/components/fx/AmbientVideo.vue'
 import {classroomHelpKey} from '../src/utils/classroomHelpContext.js'
 import {createClassroomPainter} from '../src/services/classroomCompositor.js'
 import {ClassroomRecorder} from '../src/services/classroomRecorder.js'
 const props=defineProps({setReduced:Function,setHidden:Function,setUnavailable:Function,contextCounts:Function})
+const conversation=createConversation(),messages=ref([])
+let conversationTimer=0,turn=0
+function receive(message,at=turn*3000){messages.value=conversation.receive(message,at)}
+function conversationHistory(){
+  for(let i=0;i<16;i++){
+    turn++
+    receive({type:'event',event:{id:`fixture-t-${turn}`,type:'transcript',at_ms:turn*3000,data:{text:`第 ${turn} 次提问：把一个整体平均分成四份，其中的一份怎样表示？`}}})
+    receive({type:'event',event:{id:`fixture-s-${turn}`,type:'student',at_ms:turn*3000+1000,data:{student_id:'yu',name:'小雨',reply_id:`fixture-r-${turn}`,text:'每一份就是这个整体的四分之一。分母表示平均分成的份数。'}}})
+  }
+}
+function conversationStream(){
+  clearInterval(conversationTimer);turn++
+  const id=turn,gid=`fixture-g-${id}`
+  receive({type:'partial',text:'把一个整体'})
+  let step=0
+  const pieces=['把一个整体平均分成两份，每份是多少？','每一份','就是这个整体','的二分之一。']
+  conversationTimer=setInterval(()=>{
+    if(step===0){receive({type:'partial',text:pieces[0]})}
+    else if(step===1){receive({type:'event',event:{id:`fixture-t-${id}`,type:'transcript',at_ms:id*3000,data:{text:pieces[0]}}});receive({type:'generation_started',generation_id:gid});receive({type:'generation_student',generation_id:gid,student_id:'ming'})}
+    else if(step<5){receive({type:'reply_delta',generation_id:gid,student_id:'ming',delta:pieces[step-1]})}
+    else{
+      const text=pieces.slice(1).join(''),rid=`fixture-r-${id}`
+      receive({type:'event',event:{id:`fixture-s-${id}`,type:'student',at_ms:id*3000+1500,data:{student_id:'ming',reply_id:rid,text}}})
+      receive({type:'reply',generation_id:gid,reply_id:rid,student_id:'ming',text});receive({type:'listening'});clearInterval(conversationTimer)
+    }
+    step++
+  },500)
+}
+function conversationCancel(){clearInterval(conversationTimer);receive({type:'cancel'})}
+function themeToggle(){document.documentElement.dataset.uiTheme=document.documentElement.dataset.uiTheme==='academy'?'classic':'academy'}
+onUnmounted(()=>clearInterval(conversationTimer))
 const students=[{id:'ming',name:'小明'},{id:'yu',name:'小雨'},{id:'lin',name:'小林'}]
 const mounted=ref(true),invalid=ref(false),reduced=ref(false),hidden=ref(false),unavailable=ref(false)
 const stage=ref(null),preview=ref(null),raised=ref(null),reply=ref(null),playback=ref(null),level=ref(0)
@@ -81,17 +113,18 @@ onUnmounted(()=>{recorder?.dispose();cleanup();if(url.value)URL.revokeObjectURL(
     <AmbientVideo class="app-shell-bg-video" source="/assets/login-bg-lite.mp4" poster="/assets/login-bg.png" />
     <section class="fixture-controls">
       <h1>教学训练验收夹具</h1><p>仅使用合成视频与音频，不访问摄像头、麦克风或后端数据。</p>
+      <button @click="conversationStream">模拟流式对话</button><button @click="conversationCancel">打断模拟回复</button><button @click="conversationHistory">填充对话历史</button><button @click="themeToggle">切换验收主题</button>
       <button v-for="pose in ['idle','raised','thinking','speaking','done']" :key="pose" @click="setPose(pose)">{{pose}}</button>
       <button @click="reducedToggle">减少动态：{{reduced?'开':'关'}}</button><button @click="hiddenToggle">页面可见：{{hidden?'否':'是'}}</button>
-      <button @click="invalid=!invalid;remount()">模型：{{invalid?'缺失':'正常'}}</button><button @click="webglToggle">WebGL：{{unavailable?'不可用':'可用'}}</button>
+      <button @click="invalid=!invalid;remount()">像素图集：{{invalid?'缺失':'正常'}}</button><button @click="webglToggle">WebGL：{{unavailable?'不可用':'可用'}}</button>
       <button @click="contextLoss">上下文丢失</button><button @click="lifecycle" :disabled="capturing">重复卸载 3 次</button><button @click="counts=props.contextCounts()">检查上下文数量</button>
       <button @click="record(false)" :disabled="capturing">合成课堂录像 10 秒</button><button @click="record(true)" :disabled="capturing">录像暂停恢复验收</button><button @click="pause" :disabled="recordState!=='recording'">暂停录像</button><button @click="resume" :disabled="recordState!=='paused'">恢复录像</button><button @click="inspectPixels">检查缓存像素</button>
       <output data-testid="fixture-result">{{result}}</output><output data-testid="context-counts">{{JSON.stringify(counts)}}</output><output data-testid="frame-pixels">{{JSON.stringify(pixels)}}</output><output>助手动作：{{action}}</output>
     </section>
     <section class="classroom-page camera-first screen-first">
       <div class="camera-stage">
-        <ClassroomCamera enabled camera-consent preview-allowed :landmarks="{body:[],hands:[],face:[],at:0}" :teacher-text="capturing?'合成授课验收中':''" :reply="reply" @video="cameraVideo=$event" @fullscreen-target="helpTarget">
-          <template #students><StudentStage3D v-if="mounted" ref="stage" :students="students" :raised="raised" :reply="reply" :playback-student="playback" :level="level" :capturing="capturing" :model-base="invalid?'/assets/models/missing/':'/assets/models/students/'" @select="setPose('speaking')" /></template>
+        <ClassroomCamera enabled camera-consent preview-allowed :messages="messages" :landmarks="{body:[],hands:[],face:[],at:0}" :teacher-text="capturing?'合成授课验收中':''" :reply="reply" @video="cameraVideo=$event" @fullscreen-target="helpTarget">
+          <template #students="{ presentation }"><PixelStudentStage :presentation="presentation" v-if="mounted" ref="stage" :students="students" :raised="raised" :reply="reply" :playback-student="playback" :level="level" :capturing="capturing" :model-base="invalid?'/assets/characters/missing/':'/assets/characters/pixel/'" @select="setPose('speaking')" /></template>
         </ClassroomCamera>
       </div>
     </section>

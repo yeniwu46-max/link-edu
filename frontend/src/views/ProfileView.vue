@@ -1,6 +1,6 @@
 <template>
   <div class="sparse-page profile-page" :class="`profile-page--${page}`">
-<h1 class="sr-only">{{ pageTitle }}</h1>
+<PaperTitle :text="pageTitle" />
     <p v-if="profileError" class="dock-hint" role="alert">{{ profileError }}</p>
 
     <div ref="contentScroll" class="page-scroll" data-tour="profile">
@@ -177,6 +177,7 @@
 </template>
 
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { startTour } from '../utils/onboarding.js'

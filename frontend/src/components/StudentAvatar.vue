@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { createBubbleRetention } from '../services/classroomBubble.js';
+import PixelSprite from './PixelSprite.vue';
+import { studentPixelFrame } from '../services/pixelCharacters.js';
 import { studentPresentation } from '../services/classroomStudent.js';
 const props = defineProps({
   student: Object, raised: Boolean, speaking: Boolean, level: Number,
@@ -12,6 +14,7 @@ const retention = createBubbleRetention(value => { visibleReply.value = value; }
 watch(() => props.reply, value => retention.update(value), { immediate: true });
 onUnmounted(retention.clear);
 const presentation = computed(() => studentPresentation(props.student.id, props));
+const fallbackFrame = computed(() => studentPixelFrame({ raised:props.raised, speaking:props.speaking, level:props.level, thinking:['thinking','generating','queued'].includes(props.reply?.phase), failed:props.reply?.phase==='failed' }, { reduced:true }));
 const colors = { ming: '#ba98eb', yu: '#ffa26d', lin: '#92b9e7' };
 watch(() => visibleReply.value?.text, async () => {
   await nextTick();
@@ -20,20 +23,16 @@ watch(() => visibleReply.value?.text, async () => {
 </script>
 
 <template>
-  <div class="student-interaction" :class="{ compact, 'has-reply': visibleReply, speaking, 'is-3d': modelState === 'ready' }"
+  <div class="student-interaction" :class="{ compact, 'has-reply': visibleReply, speaking, 'is-pixel': modelState === 'ready' }"
     :data-student="student.id" :data-renderer="modelState"
     :style="{ '--student-accent': colors[student.id] || colors.lin }">
     <button type="button" class="student-card"
       :class="{ speaking, raised: presentation.pose === 'raised', thinking: reply?.phase === 'thinking' }"
-      :aria-label="student.name + (raised ? '举手了，点击点名' : '，可用语音点名')"
+      :aria-label="student.name + (raised ? '举手了，点击点名' : '，点击邀请提问或反驳')"
       :aria-describedby="modelState === 'ready' ? instructionsId : undefined"
       @click="$emit('select', student.id)">
       <span class="student-sprite-wrap" :data-student-viewport="modelState ? student.id : undefined">
-        <!-- Preload both poses so the first reply cannot flash a missing image. -->
-        <img v-for="pose in ['listening', 'raised']" :key="pose"
-          class="student-sprite" :class="{ visible: presentation.pose === pose }"
-          :src="studentPresentation(student.id, { raised: pose === 'raised' }).src"
-          alt="" aria-hidden="true" width="1254" height="1254" draggable="false" />
+        <PixelSprite v-if="modelState !== 'ready' && modelState !== 'loading'" class="student-sprite visible" :character="student.id" :frame="fallbackFrame" />
         <span v-if="presentation.pose === 'raised'" class="student-attention" aria-hidden="true">!</span>
       </span>
       <span class="student-name"><strong>{{ student.name }}</strong>
@@ -64,10 +63,10 @@ watch(() => visibleReply.value?.text, async () => {
 .student-card:hover { background:var(--class-hover); }
 .student-sprite-wrap { position:relative; display:block; width:148px; height:128px; flex-shrink:1; min-height:0; }
 .student-sprite { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; opacity:0; transform-origin:50% 94%; pointer-events:none; }
-.student-sprite.visible { opacity:1; animation:student-breathe 4s ease-in-out infinite; }
-.is-3d .student-sprite { opacity:0 !important; animation:none !important; }
-.raised .student-sprite.visible { animation:student-wave 2.4s ease-in-out infinite; }
-.speaking .student-sprite.visible { animation:student-talk 1.2s ease-in-out infinite; }
+.student-sprite.visible { opacity:1; }
+.is-pixel .student-sprite { opacity:0 !important; animation:none !important; }
+.raised .student-sprite.visible { animation:none; }
+.speaking .student-sprite.visible { animation:none; }
 .student-name { display:flex; align-items:center; gap:8px; height:20px; }
 .student-name strong { font-size:13px; font-weight:600; }
 .student-status { font-size:10px; line-height:18px; white-space:nowrap; color:var(--class-muted); }

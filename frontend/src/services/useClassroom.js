@@ -3,9 +3,19 @@ import { api } from "./api";
 import { ClassroomAudio } from "./classroomAudio";
 import { classroomCapabilitiesError } from "./classroomStatus.js";
 import { emptyReply, reduceReply } from "./classroomInteraction.js";
+import { createConversation } from './classroomConversation.js';
 import { CAMERA_HEIGHTS, cameraConstraints, inferenceSize } from './classroomMedia.js';
 
+const conversationTypes = new Set(['partial', 'generation_started', 'generation_student', 'reply_delta',
+  'generation_completed', 'generation_failed', 'generation_cancelled', 'reply', 'cancel', 'listening',
+  'paused', 'disconnected', 'ended']);
+
 export function useClassroom() {
+  const conversation = createConversation(), messages = ref([]);
+  const recordConversation = message => {
+    if (!conversationTypes.has(message.type) && !(message.type === 'event' && ['transcript','student'].includes(message.event?.type))) return;
+    messages.value = conversation.receive(message, wallElapsed.value * 1000);
+  };
   const room = ref(null),
     capabilities = ref(null),
     events = ref([]),
@@ -17,6 +27,7 @@ export function useClassroom() {
     activeStudent = ref(null),
     raised = ref(null),
     mouth = ref(0);
+  const manualInteraction = ref(null);
   const reply = ref(emptyReply()),
     playbackStudent = ref(null);
   const volume = ref(1), cameraResolution = ref(720), cameraAdjusting = ref(false), cameraNote = ref('');
@@ -79,9 +90,12 @@ export function useClassroom() {
     }
   }
   async function load(sid) {
-    if (room.value?.session_id !== Number(sid)) reply.value = emptyReply();
-    room.value = (await api.get(`/classroom/sessions/${sid}`)).data;
+    const preserve = room.value?.session_id === Number(sid);
+    const loaded = (await api.get(`/classroom/sessions/${sid}`)).data;
+    if (!preserve) { manualInteraction.value = null; reply.value = emptyReply(); partial.value = ''; }
+    room.value = loaded;
     events.value = room.value.events || [];
+    messages.value = conversation.restore(events.value, preserve);
     seen.clear();
     events.value.forEach((e) => seen.add(e.id));
     wallElapsed.value = room.value.wall_elapsed ?? room.value.elapsed;
@@ -103,6 +117,7 @@ export function useClassroom() {
   }
   async function connect() {
     if (disposed) return;
+    manualInteraction.value = null;
     state.value = "connecting";
     error.value = "";
     const { data } = await api.post(
@@ -138,6 +153,8 @@ export function useClassroom() {
           ))
       )
         return;
+      recordConversation(m);
+      if (m.type === 'event' && m.event.type === 'transcript' && !seen.has(m.event.id)) partial.value = '';
       reply.value = reduceReply(reply.value, m);
       if (m.type === "connected") {
         wallElapsed.value = m.wall_elapsed ?? m.elapsed;
@@ -167,6 +184,12 @@ export function useClassroom() {
         state.value = "speaking";
       }
       if (m.type === "raise") raised.value = m.student_id;
+      if (m.type === "raise_cleared") raised.value = null;
+      if (m.type === "student_interaction") {
+        if (m.status === "queued") manualInteraction.value = m;
+        else if (m.request_id === manualInteraction.value?.request_id || m.status === "unavailable") manualInteraction.value = null;
+        if (m.status === "failed") { reply.value = { ...reply.value, manual: true }; error.value = "互动生成失败，请重新点击学生。"; }
+      }
       if (m.type === "audio") audio?.chunk(m.reply_id, m.audio, m.sample_rate);
       if (m.type === "audio_end") {
         audio?.end(m.reply_id, m.ok);
@@ -186,6 +209,7 @@ export function useClassroom() {
       }
       if (m.type === "error") error.value = m.message;
       if (m.type === "ended") {
+        manualInteraction.value = null;
         playbackStudent.value = null;
         state.value = "ended";
         clearInterval(clock);
@@ -197,6 +221,9 @@ export function useClassroom() {
     };
     socket.onclose = () => {
       if (socket !== ws) return;
+      manualInteraction.value = null;
+      recordConversation({ type: 'disconnected' });
+      partial.value = '';
       reply.value = emptyReply();
       playbackStudent.value = null;
       activeStudent.value = null;
@@ -231,6 +258,7 @@ export function useClassroom() {
     busy.value = true;
     error.value = "";
     try {
+      manualInteraction.value = null;
       state.value = "connecting";
       await prepareDevices();
       if (disposed) return;
@@ -288,7 +316,10 @@ export function useClassroom() {
       return;
     }
     busy.value = true;
+    manualInteraction.value = null;
     state.value = "finishing";
+    recordConversation({ type: 'ended' });
+    partial.value = '';
     reply.value = emptyReply();
     playbackStudent.value = null;
     audio?.cancel();
@@ -573,6 +604,9 @@ export function useClassroom() {
     }
   }
   async function pauseCapture(message = '课堂已暂停，设备与倒计时均已停止。') {
+    manualInteraction.value = null;
+    recordConversation({ type: 'paused' });
+    partial.value = '';
     if (message !== '课堂已暂停，设备与倒计时均已停止。') error.value = message;
     clearInterval(clock);
     const previous = ws;
@@ -637,12 +671,14 @@ export function useClassroom() {
     capabilitiesLoading,
     capabilitiesError,
     events,
+    messages,
     error,
     state,
     partial,
     students,
     activeStudent,
     raised,
+    manualInteraction,
     mouth,
     pose,
     camera,

@@ -1,4 +1,5 @@
 <script setup>
+import PaperTitle from '../components/PaperTitle.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Printer, ArrowUpRight, History } from '@vicons/tabler';
@@ -77,7 +78,7 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
 <template>
   <div class="classroom-review-page">
     <header class="review-masthead">
-      <h1 class="sr-only">AI 评课</h1>
+      <PaperTitle text="课堂回响" legacy-text="AI 评课" />
       <div class="review-page-actions no-print">
         <router-link class="review-button" to="/classroom">模拟课堂<ArrowUpRight aria-hidden="true" /></router-link>
         <button class="review-button" :disabled="loading || busy" @click="initialize"><Refresh aria-hidden="true" />刷新</button>
