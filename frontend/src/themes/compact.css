@@ -29,6 +29,7 @@ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .
  html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { grid-template-columns:minmax(0,1fr) minmax(0,1fr); grid-template-rows:auto 40px minmax(240px,1fr) minmax(180px,.8fr); grid-template-areas:"welcome welcome" "weekly weekly" "continue entries" "feedback growth"; }
 }
 @media(max-width:700px) {
+ html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell).desk-fullscreen .workspace { height:calc(100dvh - 20px); min-height:0; }
  html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome { flex-wrap:wrap; gap:8px; padding:0 0 6px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .welcome > .paper-title { font-size:24px!important; flex-basis:100%; }
  html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .dash-grid { height:auto; min-height:100%; grid-template-columns:1fr 1fr; grid-template-rows:auto 40px 230px 190px 150px; grid-template-areas:"welcome welcome" "weekly weekly" "continue continue" "entries feedback" "growth growth"; gap:8px; }
  html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue { min-height:0!important; padding:16px; }html[data-ui-theme] .app-shell.studio-ui:not(.protected-shell) .continue .pixel-class-preview { position:absolute; right:10px; width:56%; height:180px; bottom:10px; }
