@@ -1,0 +1,28 @@
+{
+  "id": "assistant",
+  "triangles": 27006,
+  "bytes": 1076476,
+  "rig": [
+    "root",
+    "pelvis",
+    "torso",
+    "head",
+    "upper_arm_L",
+    "forearm_L",
+    "hand_L",
+    "hip_L",
+    "knee_L",
+    "foot_L",
+    "upper_arm_R",
+    "forearm_R",
+    "hand_R",
+    "hip_R",
+    "knee_R",
+    "foot_R"
+  ],
+  "morphs": [
+    "blink",
+    "open"
+  ],
+  "axis": "Y up / +Z front"
+}
