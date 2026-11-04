@@ -47,6 +47,7 @@ class Course(db.Model):
     __tablename__ = 'courses'
 
     id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     title = db.Column(db.String(128), nullable=False)
     category = db.Column(db.String(64), nullable=False)
     description = db.Column(db.Text)
@@ -81,6 +82,7 @@ class TrainingSession(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False, index=True)
     status = db.Column(db.String(32), nullable=False, default='in_progress')
     progress_percent = db.Column(db.Integer, default=0, nullable=False)
@@ -112,6 +114,7 @@ class AiFeedback(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     session_id = db.Column(db.Integer, db.ForeignKey('training_sessions.id'), index=True)
     overall_score = db.Column(db.Integer, nullable=False)
     clarity_score = db.Column(db.Integer)
@@ -159,6 +162,7 @@ class Resource(db.Model):
     __tablename__ = 'resources'
 
     id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     title = db.Column(db.String(128), nullable=False)
     category = db.Column(db.String(64))
     description = db.Column(db.String(255))
@@ -181,6 +185,7 @@ class TrainingJournal(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     entry_date = db.Column(db.String(10), nullable=False, index=True)
     body = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

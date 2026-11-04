@@ -1,0 +1,29 @@
+{
+  "sources/rag/corpus/classroom_knowledge/fraction-equal.md": {
+    "license_note": "项目自编摘要，不含教材原文；可随 LINK 项目使用"
+  },
+  "sources/rag/corpus/classroom_knowledge/fraction-symbol.md": {
+    "license_note": "项目自编摘要，不含教材原文；可随 LINK 项目使用"
+  },
+  "sources/rag/corpus/classroom_knowledge/fraction-size.md": {
+    "license_note": "项目自编摘要，不含教材原文；可随 LINK 项目使用"
+  },
+  "sources/rag/corpus/classroom_knowledge/fraction-teach.md": {
+    "license_note": "项目自编案例，不对应真实学生资料"
+  },
+  "sources/rag/corpus/classroom_knowledge/pep-fraction.md": {
+    "source_url": "https://m.pep.com.cn/jyx/ydjx/201502/t20150203_1228906.shtml",
+    "license_note": "仅保存独立撰写摘要与来源链接；不复制或再分发原文，核实原页面使用条件"
+  },
+  "sources/rag/corpus/classroom_knowledge/ntce-outline.md": {
+    "source_url": "https://ntce.neea.edu.cn/html1/category/1511/693-1.htm",
+    "license_note": "官方资料目录索引；使用具体附件时遵循页面及附件许可"
+  },
+  "sources/rag/corpus/classroom_knowledge/premium-rubric.md": {
+    "source_url": "https://jpk.basic.smartedu.cn/tztgnew2023/20220919/41709.html",
+    "license_note": "仅保存评价指标摘要与来源链接；不复制附件，核实附件授权后再导入"
+  },
+  "output/competition-delivery-20260914/04—作品方案/04—作品方案.docx": {
+    "license_note": "项目自有资料；仅导入不含个人或密钥的信息"
+  }
+}

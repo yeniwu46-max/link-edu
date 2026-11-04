@@ -26,7 +26,8 @@ def hit_to_report_source(hit):
     }
 
 
-def gather_classroom_theory_evidence(*, scene=None, top_k=3, legacy_query=RAG_REPORT_QUERY):
+def gather_classroom_theory_evidence(*, scene=None, top_k=3, legacy_query=RAG_REPORT_QUERY,
+                                     tenant_id=None, user_id=None):
     """Legacy BM25 cards + per-dimension RAG pool. Returns (sources, theory_by_dimension)."""
     sources = list(search(legacy_query))
     seen = {item['id'] for item in sources}
@@ -36,7 +37,8 @@ def gather_classroom_theory_evidence(*, scene=None, top_k=3, legacy_query=RAG_RE
         kb = get_kb()
         if not kb.settings.enabled:
             return sources, theory_by_dimension
-        pool, refs = kb.evidence_for_indicators(_dimension_indicators(), scene=scene, top_k=top_k)
+        pool, refs = kb.evidence_for_indicators(_dimension_indicators(), scene=scene, top_k=top_k,
+                                                tenant_id=tenant_id, user_id=user_id)
         by_ref = {hit['ref']: hit for hit in pool}
         for key in DIMENSIONS:
             dim_list = []

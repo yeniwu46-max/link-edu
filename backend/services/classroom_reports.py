@@ -34,10 +34,11 @@ def gather_report_references(query=RAG_REPORT_QUERY, *, scene=None, top_k=3):
     return sources
 
 
-def report_theory_context(*, scene=None, top_k=3):
+def report_theory_context(*, scene=None, top_k=3, tenant_id=None, user_id=None):
     """Full sources list + per-dimension kb slices for the classroom report prompt."""
     from rag.report_evidence import gather_classroom_theory_evidence
-    return gather_classroom_theory_evidence(scene=scene, top_k=top_k)
+    return gather_classroom_theory_evidence(scene=scene, top_k=top_k,
+                                            tenant_id=tenant_id, user_id=user_id)
 
 locks = threading.RLock()
 jobs = set()
@@ -192,7 +193,8 @@ def request_report(app, session_id, retry=False):
                 cited.update(i for m in motion['modalities'].values() for i in m['event_ids'])
                 selected = {e['id']: e for e in visual[::max(1, len(visual) // 50)] + [e for e in visual if e['id'] in cited]}
                 evidence = sorted(spoken + list(selected.values()), key=lambda e: e['id'])
-                sources, theory_by_dimension = report_theory_context()
+                sources, theory_by_dimension = report_theory_context(
+                    tenant_id=room.tenant_id, user_id=room.user_id)
                 report_stage(room, 'judging')
                 raw = chat(REPORT_SYSTEM,
                     {'events': evidence, 'references': sources, 'theory_by_dimension': theory_by_dimension,

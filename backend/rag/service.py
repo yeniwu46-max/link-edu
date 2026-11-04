@@ -118,7 +118,8 @@ class KnowledgeBase:
         return folder / f'{sha}.{file_type}'
 
     def ingest(self, data, filename, *, title=None, category='other', tags=(), source=None,
-               description=None, user_id=None):
+               description=None, user_id=None, tenant_id=None, visibility='public',
+               source_url=None, license_note=None):
         file_type = detect_file_type(filename)
         if not data:
             raise ParseError('上传文件为空')
@@ -127,24 +128,30 @@ class KnowledgeBase:
         if category not in CATEGORIES:
             raise ParseError('知识分类无效')
         sha = hashlib.sha256(data).hexdigest()
-        document = KnowledgeDocument.query.filter_by(sha256=sha).first()
+        document = KnowledgeDocument.query.filter_by(sha256=sha, tenant_id=tenant_id,
+                                                     visibility=visibility, uploaded_by=user_id).first()
         if document is not None and document.status != 'failed':
             raise DuplicateDocument(document)
         path = self._file_path(sha, file_type)
         if not path.exists():
             path.write_bytes(data)
         name = Path(filename).name[:255]
-        document = document or KnowledgeDocument(sha256=sha)
+        document = document or KnowledgeDocument(sha256=sha, tenant_id=tenant_id,
+                                                 visibility=visibility, uploaded_by=user_id)
         document.title = (title or Path(name).stem or '未命名资料')[:200]
         document.filename = name
         document.file_type = file_type
         document.category = category
         document.tags = [str(t)[:32] for t in tags][:20]
         document.source = (source or None) and source[:255]
+        document.source_url = (source_url or None) and str(source_url)[:500]
+        document.license_note = (license_note or None) and str(license_note)[:255]
         document.description = description or None
         document.size_bytes = len(data)
         document.storage_path = str(path.relative_to(self.settings.storage_dir))
         document.uploaded_by = user_id
+        document.tenant_id = tenant_id
+        document.visibility = visibility
         document.status = 'processing'
         document.is_active = True
         try:
@@ -165,8 +172,8 @@ class KnowledgeBase:
         return document
 
     def create_processing_document(self, data, filename, *, title=None, category='other', tags=(), source=None,
-                                   description=None, user_id=None, content_version='1', license_note=None,
-                                   valid_until=None):
+                                   description=None, user_id=None, tenant_id=None, visibility='public',
+                                   source_url=None, content_version='1', license_note=None, valid_until=None):
         file_type = detect_file_type(filename)
         if not data:
             raise ParseError('上传文件为空')
@@ -175,24 +182,29 @@ class KnowledgeBase:
         if category not in CATEGORIES:
             raise ParseError('知识分类无效')
         sha = hashlib.sha256(data).hexdigest()
-        document = KnowledgeDocument.query.filter_by(sha256=sha).first()
+        document = KnowledgeDocument.query.filter_by(sha256=sha, tenant_id=tenant_id,
+                                                     visibility=visibility, uploaded_by=user_id).first()
         if document is not None and document.status not in ('failed', 'processing'):
             raise DuplicateDocument(document)
         path = self._file_path(sha, file_type)
         if not path.exists():
             path.write_bytes(data)
         name = Path(filename).name[:255]
-        document = document or KnowledgeDocument(sha256=sha)
+        document = document or KnowledgeDocument(sha256=sha, tenant_id=tenant_id,
+                                                 visibility=visibility, uploaded_by=user_id)
         document.title = (title or Path(name).stem or '未命名资料')[:200]
         document.filename = name
         document.file_type = file_type
         document.category = category
         document.tags = [str(t)[:32] for t in tags][:20]
         document.source = (source or None) and source[:255]
+        document.source_url = (source_url or None) and str(source_url)[:500]
         document.description = description or None
         document.size_bytes = len(data)
         document.storage_path = str(path.relative_to(self.settings.storage_dir))
         document.uploaded_by = user_id
+        document.tenant_id = tenant_id
+        document.visibility = visibility
         document.content_version = (content_version or '1')[:32]
         document.license_note = (license_note or None) and str(license_note)[:255]
         document.valid_until = (valid_until or None) and str(valid_until)[:10]
@@ -265,14 +277,16 @@ class KnowledgeBase:
         return {'documents': len(documents), 'chunks': updated}
 
     def delete(self, document):
-        path = self.settings.storage_dir / document.storage_path
+        storage_path = document.storage_path
+        path = self.settings.storage_dir / storage_path
         doc_id = document.id
         log_audit(doc_id, 'delete', actor_id=None, title=document.title, sha256=document.sha256)
         KnowledgeChunk.query.filter_by(document_id=doc_id).delete(synchronize_session=False)
         db.session.delete(document)
         db.session.commit()
         self._invalidate_indexes()
-        path.unlink(missing_ok=True)
+        if not KnowledgeDocument.query.filter_by(storage_path=storage_path).first():
+            path.unlink(missing_ok=True)
 
     def _hit_from_chunk(self, chunk, score, *, vector_score=None, bm25_score=None):
         extra = chunk.extra or {}
@@ -296,10 +310,26 @@ class KnowledgeBase:
     # ---------- retrieval & generation ----------
 
     def retrieve(self, query, *, top_k=None, categories=None, document_ids=None, min_score=None,
-                 hybrid=None, rerank=None, rewrite=None, graph=None):
+                 hybrid=None, rerank=None, rewrite=None, graph=None, tenant_id=None, user_id=None):
         raw = clean_text(query)[:MAX_QUERY_CHARS]
         if not raw:
             raise ValueError('检索内容不能为空')
+        # Internal report helpers use the same tenant boundary as the HTTP RAG API.
+        from flask import has_request_context
+        if has_request_context():
+            from flask_jwt_extended import get_jwt_identity
+            identity = get_jwt_identity()
+            if identity is not None:
+                from tenancy import current_tenant
+                tenant_id = current_tenant().id
+                user_id = int(identity)
+        if tenant_id is not None or user_id is not None:
+            allowed = {row[0] for row in db.session.query(KnowledgeDocument.id).filter(db.or_(
+                    db.and_(KnowledgeDocument.tenant_id.is_(None), KnowledgeDocument.visibility == 'public'),
+                    db.and_(KnowledgeDocument.tenant_id == tenant_id, KnowledgeDocument.visibility == 'tenant'),
+                    db.and_(KnowledgeDocument.tenant_id == tenant_id, KnowledgeDocument.visibility == 'private',
+                            KnowledgeDocument.uploaded_by == user_id))).all()}
+            document_ids = sorted(allowed.intersection(document_ids)) if document_ids is not None else sorted(allowed)
         mode = rewrite if rewrite is not None else self.settings.query_rewrite
         text = expand_query(raw, mode='off' if mode == 'off' else 'expand')
         embed_text = text
@@ -436,7 +466,8 @@ class KnowledgeBase:
             result.update(status='generation_failed', grounded=False, answer=None, citations=[], message=str(error))
         return result
 
-    def evidence_for_indicators(self, indicators, *, scene=None, top_k=3, categories=None):
+    def evidence_for_indicators(self, indicators, *, scene=None, top_k=3, categories=None,
+                                tenant_id=None, user_id=None):
         """Retrieve theory evidence per evaluation indicator. Refs are global and de-duplicated,
         so a caller can put `pool` into one prompt and point each indicator at its refs."""
         pool, by_chunk, refs = [], {}, {}
@@ -445,7 +476,8 @@ class KnowledgeBase:
             if scene:
                 query += f'（教学环节：{scene}）'
             refs[indicator['key']] = []
-            for hit in self.retrieve(query, top_k=top_k, categories=categories)['hits']:
+            for hit in self.retrieve(query, top_k=top_k, categories=categories,
+                                     tenant_id=tenant_id, user_id=user_id)['hits']:
                 if not hit['relevant']:
                     continue
                 if hit['chunk_id'] not in by_chunk:
@@ -456,15 +488,39 @@ class KnowledgeBase:
         return pool, refs
 
     def stats(self):
+        from flask import has_request_context
+        scope_ids = None
+        if has_request_context():
+            from flask_jwt_extended import get_jwt_identity
+            if get_jwt_identity() is not None:
+                from tenancy import current_tenant
+                tenant = current_tenant()
+                user_id = int(get_jwt_identity())
+                scope_ids = [row[0] for row in db.session.query(KnowledgeDocument.id).filter(db.or_(
+                    db.and_(KnowledgeDocument.tenant_id.is_(None), KnowledgeDocument.visibility == 'public'),
+                    db.and_(KnowledgeDocument.tenant_id == tenant.id, KnowledgeDocument.visibility == 'tenant'),
+                    db.and_(KnowledgeDocument.tenant_id == tenant.id, KnowledgeDocument.visibility == 'private',
+                            KnowledgeDocument.uploaded_by == user_id))).all()]
+        scope_set = set(scope_ids) if scope_ids is not None else None
         by_category = dict(db.session.query(KnowledgeDocument.category, func.count(KnowledgeDocument.id))
-                           .filter(KnowledgeDocument.status == 'ready').group_by(KnowledgeDocument.category).all())
+                           .filter(KnowledgeDocument.status == 'ready',
+                                   *([KnowledgeDocument.id.in_(scope_ids)] if scope_ids is not None else []))
+                           .group_by(KnowledgeDocument.category).all())
         by_status = dict(db.session.query(KnowledgeDocument.status, func.count(KnowledgeDocument.id))
+                         .filter(*([KnowledgeDocument.id.in_(scope_ids)] if scope_ids is not None else []))
                          .group_by(KnowledgeDocument.status).all())
+        chunk_count = db.session.query(func.count(KnowledgeChunk.id)).join(KnowledgeDocument).filter(
+            *([KnowledgeDocument.id.in_(scope_ids)] if scope_ids is not None else [])).scalar()
+        graph_stats = self._graph.stats()
+        if scope_ids is not None:
+            graph_stats = {'initialized': graph_stats['initialized'], 'entity_count': None,
+                           'relation_count': None, 'indexed_chunks': chunk_count}
         return {
             'documents_by_status': by_status,
             'documents_by_category': {key: by_category.get(key, 0) for key in CATEGORIES},
-            'indexed_chunks': self.store.size(),
-            'stale_documents': len(self.stale_documents()),
+            'indexed_chunks': chunk_count if scope_ids is not None else self.store.size(),
+            'stale_documents': len([doc for doc in self.stale_documents()
+                                    if scope_set is None or doc.id in scope_set]),
             'embedding': {'provider': self.embedder.provider, 'model': self.embedder.model,
                           'dim': self.embedder.dim, 'signature': self.embedder.signature,
                           'semantic': self.embedder.semantic},
@@ -475,7 +531,7 @@ class KnowledgeBase:
             'hybrid_enabled': self.settings.hybrid_enabled,
             'rerank_enabled': self.settings.rerank_enabled,
             'query_rewrite': self.settings.query_rewrite,
-            'graph': {'enabled': self.settings.graph_enabled, **self._graph.stats()},
+            'graph': {'enabled': self.settings.graph_enabled, **graph_stats},
         }
 
 

@@ -268,7 +268,8 @@ def add_journal(user: User, entry_date: str, body: str):
     day = (entry_date or datetime.utcnow().strftime('%Y-%m-%d')).strip()[:10]
     if not text:
         return None, '请先写一句训练日志'
-    row = TrainingJournal(user_id=user.id, entry_date=day, body=text)
+    from tenancy import tenant_id_for_request
+    row = TrainingJournal(user_id=user.id, tenant_id=tenant_id_for_request(user), entry_date=day, body=text)
     db.session.add(row)
     db.session.commit()
     return row.to_dict(), None

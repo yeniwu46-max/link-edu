@@ -7,6 +7,7 @@ class Classroom(db.Model):
     __tablename__ = 'classrooms'
     session_id = db.Column(db.Integer, db.ForeignKey('training_sessions.id'), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     mode = db.Column(db.String(16), nullable=False, default='full')
     topic = db.Column(db.String(128), default='分数的初步认识', nullable=False)
     state = db.Column(db.String(24), default='active', nullable=False)
@@ -39,6 +40,7 @@ class ClassroomEvent(db.Model):
 class ApiUsage(db.Model):
     __tablename__ = 'classroom_api_usage'
     id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     session_id = db.Column(db.Integer, index=True)
     service = db.Column(db.String(20), nullable=False)
     reserved_cny = db.Column(db.Float, nullable=False)
@@ -52,6 +54,7 @@ class CreditUsage(db.Model):
     """OpenAI Next USD estimates; never mix these with the historical CNY ledger."""
     __tablename__ = 'classroom_credit_usage'
     id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     account = db.Column(db.String(16), nullable=False, index=True)
     service = db.Column(db.String(16), nullable=False)
     model = db.Column(db.String(80), nullable=False)
@@ -77,6 +80,7 @@ class PracticePlan(db.Model):
     __tablename__ = 'classroom_practice_plans'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
     source_session_id = db.Column(db.Integer, db.ForeignKey('classrooms.session_id'), nullable=False, index=True)
     source_report_version = db.Column(db.Integer, nullable=False)
     dimension = db.Column(db.String(24), nullable=False)

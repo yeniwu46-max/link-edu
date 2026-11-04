@@ -4,8 +4,10 @@ from flask_cors import CORS
 from config import Config
 from extensions import db, jwt
 from routes import auth_bp, content_bp, dashboard_bp
+from tenancy import bp as tenants_bp
 from seed import ensure_demo_catalog, seed_if_empty
 import classroom_models
+import tenancy
 
 
 def create_app(config_class=Config):
@@ -45,6 +47,7 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(content_bp)
+    app.register_blueprint(tenants_bp)
     from classroom_routes import register_classroom
     register_classroom(app)
     from assistant_routes import register_assistant
@@ -102,11 +105,23 @@ def _ensure_columns():
 
 def init_db():
     with app.app_context():
-        db.create_all()
+        from alembic import command
+        from alembic.config import Config as AlembicConfig
+        from sqlalchemy import inspect
+        migration_config = AlembicConfig(str(__import__('pathlib').Path(__file__).with_name('alembic.ini')))
+        existing_tables = set(inspect(db.engine).get_table_names())
+        if not existing_tables:
+            # A clean install creates the complete current metadata, then records the baseline revision.
+            db.create_all()
+            command.stamp(migration_config, 'head')
+        else:
+            command.upgrade(migration_config, 'head')
+            db.create_all()
         _ensure_columns()
         if app.config.get('SEED_ON_STARTUP'):
             seed_if_empty()
             ensure_demo_catalog()
+            tenancy.ensure_user_workspaces()
 
 
 if __name__ == '__main__':

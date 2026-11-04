@@ -64,7 +64,7 @@ class ChunkBM25Index:
 
     def search(self, query, top_k, *, categories=None, document_ids=None):
         payload = self._load()
-        if not payload['ids'] or payload['bm25'] is None:
+        if not payload['ids'] or payload['bm25'] is None or document_ids == []:
             return []
         q_tokens = _tokenize(query)
         if not q_tokens:
@@ -74,7 +74,7 @@ class ChunkBM25Index:
         hits = []
         id_set = set(payload['ids'])
         chunk_meta = {}
-        if categories or document_ids:
+        if categories or document_ids is not None:
             q = (db.session.query(KnowledgeChunk.id, KnowledgeDocument.category, KnowledgeChunk.document_id)
                  .join(KnowledgeDocument).filter(KnowledgeChunk.id.in_(payload['ids'])))
             chunk_meta = {row[0]: (row[1], row[2]) for row in q}
@@ -82,13 +82,13 @@ class ChunkBM25Index:
             if score <= 0:
                 break
             chunk_id = payload['ids'][idx]
-            if categories or document_ids:
+            if categories or document_ids is not None:
                 meta = chunk_meta.get(chunk_id)
                 if meta is None:
                     continue
                 if categories and meta[0] not in categories:
                     continue
-                if document_ids and meta[1] not in document_ids:
+                if document_ids is not None and meta[1] not in document_ids:
                     continue
             hits.append((chunk_id, float(score)))
             if len(hits) >= top_k:

@@ -59,7 +59,7 @@ def ensure_plans(room):
         kind = candidate['target_kind']
         if kind in existing:
             continue
-        plan = PracticePlan(user_id=room.user_id, source_session_id=room.session_id,
+        plan = PracticePlan(user_id=room.user_id, tenant_id=room.tenant_id, source_session_id=room.session_id,
                             source_report_version=room.report_version, **candidate,
                             criteria={'behavior_version': BEHAVIOR_VERSION, 'target_kind': kind,
                                       'minimum_observed': 1})

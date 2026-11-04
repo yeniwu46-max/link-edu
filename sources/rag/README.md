@@ -7,6 +7,7 @@
 | 文件 | 说明 |
 | --- | --- |
 | [`manifest.json`](manifest.json) | 入库清单：`path`、`title`、`category`、`source`、`tags`、`priority`（P0/P1） |
+| [`provenance.json`](provenance.json) | 对应语料的来源链接与许可备注；导入时写入知识库治理字段 |
 | [`corpus/classroom_knowledge/`](corpus/classroom_knowledge/) | 由 [`scripts/rag_export_knowledge_cards.py`](../scripts/rag_export_knowledge_cards.py) 从 `backend/data/classroom_knowledge.json` 导出的 Markdown |
 
 ## 分类（category）

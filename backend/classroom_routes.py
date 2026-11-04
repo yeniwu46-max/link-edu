@@ -186,11 +186,14 @@ def create():
                 description='三年级：平均分、几分之一、同一整体', is_active=True)
             db.session.add(course)
             db.session.flush()
-        session = TrainingSession(user_id=uid, course_id=course.id, status='in_progress',
+        from tenancy import tenant_id_for_request
+        tenant_id = tenant_id_for_request(db.session.get(User, uid))
+        session = TrainingSession(user_id=uid, tenant_id=tenant_id, course_id=course.id, status='in_progress',
             progress_percent=0, duration_minutes=0, started_at=datetime.utcnow(), last_trained_at=datetime.utcnow())
         db.session.add(session)
         db.session.flush()
-        room = Classroom(session_id=session.id, user_id=uid, mode=mode_value, cloud_vision=data.get('cloud_vision') is True)
+        room = Classroom(session_id=session.id, user_id=uid, tenant_id=tenant_id, mode=mode_value,
+                         cloud_vision=data.get('cloud_vision') is True)
         db.session.add(room)
         if plan:
             plan.retest_session_id = session.id

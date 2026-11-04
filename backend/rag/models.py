@@ -10,14 +10,17 @@ class KnowledgeDocument(db.Model):
     __tablename__ = 'kb_documents'
 
     id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id'), nullable=True, index=True)
+    visibility = db.Column(db.String(16), nullable=False, default='public', index=True)
     title = db.Column(db.String(200), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
     file_type = db.Column(db.String(16), nullable=False)
     category = db.Column(db.String(32), nullable=False, index=True)
     tags = db.Column(db.JSON, default=list, nullable=False)
     source = db.Column(db.String(255))
+    source_url = db.Column(db.String(500))
     description = db.Column(db.Text)
-    sha256 = db.Column(db.String(64), nullable=False, unique=True)
+    sha256 = db.Column(db.String(64), nullable=False, index=True)
     size_bytes = db.Column(db.Integer, nullable=False)
     storage_path = db.Column(db.String(255), nullable=False)
     status = db.Column(db.String(16), nullable=False, default='processing', index=True)
@@ -37,9 +40,14 @@ class KnowledgeDocument(db.Model):
     chunks = db.relationship('KnowledgeChunk', back_populates='document', lazy='dynamic',
                              cascade='all, delete-orphan', passive_deletes=True)
 
+    __table_args__ = (db.UniqueConstraint('tenant_id', 'visibility', 'uploaded_by', 'sha256',
+                                          name='uq_kb_scope_sha'),)
+
     def to_dict(self):
         return {
             'id': self.id,
+            'tenant_id': self.tenant_id,
+            'visibility': self.visibility,
             'title': self.title,
             'filename': self.filename,
             'file_type': self.file_type,
@@ -48,6 +56,7 @@ class KnowledgeDocument(db.Model):
             'category_label': CATEGORIES.get(self.category, self.category),
             'tags': self.tags or [],
             'source': self.source,
+            'source_url': self.source_url,
             'description': self.description,
             'size_bytes': self.size_bytes,
             'status': self.status,

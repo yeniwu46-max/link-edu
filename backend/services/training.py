@@ -421,13 +421,15 @@ def build_review_question_context(user, feedback: AiFeedback, question):
     return context
 
 
-def start_session(user: User, course_id: int):
-    course = db.session.get(Course, course_id)
+def start_session(user: User, course_id: int, *, tenant_id=None):
+    course = Course.query.filter(Course.id == course_id, Course.is_active.is_(True),
+                                 db.or_(Course.tenant_id.is_(None), Course.tenant_id == tenant_id)).first()
     if not course or not course.is_active:
         return None, '课程不存在'
 
     session = TrainingSession(
         user_id=user.id,
+        tenant_id=tenant_id,
         course_id=course.id,
         status='in_progress',
         progress_percent=8,
@@ -471,6 +473,7 @@ def complete_session(user: User, session_id: int, duration_minutes: int, scene: 
 
     feedback = AiFeedback(
         user_id=user.id,
+        tenant_id=session.tenant_id,
         session_id=session.id,
         overall_score=report['overall_score'],
         clarity_score=report['clarity_score'],
@@ -542,7 +545,8 @@ def generate_ai_review(
     }
     try:
         if feedback is None:
-            feedback = AiFeedback(user_id=user.id, session_id=session_id, overall_score=0)
+            feedback = AiFeedback(user_id=user.id, tenant_id=session.tenant_id,
+                                  session_id=session_id, overall_score=0)
             db.session.add(feedback)
         previous_report = dict(existing_report)
         generating_report = dict(previous_report)

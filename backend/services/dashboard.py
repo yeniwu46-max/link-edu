@@ -22,6 +22,8 @@ NAV_ITEMS = ['工作台', '课程中心', '教学训练', 'AI 评课', '成长�
 
 
 def build_dashboard_overview(user: User):
+    from tenancy import tenant_id_for_request
+    tenant_id = tenant_id_for_request(user)
     now = datetime.utcnow()
     week_start = now - timedelta(days=7)
     prev_week_start = now - timedelta(days=14)
@@ -66,8 +68,10 @@ def build_dashboard_overview(user: User):
         for row in scorable_feedbacks[:7]
     ][::-1]
 
-    course_count = Course.query.filter_by(is_active=True).count()
-    resource_count = Resource.query.filter_by(is_active=True).count()
+    course_count = Course.query.filter(Course.is_active.is_(True),
+        (Course.tenant_id.is_(None) | (Course.tenant_id == tenant_id))).count()
+    resource_count = Resource.query.filter(Resource.is_active.is_(True),
+        (Resource.tenant_id.is_(None) | (Resource.tenant_id == tenant_id))).count()
     training_count = TrainingSession.query.filter_by(user_id=user.id).count()
 
     weekly_heatmap = build_heatmap(user, 7)
@@ -135,8 +139,13 @@ def build_dashboard_overview(user: User):
 
 
 def list_courses(user: Optional[User] = None):
+    tenant_id = None
+    if user:
+        from tenancy import tenant_id_for_request
+        tenant_id = tenant_id_for_request(user)
     courses = (
-        Course.query.filter_by(is_active=True)
+        Course.query.filter(Course.is_active.is_(True),
+                            (Course.tenant_id.is_(None) | (Course.tenant_id == tenant_id)))
         .order_by(Course.stage.asc(), Course.id.asc())
         .all()
     )
@@ -168,4 +177,7 @@ def list_courses(user: Optional[User] = None):
 
 
 def list_resources():
-    return [resource.to_dict() for resource in Resource.query.filter_by(is_active=True).order_by(Resource.id).all()]
+    from tenancy import current_tenant
+    tenant_id = current_tenant().id
+    return [resource.to_dict() for resource in Resource.query.filter(Resource.is_active.is_(True),
+        (Resource.tenant_id.is_(None) | (Resource.tenant_id == tenant_id))).order_by(Resource.id).all()]

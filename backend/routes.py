@@ -14,6 +14,7 @@ from services.training import (
     start_session,
     update_session,
 )
+from tenancy import personal_tenant_for, TenantMembership
 
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
@@ -64,6 +65,7 @@ def register():
     except IntegrityError:
         db.session.rollback()
         return jsonify(message='该账号已经注册，请直接登录'), 409
+    personal_tenant_for(user, commit=True)
     return jsonify(message='注册成功', user=user.to_dict()), 201
 
 
@@ -74,7 +76,6 @@ def login():
         return jsonify(message='请求字段必须为文字'), 400
     account = (data.get('account') or '').strip()
     password = data.get('password') or ''
-    role = data.get('role') or 'student'
 
     if not account or not password:
         return jsonify(message='请填写账号和密码', code='invalid_credentials'), 400
@@ -83,12 +84,16 @@ def login():
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify(message='账号或密码错误'), 401
 
-    if role in {'student', 'teacher'} and user.role != role:
-        user.role = role
-        db.session.commit()
-
     token = create_access_token(identity=str(user.id))
-    return jsonify(access_token=token, user=user.to_dict())
+    memberships = TenantMembership.query.filter_by(user_id=user.id, status='active').all()
+    if not memberships:
+        personal_tenant_for(user, commit=True)
+        memberships = TenantMembership.query.filter_by(user_id=user.id, status='active').all()
+    from tenancy import current_tenant
+    active = current_tenant(user)
+    return jsonify(access_token=token, user=user.to_dict(),
+                   tenants=[{**item.tenant.to_dict(item.role), 'active': item.tenant_id == active.id}
+                            for item in memberships])
 
 
 @auth_bp.get('/me')
@@ -140,7 +145,8 @@ def create_training_session():
         return jsonify(message='课程参数无效'), 400
     if course_id <= 0:
         return jsonify(message='课程参数无效'), 400
-    session, error = start_session(user, course_id)
+    from tenancy import tenant_id_for_request
+    session, error = start_session(user, course_id, tenant_id=tenant_id_for_request(user))
     if error:
         return jsonify(message=error), 404
     return jsonify(session=session.to_dict()), 201

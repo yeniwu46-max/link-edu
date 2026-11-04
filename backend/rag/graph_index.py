@@ -92,7 +92,7 @@ class KnowledgeGraphIndex:
     def _allowed(chunk, categories, document_ids):
         return (chunk is not None
                 and (not categories or chunk['category'] in categories)
-                and (not document_ids or chunk['document_id'] in document_ids))
+                and (document_ids is None or chunk['document_id'] in document_ids))
 
     def search(self, query, seed_chunk_ids=(), *, top_k=20, categories=None, document_ids=None):
         started = time.perf_counter()

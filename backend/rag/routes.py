@@ -15,6 +15,7 @@ from rag.governance import KnowledgeAuditLog, document_is_expired, log_audit
 from rag.jobs import schedule_ingest
 from rag.service import DuplicateDocument, get_kb
 from rag.settings import CATEGORIES, FILE_TYPES
+from tenancy import current_tenant, membership_role
 
 bp = Blueprint('rag', __name__, url_prefix='/api/rag')
 
@@ -47,7 +48,26 @@ def _can_manage(user):
     settings = get_kb().settings
     if settings.admin_accounts:
         return user is not None and user.account in settings.admin_accounts
-    return user is not None and user.role == 'teacher' and not current_app.config.get('PUBLIC_DEPLOYMENT')
+    if user is None:
+        return False
+    role = membership_role(user)
+    return role in ('owner', 'admin', 'teacher') and not current_app.config.get('PUBLIC_DEPLOYMENT')
+
+
+def _visible_query(user=None):
+    user = user or _user()
+    tenant = current_tenant(user)
+    return KnowledgeDocument.query.filter(
+        db.or_(
+            db.and_(KnowledgeDocument.tenant_id.is_(None), KnowledgeDocument.visibility == 'public'),
+            db.and_(KnowledgeDocument.tenant_id == tenant.id, KnowledgeDocument.visibility == 'tenant'),
+            db.and_(KnowledgeDocument.tenant_id == tenant.id, KnowledgeDocument.visibility == 'private',
+                    KnowledgeDocument.uploaded_by == user.id),
+        ))
+
+
+def _visible_ids(user=None):
+    return [row[0] for row in _visible_query(user).with_entities(KnowledgeDocument.id).all()]
 
 
 def _forbidden():
@@ -55,7 +75,7 @@ def _forbidden():
 
 
 def _document(document_id):
-    document = db.session.get(KnowledgeDocument, document_id)
+    document = _visible_query().filter_by(id=document_id).first()
     if document is None:
         return None, (jsonify(message='资料不存在'), 404)
     return document, None
@@ -122,6 +142,8 @@ def _governance_fields(form):
         fields['license_note'] = str(form.get('license_note')).strip()[:255]
     if form.get('valid_until'):
         fields['valid_until'] = str(form.get('valid_until')).strip()[:10]
+    if form.get('source_url'):
+        fields['source_url'] = str(form.get('source_url')).strip()[:500]
     return fields
 
 
@@ -169,6 +191,12 @@ def upload_document():
         return jsonify(message='请选择要上传的文件（表单字段 file）'), 400
     raw = upload.read()
     user_id = int(get_jwt_identity())
+    tenant = current_tenant(_user())
+    visibility = (form.get('visibility') or 'tenant').strip()
+    if visibility not in ('tenant', 'private', 'public'):
+        return jsonify(message='资料可见范围无效'), 400
+    if visibility == 'public' and not get_kb().settings.admin_accounts:
+        return jsonify(message='公开语料只能由配置的知识库管理员发布'), 403
     fields = {
         'title': (form.get('title') or '').strip() or None,
         'category': (form.get('category') or 'other').strip(),
@@ -176,6 +204,8 @@ def upload_document():
         'source': (form.get('source') or '').strip() or None,
         'description': (form.get('description') or '').strip() or None,
         **_governance_fields(form),
+        'tenant_id': None if visibility == 'public' else tenant.id,
+        'visibility': visibility,
     }
     kb = get_kb()
     use_async = _truthy(form.get('async')) or (
@@ -204,7 +234,7 @@ def upload_document():
 @bp.get('/documents')
 @jwt_required()
 def list_documents():
-    query = KnowledgeDocument.query
+    query = _visible_query()
     category = request.args.get('category')
     if category:
         query = query.filter_by(category=category)
@@ -242,7 +272,7 @@ def update_document(document_id):
         if data['category'] not in CATEGORIES:
             return jsonify(message='知识分类无效'), 400
         document.category = data['category']
-    for field, limit in (('title', 200), ('source', 255)):
+    for field, limit in (('title', 200), ('source', 255), ('source_url', 500)):
         if field in data:
             if not isinstance(data[field], str) or (field == 'title' and not data[field].strip()):
                 return jsonify(message=f'{field} 无效'), 400
@@ -317,7 +347,8 @@ def list_chunks(document_id):
 def get_chunk(chunk_id):
     chunk = db.session.get(KnowledgeChunk, chunk_id)
     if (chunk is None or not chunk.document.is_active or chunk.document.status != 'ready'
-            or document_is_expired(chunk.document)):
+            or document_is_expired(chunk.document)
+            or not _visible_query().filter_by(id=chunk.document_id).first()):
         return jsonify(message='切片不存在'), 404
     return jsonify(chunk=chunk.to_dict(include_extra=True), document=chunk.document.to_dict())
 
@@ -328,7 +359,8 @@ def list_audit():
     if not _can_manage(_user()):
         return _forbidden()
     document_id = request.args.get('document_id', type=int)
-    query = KnowledgeAuditLog.query
+    visible_ids = _visible_ids()
+    query = KnowledgeAuditLog.query.filter(KnowledgeAuditLog.document_id.in_(visible_ids))
     if document_id:
         query = query.filter_by(document_id=document_id)
     page = max(1, request.args.get('page', 1, type=int))
@@ -345,7 +377,11 @@ def retrieve():
     """Retrieval only (no LLM call, no model cost) - for tuning chunking, thresholds and filters."""
     data = _body()
     try:
-        return jsonify(get_kb().retrieve(_question(data), **_filters(data)))
+        filters = _filters(data)
+        allowed = set(_visible_ids())
+        requested = filters.get('document_ids')
+        filters['document_ids'] = sorted(allowed.intersection(requested)) if requested is not None else sorted(allowed)
+        return jsonify(get_kb().retrieve(_question(data), **filters))
     except (ValueError, TypeError) as error:
         return jsonify(message=str(error)), 400
     except EmbeddingError as error:
@@ -362,6 +398,9 @@ def query():
     except (ValueError, TypeError) as error:
         return jsonify(message=str(error)), 400
     try:
+        allowed = set(_visible_ids())
+        requested = filters.get('document_ids')
+        filters['document_ids'] = sorted(allowed.intersection(requested)) if requested is not None else sorted(allowed)
         return jsonify(get_kb().query(question, generate=data.get('generate', True) is not False, **filters))
     except (ValueError, TypeError) as error:
         return jsonify(message=str(error)), 400

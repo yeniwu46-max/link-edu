@@ -26,6 +26,10 @@ def main():
         print(f'Manifest not found: {args.manifest}', file=sys.stderr)
         return 1
     rows = json.loads(args.manifest.read_text(encoding='utf-8'))
+    provenance_path = args.manifest.with_name('provenance.json')
+    provenance = json.loads(provenance_path.read_text(encoding='utf-8')) if provenance_path.is_file() else {}
+    for row in rows:
+        row.update(provenance.get(row['path'], {}))
     if args.priority:
         rows = [row for row in rows if row.get('priority') == args.priority]
     if args.dry_run:
@@ -63,6 +67,8 @@ def main():
                     tags=tags,
                     source=row.get('source'),
                     description=row.get('description'),
+                    source_url=row.get('source_url'),
+                    license_note=row.get('license_note'),
                 )
                 print(f'[ok] #{document.id} {path.name}: {document.chunk_count} chunks')
             except DuplicateDocument as error:

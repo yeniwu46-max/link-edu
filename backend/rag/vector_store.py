@@ -96,7 +96,9 @@ class NumpyVectorStore:
         mask = np.ones(len(snapshot.ids), dtype=bool)
         if categories:
             mask &= np.isin(snapshot.categories, list(categories))
-        if document_ids:
+        if document_ids is not None:
+            if not document_ids:
+                return []
             mask &= np.isin(snapshot.document_ids, list(document_ids))
         if not mask.any():
             return []
