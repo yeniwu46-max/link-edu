@@ -1,5 +1,4 @@
 <script setup>
-import PaperTitle from '../components/PaperTitle.vue'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Printer, ArrowUpRight, History } from '@vicons/tabler';
@@ -78,30 +77,16 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
 <template>
   <div class="classroom-review-page">
     <header class="review-masthead">
-      <PaperTitle text="课堂回响" legacy-text="AI 评课" />
-      <div class="review-page-actions no-print">
-        <router-link class="review-button" to="/classroom">模拟课堂<ArrowUpRight aria-hidden="true" /></router-link>
-        <button class="review-button" :disabled="loading || busy" @click="initialize"><Refresh aria-hidden="true" />刷新</button>
-        <button v-if="room?.report && room.report_state!=='insufficient'" class="review-button" @click="printReport"><Printer aria-hidden="true" />打印 / PDF</button>
-      </div>
+      <h1 class="sr-only">AI 评课</h1>
     </header>
-    <div class="review-session-switch no-print" data-tour="review">
-      <ModelShowcase kind="prism" label="多维评课棱镜" />
-      <label for="review-session"><History aria-hidden="true" />历史课堂</label>
-      <select id="review-session" :value="selectedId" :disabled="busy || loading || !endedHistory.length" @change="selectHistory">
-        <option v-if="!endedHistory.some(item=>String(item.session_id)===selectedId)" :value="selectedId">{{ selectedId ? '课堂 #'+selectedId : '选择已结束的课堂' }}</option>
-        <option v-for="item in endedHistory" :key="item.session_id" :value="String(item.session_id)">{{ formatReportDate(item.created_at) }} · {{ item.topic }} · {{ stateLabel(item.report_state) }}</option>
-      </select>
-      <router-link to="/ai-review?legacy=1">旧训练记录 ↗</router-link>
-    </div>
     <p v-if="historyError" class="review-inline-alert" role="alert">{{ historyError }}</p>
     <div v-if="error" class="review-inline-alert" role="alert">{{ error }}<button class="review-button" :disabled="loading || busy" @click="initialize">重新读取</button><router-link to="/">重新登录</router-link></div>
     <section v-if="loading && !room" class="review-empty-state" role="status"><span class="review-loading-line" />正在读取课堂证据…</section>
     <section v-else-if="!room && !error && !historyError" class="review-empty-state"><h2>你的第一份评课，等待一节真实课堂</h2><p>完成授课后，AI 结论与课堂证据会一起保存在这里。</p><router-link class="review-button primary" to="/classroom">进入模拟课堂<ArrowUpRight aria-hidden="true" /></router-link></section>
     <template v-if="room">
       <div class="review-session-meta"><span>课堂 #{{ room.session_id }} · {{ room.topic }}</span><span>{{ formatReportDate(room.created_at) }} · {{ formatReportTime(Number.isFinite(room.elapsed)?room.elapsed*1000:NaN) }}</span></div>
-      <section v-if="['active','paused'].includes(room.state)" class="review-empty-state"><h2>这节课堂还未结束</h2><p>此处不会提前生成评分。</p><router-link class="review-button" :to="classroomDestination(room)">返回课堂</router-link></section>
-      <ClassroomReport v-else :room="room" :busy="busy" @regenerate="regenerate" @plans-created="loadRoom(room.session_id)" />
+      <section v-if="['active','paused'].includes(room.state)" class="review-empty-state"><h2>这节课堂还未结束</h2><p>课堂结束后再根据已保存的证据整理教练反馈。</p><router-link class="review-button" :to="classroomDestination(room)">返回课堂</router-link></section>
+      <ClassroomReport v-else :room="room" :busy="busy" @regenerate="regenerate" @plans-created="loadRoom(room.session_id)" @refresh="initialize" @print="printReport" />
     </template>
   </div>
 </template>

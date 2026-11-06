@@ -7,6 +7,11 @@ export const REVIEW_DIMENSIONS = [
   ['questioning','提问质量','问题是否推动解释与理解','选一个问题，尝试增加“为什么”或反例追问，再检查学生回应。'],
   ['structure','课堂结构','目标、展开与收束是否连贯','复看开头与结尾，核对本课目标是否得到回应。'],
 ];
+export const CLASS_COACH_DOMAINS = [
+  ['emotional_support','情感支持'],
+  ['classroom_organization','课堂组织'],
+  ['instructional_support','教学支持'],
+];
 const list=value=>Array.isArray(value)?value:[];
 export const parseKbSourceId=id=>typeof id==='string' && id.startsWith('kb:') ? Number(id.slice(3)) : null;
 export function enrichSource(source){
@@ -46,6 +51,16 @@ export function buildReview(room={}) {
       sources:[...new Set(list(item.source_ids))].filter(id=>sourceMap.has(id)).map(id=>sourceMap.get(id)),
       theoryPool:dimTheory.length?dimTheory:undefined};
   });
+  const coachingFocuses=list(report?.coaching_focuses).map(item=>{
+    const ids=[...new Set(list(item.evidence_ids))];
+    return {...item,evidence:ids.filter(id=>byId.has(id)).map(id=>byId.get(id)).sort(byTime),
+      sources:[...new Set(list(item.source_ids))].filter(id=>sourceMap.has(id)).map(id=>sourceMap.get(id))};
+  });
+  const coachingGroups=CLASS_COACH_DOMAINS.map(([key,label])=>({key,label,
+    focuses:coachingFocuses.filter(item=>item.domain===key)})).filter(group=>group.focuses.length);
+  const legacyNotes=report && !Array.isArray(report.coaching_focuses)
+    ? dimensions.filter(item=>list(report?.dimensions).some(old=>old.key===item.key)).map(item=>({...item,
+      evidenceStatus:item.evidence.length?'partial':'insufficient'})) : [];
   const replies=events.filter(e=>e.type==='student');
   const replyIds=new Set(replies.map(e=>e.data.reply_id).filter(Boolean));
   const interrupted=new Set(events.filter(e=>e.type==='interrupt'||(e.type==='playback' &&
@@ -58,8 +73,11 @@ export function buildReview(room={}) {
   const span=Math.max(duration||0,...events.filter(timed).map(e=>e.at_ms),1);
   const lanes=[['teacher','教师转写',transcript],['student','学生生成',replies],['completed','完整播放',completed],['visual','视觉采样',visual]]
     .map(([key,label,items])=>({key,label,count:items.length,allEvents:items,events:items.filter(timed).map(e=>({...e,position:e.at_ms/span*100}))}));
+  const reflections=coachingFocuses.filter(item=>item.evidence.length && item.recommendation)
+    .slice(0,3).map(item=>({key:item.key,label:item.label,reflection:item.recommendation,evidence:item.evidence}));
   return {hasReport:Boolean(report),overall:validScore(report?.overall_score),dimensions,scored:dimensions.filter(d=>d.score!==null).length,
+    coachingFocuses,coachingGroups,hasCoaching:Array.isArray(report?.coaching_focuses),legacyNotes,
     events,lanes,duration,span,untimed:events.filter(e=>!timed(e)).length,
     metrics:{transcripts:transcript.length,replies:replies.length,completed:completed.length,visual:visual.length},
-    reflections:dimensions.filter(d=>d.score!==null).sort((a,b)=>a.score-b.score).slice(0,3)};
+    reflections};
 }

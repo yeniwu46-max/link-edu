@@ -12,10 +12,35 @@ TASKS = {
     'pace': ('question_response', '提出明确问题，并留出一次能够完整播放的学生回应。'),
     'clarity': ('teacher_question', '解释概念后，提出一个可检验理解的具体问题。'),
 }
+COACHING_TARGETS = {
+    'analysis_inquiry': 'teacher_followup',
+    'feedback_quality': 'teacher_feedback',
+    'student_perspective': 'teacher_feedback',
+    'concept_development': 'teacher_question',
+    'instructional_dialogue': 'question_response',
+    'productivity': 'question_response',
+}
 
 
 def proposed_tasks(report, valid_event_ids=None):
     """Use only evidence-backed dimensions; otherwise mark a general practice."""
+    focuses = report.get('coaching_focuses') if isinstance(report, dict) else []
+    plans, seen = [], set()
+    for focus in (focuses if isinstance(focuses, list) else []):
+        if not isinstance(focus, dict) or focus.get('evidence_status') == 'insufficient':
+            continue
+        kind = COACHING_TARGETS.get(focus.get('key'))
+        ids = [event_id for event_id in focus.get('evidence_ids', []) if type(event_id) is int and
+               (valid_event_ids is None or event_id in valid_event_ids)]
+        recommendation = str(focus.get('recommendation') or '').strip()
+        if not kind or kind in seen or not ids or len(recommendation) < 8:
+            continue
+        seen.add(kind)
+        plans.append({'dimension': focus['key'], 'target_kind': kind,
+                      'task_text': recommendation[:1000], 'basis': 'report_evidence',
+                      'source_event_ids': list(dict.fromkeys(ids))})
+        if len(plans) == 3:
+            return plans
     dimensions = report.get('dimensions') if isinstance(report, dict) else []
     dimensions = dimensions if isinstance(dimensions, list) else []
     ranked = sorted((d for d in dimensions if isinstance(d, dict) and
@@ -24,8 +49,6 @@ def proposed_tasks(report, valid_event_ids=None):
                      any(type(event_id) is int and (valid_event_ids is None or event_id in valid_event_ids)
                          for event_id in d['event_ids'])),
                     key=lambda d: (d['score'], d['key']))
-    plans = []
-    seen = set()
     for dimension in ranked:
         kind, text = TASKS[dimension['key']]
         if kind in seen:

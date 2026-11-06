@@ -1,4 +1,4 @@
-"""Per-dimension RAG theory evidence for classroom AI reports (six LINK dimensions)."""
+"""Retrieval evidence for legacy LINK dimensions and CLASS-S-aligned coaching domains."""
 from services.classroom_knowledge import search
 from services.classroom_reports import DIMENSIONS, RAG_REPORT_QUERY
 
@@ -8,6 +8,17 @@ def _dimension_indicators():
     return [
         {'key': key, 'label': DIMENSIONS[key], 'description': REVIEW_DIMENSION_FOCUS.get(key, '')}
         for key in DIMENSIONS
+    ]
+
+
+def _coaching_domain_indicators():
+    return [
+        {'key': 'emotional_support', 'label': '情感支持',
+         'description': '课堂中的尊重、教师对学习者信号的回应、接纳学习者观点；必须基于可听见或可见的互动证据。'},
+        {'key': 'classroom_organization', 'label': '课堂组织',
+         'description': '课堂流程、活动转换、时间使用与教学形式；结合转写、视频和课堂事件，不从单一动作推断质量。'},
+        {'key': 'instructional_support', 'label': '教学支持',
+         'description': '概念理解、分析探究、反馈质量与教学对话；依据课堂原话和可核验的学习者回应。'},
     ]
 
 
@@ -30,15 +41,17 @@ def gather_classroom_theory_evidence(*, scene=None, top_k=3, legacy_query=RAG_RE
     """Legacy BM25 cards + per-dimension RAG pool. Returns (sources, theory_by_dimension)."""
     sources = list(search(legacy_query))
     seen = {item['id'] for item in sources}
-    theory_by_dimension = {key: [] for key in DIMENSIONS}
+    indicators = _dimension_indicators() + _coaching_domain_indicators()
+    theory_by_dimension = {item['key']: [] for item in indicators}
     try:
         from rag.service import get_kb
         kb = get_kb()
         if not kb.settings.enabled:
             return sources, theory_by_dimension
-        pool, refs = kb.evidence_for_indicators(_dimension_indicators(), scene=scene, top_k=top_k)
+        pool, refs = kb.evidence_for_indicators(indicators, scene=scene, top_k=top_k)
         by_ref = {hit['ref']: hit for hit in pool}
-        for key in DIMENSIONS:
+        for indicator in indicators:
+            key = indicator['key']
             dim_list = []
             for ref in refs.get(key) or []:
                 hit = by_ref.get(ref)
