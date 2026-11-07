@@ -1,9 +1,5 @@
-import { parseCourseId } from '../utils/navigation.js';
-// Preserve the chosen skill without starting media or changing the supported classroom scenario.
+// Legacy links reach preparation only. Navigation never creates a classroom or opens devices.
 export function classroomEntry(to = {}) {
   const mode = to.query?.mode;
-  const query = mode === 'fragment' ? { mode } : {};
-  const courseId = Array.isArray(to.query?.courseId) ? null : parseCourseId(to.query?.courseId);
-  if (courseId) query.courseId = String(courseId);
-  return { path: '/classroom', query };
+  return { path: '/classroom', query: mode === 'fragment' ? { mode } : {} };
 }

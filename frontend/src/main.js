@@ -17,16 +17,6 @@ import { useAuthStore } from './stores/auth'
 import './styles.css'
 import './ambient-effects.css'
 import './functional-ui.css'
-import './themes/academy.css'
-import './themes/studio.css'
-import './themes/compact.css'
-import { initializeTheme } from './utils/uiTheme.js'
-import { initializeUiVersion } from './utils/uiVersion.js'
-
-const disposeTheme = initializeTheme()
-const disposeVersion = initializeUiVersion()
-if (import.meta.hot) import.meta.hot.dispose(disposeVersion)
-if (import.meta.hot) import.meta.hot.dispose(disposeTheme)
 
 const router = createRouter({
   history: createWebHistory(),

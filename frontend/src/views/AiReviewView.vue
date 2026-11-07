@@ -3,7 +3,7 @@
     <header class="review-legacy-toolbar">
       <div>
 
-        <PaperTitle text="课堂回响" legacy-text="AI 评课" />
+        <h1 class="sr-only">AI 评课</h1>
         <p class="page-lead">{{ current?.course_title || '最近一次片段教学' }} · {{ report.mode_label || '评课报告' }}</p>
       </div>
       <span v-if="showDemoBadge" class="review-badge">演示评分</span>
@@ -417,9 +417,6 @@
 </template>
 
 <script setup>
-import PaperTitle from '../components/PaperTitle.vue'
-import { useChartColors } from '../utils/uiTheme.js'
-const chartColor = useChartColors()
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NumberFlow from '@number-flow/vue'
@@ -664,11 +661,11 @@ const statModalKicker = computed(() => ({
   history: 'HISTORY',
 }[statModal.value] || 'DETAIL'))
 
-const tooltip = computed(() => ({
-  backgroundColor: chartColor('#120f16'),
-  borderColor: chartColor('rgba(255,255,255,.16)'),
-  textStyle: { color: chartColor('#f4f2f6') },
-}))
+const tooltip = {
+  backgroundColor: '#120f16',
+  borderColor: 'rgba(255,255,255,.16)',
+  textStyle: { color: '#f4f2f6' },
+}
 
 const radarOption = computed(() => ({
   animationDuration: 700,
@@ -676,19 +673,19 @@ const radarOption = computed(() => ({
     indicator: dimensions.value.map((item) => ({ name: item.label.replace(/与|质量|设计|清晰度/g, ''), max: 100 })),
     shape: 'polygon',
     splitNumber: 4,
-    axisName: { color: chartColor('#b9b3bd'), fontSize: 11 },
-    splitLine: { lineStyle: { color: chartColor('rgba(255,255,255,.12)') } },
-    splitArea: { areaStyle: { color: [chartColor('rgba(255,255,255,.02)'), chartColor('rgba(255,255,255,.05)')] } },
-    axisLine: { lineStyle: { color: chartColor('rgba(255,255,255,.16)') } },
+    axisName: { color: '#b9b3bd', fontSize: 11 },
+    splitLine: { lineStyle: { color: 'rgba(255,255,255,.12)' } },
+    splitArea: { areaStyle: { color: ['rgba(255,255,255,.02)', 'rgba(255,255,255,.05)'] } },
+    axisLine: { lineStyle: { color: 'rgba(255,255,255,.16)' } },
   },
   series: [
     {
       type: 'radar',
       symbol: 'rect',
       symbolSize: 6,
-      lineStyle: { width: 2, color: chartColor('#ff7a18') },
-      areaStyle: { color: chartColor('rgba(180,92,255,.22)') },
-      itemStyle: { color: chartColor('#b45cff') },
+      lineStyle: { width: 2, color: '#ff7a18' },
+      areaStyle: { color: 'rgba(180,92,255,.22)' },
+      itemStyle: { color: '#b45cff' },
       data: [{ value: dimensions.value.map((item) => item.score || 0) }],
     },
   ],
@@ -704,7 +701,7 @@ const miniBarOption = computed(() => ({
     barWidth: '68%',
     barCategoryGap: '18%',
     data: dimensions.value.map((item) => item.score || 0),
-    itemStyle: { color: chartColor('rgba(255,122,24,.88)'), borderRadius: [5, 5, 0, 0] },
+    itemStyle: { color: 'rgba(255,122,24,.88)', borderRadius: [5, 5, 0, 0] },
   }],
 }))
 
@@ -722,52 +719,52 @@ const miniLineOption = computed(() => ({
     smooth: true,
     symbol: 'none',
     data: historySpark.value.map((item) => item.overall_score || 0),
-    lineStyle: { width: 2.5, color: chartColor('#b45cff') },
-    areaStyle: { color: chartColor('rgba(180,92,255,.22)') },
+    lineStyle: { width: 2.5, color: '#b45cff' },
+    areaStyle: { color: 'rgba(180,92,255,.22)' },
   }],
 }))
 
 const detailBarOption = computed(() => ({
   animationDuration: 500,
   grid: { left: 28, right: 12, top: 24, bottom: 40, containLabel: true },
-  tooltip: tooltip.value,
+  tooltip,
   xAxis: {
     type: 'category',
     data: dimensions.value.map((item) => item.label),
-    axisLabel: { color: chartColor('#b9b3bd'), fontSize: 11, rotate: 18 },
-    axisLine: { lineStyle: { color: chartColor('rgba(255,255,255,.16)') } },
+    axisLabel: { color: '#b9b3bd', fontSize: 11, rotate: 18 },
+    axisLine: { lineStyle: { color: 'rgba(255,255,255,.16)' } },
   },
   yAxis: {
     type: 'value',
     min: 0,
     max: 100,
-    splitLine: { lineStyle: { color: chartColor('rgba(255,255,255,.08)') } },
-    axisLabel: { color: chartColor('#9d97a3') },
+    splitLine: { lineStyle: { color: 'rgba(255,255,255,.08)' } },
+    axisLabel: { color: '#9d97a3' },
   },
   series: [{
     type: 'bar',
     barWidth: 28,
     data: dimensions.value.map((item) => item.score || 0),
-    itemStyle: { color: chartColor('#ff7a18'), borderRadius: [6, 6, 0, 0] },
+    itemStyle: { color: '#ff7a18', borderRadius: [6, 6, 0, 0] },
   }],
 }))
 
 const detailLineOption = computed(() => ({
   animationDuration: 500,
   grid: { left: 28, right: 16, top: 24, bottom: 32, containLabel: true },
-  tooltip: tooltip.value,
+  tooltip,
   xAxis: {
     type: 'category',
     data: historySpark.value.map((item, index) => item.created_at?.slice(5, 10) || `#${index + 1}`),
-    axisLabel: { color: chartColor('#b9b3bd') },
-    axisLine: { lineStyle: { color: chartColor('rgba(255,255,255,.16)') } },
+    axisLabel: { color: '#b9b3bd' },
+    axisLine: { lineStyle: { color: 'rgba(255,255,255,.16)' } },
   },
   yAxis: {
     type: 'value',
     min: 50,
     max: 100,
-    splitLine: { lineStyle: { color: chartColor('rgba(255,255,255,.08)') } },
-    axisLabel: { color: chartColor('#9d97a3') },
+    splitLine: { lineStyle: { color: 'rgba(255,255,255,.08)' } },
+    axisLabel: { color: '#9d97a3' },
   },
   series: [{
     type: 'line',
@@ -775,9 +772,9 @@ const detailLineOption = computed(() => ({
     symbol: 'circle',
     symbolSize: 8,
     data: historySpark.value.map((item) => item.overall_score || 0),
-    lineStyle: { width: 3, color: chartColor('#b45cff') },
-    itemStyle: { color: chartColor('#ff7a18') },
-    areaStyle: { color: chartColor('rgba(180,92,255,.16)') },
+    lineStyle: { width: 3, color: '#b45cff' },
+    itemStyle: { color: '#ff7a18' },
+    areaStyle: { color: 'rgba(180,92,255,.16)' },
   }],
 }))
 

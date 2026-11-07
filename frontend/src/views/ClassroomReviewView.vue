@@ -78,6 +78,7 @@ onBeforeUnmount(()=>{disposed=true;requestId++;controller?.abort();clearTimeout(
   <div class="classroom-review-page">
     <header class="review-masthead">
       <h1 class="sr-only">AI 评课</h1>
+      <router-link class="review-button" :to="{path:'/ai-review',query:{demo:'gmq'}}">GMQ 试讲报告示例</router-link>
     </header>
     <p v-if="historyError" class="review-inline-alert" role="alert">{{ historyError }}</p>
     <div v-if="error" class="review-inline-alert" role="alert">{{ error }}<button class="review-button" :disabled="loading || busy" @click="initialize">重新读取</button><router-link to="/">重新登录</router-link></div>

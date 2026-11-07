@@ -1,6 +1,6 @@
 <template>
   <div class="sparse-page profile-page" :class="`profile-page--${page}`">
-<PaperTitle :text="pageTitle" />
+<h1 class="sr-only">{{ pageTitle }}</h1>
     <p v-if="profileError" class="dock-hint" role="alert">{{ profileError }}</p>
 
     <div ref="contentScroll" class="page-scroll" data-tour="profile">
@@ -78,11 +78,6 @@
 
     <!-- 设置：只做系统操作 -->
     <div v-else-if="page === 'settings'" class="settings-stack">
-      <section class="settings-block appearance-settings">
-        <h3>界面风格</h3>
-        <p>随时切换，选择会保存在当前浏览器。</p>
-        <ThemeSwitcher cards />
-      </section>
       <section class="settings-block">
         <h3>使用引导</h3>
         <button type="button" @click="startTour">重新查看新手引导</button>
@@ -177,7 +172,6 @@
 </template>
 
 <script setup>
-import PaperTitle from '../components/PaperTitle.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { startTour } from '../utils/onboarding.js'
@@ -185,7 +179,6 @@ import { addJournal, fetchFeedbacks, fetchProfile, saveProfile } from '../servic
 import { useAuthStore } from '../stores/auth'
 import { loadSettings, openHelpChat, resetSettings, saveSettings } from '../utils/settings'
 import { journalSubmitErrorMessage } from '../utils/dashboardState'
-import ThemeSwitcher from '../components/ThemeSwitcher.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -317,13 +310,13 @@ async function save() {
 
 function setSetting(key, value) {
   settings[key] = value
-  persistSettings({ [key]: value })
+  persistSettings()
 }
 
-function persistSettings(partial) {
+function persistSettings() {
   settingsError.value = ''
   try {
-    saveSettings(partial)
+    saveSettings({ ...settings })
   } catch {
     settingsError.value = '设置保存失败，请检查浏览器存储权限后重试。'
   }

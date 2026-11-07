@@ -57,12 +57,13 @@ export class ClassroomAudio {
         this.flushed?.();
         return;
       }
-      const bytes = new Uint8Array(data);
+      const pcm = data?.pcm || data;
+      const bytes = new Uint8Array(pcm);
       let binary = "";
       bytes.forEach((b) => {
         binary += String.fromCharCode(b);
       });
-      this.send("audio", { audio: btoa(binary) });
+      this.send("audio", { audio: btoa(binary), voice_features: data?.features || null });
     };
     this.source.connect(this.capture);
     this.capture.connect(this.ctx.destination);

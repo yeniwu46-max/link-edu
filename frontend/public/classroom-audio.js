@@ -8,13 +8,47 @@ class ClassroomPCM extends AudioWorkletProcessor {
     this.port.onmessage = ({ data }) => {
       if (data === "flush") {
         if (this.samples.length) {
-          const pcm = new Int16Array(this.samples);
-          this.port.postMessage(pcm.buffer, [pcm.buffer]);
+          this.flushSamples();
           this.samples = [];
         }
         this.port.postMessage({ flushed: true });
       }
     };
+  }
+  flushSamples() {
+    const pcm = new Int16Array(this.samples);
+    let square = 0;
+    let crossings = 0;
+    for (let i = 0; i < pcm.length; i++) {
+      const value = pcm[i] / 32768;
+      square += value * value;
+      if (i && (pcm[i - 1] < 0) !== (pcm[i] < 0)) crossings++;
+    }
+    const rms = Math.sqrt(square / Math.max(1, pcm.length));
+    // Decimated autocorrelation gives a lightweight pitch-period estimate for voiced frames.
+    const decimated = [];
+    for (let i = 0; i < pcm.length; i += 2) decimated.push(pcm[i] / 32768);
+    const minLag = 20; // 400 Hz at 8 kHz
+    const maxLag = 133; // about 60 Hz at 8 kHz
+    let bestLag = 0, best = 0;
+    for (let lag = minLag; lag <= Math.min(maxLag, decimated.length / 2); lag++) {
+      let corr = 0, left = 0, right = 0;
+      for (let i = 0; i < decimated.length - lag; i++) {
+        const a = decimated[i], b = decimated[i + lag];
+        corr += a * b; left += a * a; right += b * b;
+      }
+      const score = corr / Math.sqrt((left * right) || 1);
+      if (score > best) { best = score; bestLag = lag; }
+    }
+    const pitchHz = best >= 0.55 && bestLag ? Math.round(8000 / bestLag) : null;
+    this.port.postMessage({
+      pcm: pcm.buffer,
+      features: {
+        rms_dbfs: Math.round(20 * Math.log10(Math.max(rms, 1e-5)) * 10) / 10,
+        zero_crossing_rate: Math.round(crossings / Math.max(1, pcm.length - 1) * 1000) / 1000,
+        pitch_hz: pitchHz,
+      },
+    }, [pcm.buffer]);
   }
   process(inputs, outputs) {
     const channel = inputs[0]?.[0];
@@ -33,8 +67,7 @@ class ClassroomPCM extends AudioWorkletProcessor {
         this.phase -= ratio;
       }
       if (this.samples.length >= 3200) {
-        const pcm = new Int16Array(this.samples);
-        this.port.postMessage(pcm.buffer, [pcm.buffer]);
+        this.flushSamples();
         this.samples = [];
       }
     }

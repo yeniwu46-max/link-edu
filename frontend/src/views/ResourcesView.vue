@@ -1,5 +1,4 @@
 <script setup>
-import PaperTitle from '../components/PaperTitle.vue'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import DraggableResourceCard from "../components/DraggableResourceCard.vue";
 import MarkdownReader from "../components/MarkdownReader.vue";
@@ -134,7 +133,7 @@ onUnmounted(() => {
 
 <template>
   <div class="sparse-page resource-page">
-<PaperTitle text="灵感资料室" legacy-text="资源库" />
+<h1 class="sr-only">资源库</h1>
 
     <div class="page-scroll">
     <div class="resource-collection-row" data-tour="resources"><div class="collection-switch" aria-label="资料来源">

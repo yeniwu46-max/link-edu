@@ -20,7 +20,6 @@ test('copy and contact actions expose real failure states', () => {
 
 test('settings are loaded and saved through the persistent browser preference helpers', () => {
   assert.match(view, /reactive\(loadSettings\(\)\)/)
-  assert.match(view, /saveSettings\(partial\)/)
-  assert.match(view, /persistSettings\(\{ \[key\]: value \}\)/)
+  assert.match(view, /saveSettings\(\{ \.\.\.settings \}\)/)
   assert.match(view, /resetSettings\(\)/)
 })

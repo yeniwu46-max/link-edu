@@ -94,8 +94,7 @@ function bindDepth(el, policy) {
 }
 
 export const ambientUi = {
-  mounted(root, binding = {}) {
-    if (binding.value === false) return
+  mounted(root) {
     let policy = { reducedMotion: true, finePointer: false, visible: true }
     let scanFrame = 0, backgroundFrame = 0
     const depths = new Map(), reveals = new Set(), animations = new Map(), observed = new Set()
@@ -182,12 +181,6 @@ export const ambientUi = {
       root.removeEventListener('pointermove', backgroundMove)
       root.removeEventListener('scroll', resetPointers, true)
     })
-  },
-  updated(root, binding) {
-    if (binding.value === binding.oldValue) return
-    instances.get(root)?.()
-    instances.delete(root)
-    ambientUi.mounted(root, binding)
   },
   unmounted(root) { instances.get(root)?.(); instances.delete(root) },
 }

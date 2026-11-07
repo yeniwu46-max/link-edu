@@ -6,7 +6,6 @@ import { transformSync } from 'esbuild'
 import * as vue from 'vue'
 import * as dashboardState from '../src/utils/dashboardState.js'
 import { useReducedMotion } from '../src/utils/useReducedMotion.js'
-import * as uiTheme from '../src/utils/uiTheme.js'
 
 const { descriptor } = parse(readFileSync(new URL('../src/views/DashboardView.vue', import.meta.url), 'utf8'))
 const { code } = transformSync(compileScript(descriptor, { id: 'dashboard-test' }).content, { format: 'cjs' })
@@ -20,9 +19,6 @@ function createDashboard(overrides = {}) {
   }
   const router = { push: mock.fn() }
   const imports = {
-    '../components/PaperTitle.vue': {},
-    '../components/PixelClassPreview.vue': {},
-    '../utils/uiVersion.js': { useUiVersion: () => ({ isStudio: vue.ref(true) }) },
     vue: { ...vue, onMounted() {}, onUnmounted() {} },
     'vue-router': { useRouter: () => router },
     'echarts/core': { use() {} },
@@ -35,8 +31,6 @@ function createDashboard(overrides = {}) {
     '../utils/greeting': { formatGreeting: () => ({ title: 'Hello', name: 'Test User' }) },
     '../utils/dashboardState': dashboardState,
     '../utils/useReducedMotion.js': { useReducedMotion },
-    '../utils/uiTheme.js': uiTheme,
-    '../components/AcademyStudents.vue': {},
     '../components/LearnMoreButton.vue': {},
     '../components/SummaryCard.vue': {},
   }

@@ -1,6 +1,6 @@
 <template>
   <div class="sparse-page page-growth">
-<PaperTitle text="每一步，都算数" legacy-text="成长档案" />
+<h1 class="sr-only">成长档案</h1>
 
     <div class="page-scroll">
       <details class="growth-alert"><summary>历史规则评分 · 查看来源</summary>
@@ -187,9 +187,6 @@
 </template>
 
 <script setup>
-import PaperTitle from '../components/PaperTitle.vue'
-import { useChartColors } from '../utils/uiTheme.js'
-const chartColor = useChartColors()
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { use } from 'echarts/core'
@@ -327,15 +324,15 @@ const lineOption = computed(() => {
     legend: {
       top: 0,
       right: 0,
-      textStyle: { color: chartColor('#9d97a3'), fontSize: 11 },
+      textStyle: { color: '#9d97a3', fontSize: 11 },
       data: ['综合分'],
     },
     grid: { left: 8, right: 12, top: 36, bottom: 8, containLabel: true },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: chartColor('#120f16'),
-      borderColor: chartColor('rgba(255,255,255,.16)'),
-      textStyle: { color: chartColor('#f4f2f6') },
+      backgroundColor: '#120f16',
+      borderColor: 'rgba(255,255,255,.16)',
+      textStyle: { color: '#f4f2f6' },
       formatter(params) {
         const point = params?.[0]
         if (!point) return ''
@@ -347,15 +344,15 @@ const lineOption = computed(() => {
       data: points.value.map((item) => item.date),
       boundaryGap: true,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: chartColor('rgba(255,255,255,.16)') } },
-      axisLabel: { color: chartColor('#9d97a3') },
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,.16)' } },
+      axisLabel: { color: '#9d97a3' },
     },
     yAxis: {
       type: 'value',
       min: 60,
       max: 100,
-      splitLine: { lineStyle: { color: chartColor('rgba(255,255,255,.08)') } },
-      axisLabel: { color: chartColor('#9d97a3') },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,.08)' } },
+      axisLabel: { color: '#9d97a3' },
     },
     series: [
       {
@@ -365,16 +362,16 @@ const lineOption = computed(() => {
         smooth: true,
         symbol: 'circle',
         symbolSize: (_value, params) => (params.dataIndex === highlight ? 12 : 7),
-        lineStyle: { width: 2.5, color: chartColor('#b45cff') },
+        lineStyle: { width: 2.5, color: '#b45cff' },
         itemStyle: {
-          color: (params) => (params.dataIndex === highlight ? chartColor('#ffb45b') : chartColor('#ff7a18')),
+          color: (params) => (params.dataIndex === highlight ? '#ffb45b' : '#ff7a18'),
         },
-        areaStyle: { color: chartColor('rgba(180,92,255,.14)') },
+        areaStyle: { color: 'rgba(180,92,255,.14)' },
         markPoint: scores.length
           ? {
               symbol: 'circle',
               symbolSize: 10,
-              data: [{ coord: [highlight, scores[highlight]], itemStyle: { color: chartColor('#ffb45b') } }],
+              data: [{ coord: [highlight, scores[highlight]], itemStyle: { color: '#ffb45b' } }],
               label: { show: false },
             }
           : undefined,

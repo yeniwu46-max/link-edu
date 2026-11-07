@@ -1,8 +1,6 @@
 const KEY = 'link_settings'
 
 export const SETTING_DEFAULTS = {
-  uiTheme: 'classic',
-  assistantStyle: 'warm',
   cameraDefault: false,
   mode: 'fragment',
   scene: '导入',
@@ -13,7 +11,7 @@ export const SETTING_DEFAULTS = {
 export function loadSettings() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || '{}')
-    return { ...SETTING_DEFAULTS, ...raw, assistantStyle: raw.assistantStyle === 'calm' ? 'calm' : 'warm' }
+    return { ...SETTING_DEFAULTS, ...raw }
   } catch {
     return { ...SETTING_DEFAULTS }
   }
